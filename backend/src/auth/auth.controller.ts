@@ -1,0 +1,87 @@
+import { Body, Controller, Post, UseGuards, Req } from '@nestjs/common';
+import { JwtAuthGuard } from './jwt.guard';
+import { AuthService } from './auth.service';
+import { RegisterDto } from './dto/register.dto';
+import { LoginDto } from './dto/login.dto';
+import { SendOtpDto } from './dto/send-otp.dto';
+import { VerifyOtpDto } from './dto/verify-otp.dto';
+import { BasicKycDto } from './dto/basic-kyc.dto';
+import { NextOfKinDto } from './dto/next-of-kin.dto';
+import { ProfileDto } from './dto/profile.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { VerifyEmailDto } from './dto/verify-email.dto';
+
+@Controller('auth')
+export class AuthController {
+  constructor(private readonly authService: AuthService) {}
+
+  @Post('register')
+  async register(@Body() dto: RegisterDto) {
+    return this.authService.register(dto);
+  }
+
+  @Post('login')
+  async login(@Body() dto: LoginDto) {
+    return this.authService.login(dto);
+  }
+
+  @Post('otp/send')
+  async sendOtp(@Body() dto: SendOtpDto) {
+    return this.authService.sendOtp(dto);
+  }
+
+  @Post('otp/verify')
+  async verifyOtp(@Body() dto: VerifyOtpDto) {
+    return this.authService.verifyOtp(dto);
+  }
+
+  @Post('kyc/basic')
+  @UseGuards(JwtAuthGuard)
+  async basicKyc(@Req() req: any, @Body() dto: BasicKycDto) {
+    return this.authService.basicKycWithUser(req.user.id, dto);
+  }
+
+  @Post('next-of-kin')
+  @UseGuards(JwtAuthGuard)
+  async nextOfKin(@Req() req: any, @Body() dto: NextOfKinDto) {
+    return this.authService.nextOfKinWithUser(req.user.id, dto);
+  }
+
+  @Post('profile')
+  @UseGuards(JwtAuthGuard)
+  async profile(@Req() req: any, @Body() dto: ProfileDto) {
+    return this.authService.profileWithUser(req.user.id, dto);
+  }
+
+  @Post('2fa/enable')
+  @UseGuards(JwtAuthGuard)
+  async enable2fa(@Req() req: any) {
+    return this.authService.enable2fa(req.user.id);
+  }
+
+  @Post('2fa/verify')
+  async verify2fa(@Body() body: { destination: string; code: string }) {
+    return this.authService.verify2fa(body.destination, body.code);
+  }
+
+  @Post('2fa/disable')
+  @UseGuards(JwtAuthGuard)
+  async disable2fa(@Req() req: any) {
+    return this.authService.disable2fa(req.user.id);
+  }
+
+  @Post('password/reset')
+  async resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authService.resetPassword(dto);
+  }
+
+  @Post('email/verify')
+  async verifyEmail(@Body() dto: VerifyEmailDto) {
+    return this.authService.verifyEmail(dto);
+  }
+
+  @Post('token/refresh')
+  async refreshToken(@Body() body: { refreshToken: string }) {
+    return this.authService.refreshToken(body.refreshToken);
+  }
+}

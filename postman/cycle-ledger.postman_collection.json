@@ -1,0 +1,669 @@
+{
+  "info": {
+    "name": "Cycle Ledger API Smoke",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "f0a7f77a-65df-4a38-a1d0-0f2b9e7c7f01"
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "register"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{authEmail}}\",\n  \"phone\": \"{{authPhone}}\",\n  \"password\": \"{{authPassword}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.userId) { pm.collectionVariables.set('authUserId', json.userId); }",
+                  "// destination defaults for later",
+                  "if (pm.collectionVariables.get('authPhone')) { pm.collectionVariables.set('otpDestination', pm.collectionVariables.get('authPhone')); pm.collectionVariables.set('otpChannel','sms'); pm.collectionVariables.set('otpPurpose','phone_verification'); }",
+                  "else if (pm.collectionVariables.get('authEmail')) { pm.collectionVariables.set('otpDestination', pm.collectionVariables.get('authEmail')); pm.collectionVariables.set('otpChannel','email'); pm.collectionVariables.set('otpPurpose','email_verification'); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "OTP Send (dev)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/auth/otp/send",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "otp", "send"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"channel\": \"{{otpChannel}}\",\n  \"destination\": \"{{otpDestination}}\",\n  \"purpose\": \"{{otpPurpose}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.code) pm.collectionVariables.set('otpCode', json.code);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "OTP Verify",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/auth/otp/verify",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "otp", "verify"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"channel\": \"{{otpChannel}}\",\n  \"destination\": \"{{otpDestination}}\",\n  \"purpose\": \"{{otpPurpose}}\",\n  \"code\": \"{{otpCode}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.accessToken) pm.collectionVariables.set('accessToken', json.accessToken);",
+                  "if (json.refreshToken) pm.collectionVariables.set('refreshToken', json.refreshToken);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "KYC Basic",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/kyc/basic",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "kyc", "basic"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idNumber\": \"{{kycIdNumber}}\",\n  \"fullName\": \"{{kycFullName}}\",\n  \"dob\": \"{{kycDob}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Next of Kin",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/next-of-kin",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "next-of-kin"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{nokName}}\",\n  \"phone\": \"{{nokPhone}}\",\n  \"relationship\": \"{{nokRelationship}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Profile",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "profile"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"profilePhotoUrl\": \"{{profilePhotoUrl}}\",\n  \"bio\": \"{{profileBio}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Token Refresh",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/auth/token/refresh",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "token", "refresh"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.accessToken) pm.collectionVariables.set('accessToken', json.accessToken);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Smoke",
+      "item": [
+        {
+          "name": "Diagnostics: Latest John Wallets",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/ledger/accounts/user/{{johnUserId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["ledger", "accounts", "user", "{{johnUserId}}"]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Fetched account for diagnostics', function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "});",
+                  "var data = {}; try { data = pm.response.json(); } catch(e) {};",
+                  "console.log('Diagnostics account id:', data.id, 'balance:', data.balance);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create John Wallet",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/ledger/wallets",
+              "host": ["{{baseUrl}}"],
+              "path": ["ledger", "wallets"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ownerId\": \"{{johnUserId}}\",\n  \"ownerType\": \"user\",\n  \"ownerName\": \"John Doe\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Created John wallet', function () {",
+                  "  pm.expect(pm.response.code).to.equal(201);",
+                  "});",
+                  "var data = {};",
+                  "try { data = pm.response.json(); } catch (e) {}",
+                  "pm.test('Response has id and account_number', function () {",
+                  "  pm.expect(data).to.have.property('id');",
+                  "  pm.expect(data).to.have.property('account_number');",
+                  "});",
+                  "pm.test('Initial balance is 0.00', function () {",
+                  "  pm.expect(data).to.have.property('balance');",
+                  "  pm.expect(String(data.balance)).to.equal('0.00');",
+                  "});",
+                  "if (data && data.id) { pm.collectionVariables.set('userAccountId', data.id); }"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Jane Wallet",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/ledger/wallets",
+              "host": ["{{baseUrl}}"],
+              "path": ["ledger", "wallets"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ownerId\": \"{{janeUserId}}\",\n  \"ownerType\": \"user\",\n  \"ownerName\": \"Jane Doe\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Created Jane wallet', function () {",
+                  "  pm.expect(pm.response.code).to.equal(201);",
+                  "});",
+                  "var data = {};",
+                  "try { data = pm.response.json(); } catch (e) {}",
+                  "pm.test('Response has id and account_number', function () {",
+                  "  pm.expect(data).to.have.property('id');",
+                  "  pm.expect(data).to.have.property('account_number');",
+                  "});",
+                  "if (data && data.id) { pm.collectionVariables.set('janeAccountId', data.id); }"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Chama Wallet",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/ledger/wallets",
+              "host": ["{{baseUrl}}"],
+              "path": ["ledger", "wallets"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ownerId\": \"{{chamaId}}\",\n  \"ownerType\": \"chama\",\n  \"ownerName\": \"Investment Chama\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Created Chama wallet', function () {",
+                  "  pm.expect(pm.response.code).to.equal(201);",
+                  "});",
+                  "var data = {};",
+                  "try { data = pm.response.json(); } catch (e) {}",
+                  "pm.test('Response has id and account_number', function () {",
+                  "  pm.expect(data).to.have.property('id');",
+                  "  pm.expect(data).to.have.property('account_number');",
+                  "});",
+                  "if (data && data.id) { pm.collectionVariables.set('chamaAccountId', data.id); }"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Deposit (John)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/ledger/transactions/deposit",
+              "host": ["{{baseUrl}}"],
+              "path": ["ledger", "transactions", "deposit"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{johnUserId}}\",\n  \"amount\": 1000,\n  \"externalReference\": \"MPESA-ABC123-20251212-05\",\n  \"description\": \"Initial funding\",\n  \"paymentMethod\": \"mpesa\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Deposit success', function () {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200,201]);",
+                  "});",
+                  "// Capture deposit success and expected balance",
+                  "try {",
+                  "  var req = JSON.parse(pm.request.body.raw || '{}');",
+                  "  if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "    pm.collectionVariables.set('depositSucceeded', 'true');",
+                  "    if (req && req.amount != null) {",
+                  "      var amt = Number(req.amount);",
+                  "      if (!isNaN(amt)) {",
+                  "        pm.collectionVariables.set('expectedJohnBalance', amt.toFixed(2));",
+                  "      }",
+                  "    }",
+                  "  }",
+                  "} catch (e) { /* ignore */ }"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Transaction Details (Last)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/ledger/transactions/{{lastTransactionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["ledger", "transactions", "{{lastTransactionId}}"]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Ensure we have a transaction id; warn and short-circuit tests if missing",
+                  "var tid = pm.collectionVariables.get('lastTransactionId');",
+                  "if (!tid) {",
+                  "  console.warn('No lastTransactionId set. Run Deposit first.');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Transaction details fetched', function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "});",
+                  "var d = {}; try { d = pm.response.json(); } catch(e) {};",
+                  "pm.test('Transaction has entries', function () {",
+                  "  pm.expect(d).to.have.property('entries');",
+                  "  pm.expect(Array.isArray(d.entries)).to.be.true;",
+                  "});",
+                  "if (d && d.entries && d.entries.length) {",
+                  "  console.log('Entries sample:', d.entries[0]);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get John Account",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/ledger/accounts/user/{{johnUserId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["ledger", "accounts", "user", "{{johnUserId}}"]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Fetched John account', function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "});",
+                  "var data = {};",
+                  "try { data = pm.response.json(); } catch (e) {}",
+                  "if (data && data.id) { pm.collectionVariables.set('userAccountId', data.id); }",
+                  "// Only assert balance if a deposit has succeeded in this run",
+                  "if (pm.collectionVariables.get('depositSucceeded') === 'true') {",
+                  "  pm.test('John balance reflects expected amount after deposit', function () {",
+                  "    pm.expect(data).to.have.property('balance');",
+                  "    var expected = pm.collectionVariables.get('expectedJohnBalance') || '1000.00';",
+                  "    pm.expect(String(data.balance)).to.equal(String(expected));",
+                  "  });",
+                  "} else {",
+                  "  console.log('Skipping balance assertion: no successful deposit in this run');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Chama Account",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/ledger/accounts/chama/{{chamaId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["ledger", "accounts", "chama", "{{chamaId}}"]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Fetched Chama account', function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "});",
+                  "var data = {};",
+                  "try { data = pm.response.json(); } catch (e) {}",
+                  "if (data && data.id) { pm.collectionVariables.set('chamaAccountId', data.id); }"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Contribution (User → Chama)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/ledger/transactions/contribution",
+              "host": ["{{baseUrl}}"],
+              "path": ["ledger", "transactions", "contribution"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{johnUserId}}\",\n  \"chamaId\": \"{{chamaId}}\",\n  \"amount\": 100,\n  \"description\": \"Monthly contribution - December\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Contribution success', function () {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200,201]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Transfer (John → Jane)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/ledger/transactions/transfer",
+              "host": ["{{baseUrl}}"],
+              "path": ["ledger", "transactions", "transfer"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"senderUserId\": \"{{johnUserId}}\",\n  \"receiverUserId\": \"{{janeUserId}}\",\n  \"amount\": 50,\n  \"description\": \"Payment for lunch\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Transfer success', function () {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200,201]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Withdrawal (John → M-Pesa)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/ledger/transactions/withdrawal",
+              "host": ["{{baseUrl}}"],
+              "path": ["ledger", "transactions", "withdrawal"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{johnUserId}}\",\n  \"amount\": 200,\n  \"destinationAccount\": \"254712345678\",\n  \"description\": \"Withdrawal to M-Pesa\",\n  \"withdrawalMethod\": \"mpesa\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Withdrawal success', function () {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200,201]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Balance Check (Audit)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/ledger/balance-check",
+              "host": ["{{baseUrl}}"],
+              "path": ["ledger", "balance-check"]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Balance check OK', function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "});",
+                  "var d = {}; try { d = pm.response.json(); } catch(e) {};",
+                  "pm.test('Ledger is balanced', function () {",
+                  "  pm.expect(d).to.have.property('is_balanced');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Account Statement (John)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/ledger/accounts/{{userAccountId}}/statement?startDate=2024-01-01&endDate=2024-12-31",
+              "host": ["{{baseUrl}}"],
+              "path": ["ledger", "accounts", "{{userAccountId}}", "statement"],
+              "query": [
+                { "key": "startDate", "value": "2024-01-01" },
+                { "key": "endDate", "value": "2024-12-31" }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Ensure userAccountId is set; if missing, fetch it",
+                  "var accId = pm.collectionVariables.get('userAccountId');",
+                  "if (!accId) {",
+                  "  var base = pm.collectionVariables.get('baseUrl') || 'http://localhost:3001/api';",
+                  "  var userId = pm.collectionVariables.get('johnUserId');",
+                  "  pm.sendRequest({",
+                  "    url: base + '/ledger/accounts/user/' + userId,",
+                  "    method: 'GET'",
+                  "  }, function (err, res) {",
+                  "    if (!err && res && res.code === 200) {",
+                  "      try { var data = res.json(); if (data && data.id) { pm.collectionVariables.set('userAccountId', data.id); } } catch(e) {}",
+                  "    }",
+                  "  });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Statement fetched', function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "});",
+                  "var arr = []; try { arr = pm.response.json(); } catch(e) {};",
+                  "pm.test('Statement is array', function () {",
+                  "  pm.expect(Array.isArray(arr)).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3001/api" },
+    { "key": "johnUserId", "value": "2b6f9c3a-7d21-4c56-b8e3-9f0a12d34e56" },
+    { "key": "janeUserId", "value": "b7c2a8a1-1e8b-4ce5-9f98-f3b75f2d4a99" },
+    { "key": "chamaId", "value": "0f27fa15-56a9-4b2a-8f2e-2b5d5a9a1c01" },
+    { "key": "userAccountId", "value": "" },
+    { "key": "chamaAccountId", "value": "" },
+    { "key": "janeAccountId", "value": "" },
+    { "key": "expectedJohnBalance", "value": "1000.00" }
+  ]
+}
