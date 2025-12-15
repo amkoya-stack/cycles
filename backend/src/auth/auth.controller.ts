@@ -1,4 +1,4 @@
-import { Body, Controller, Post, UseGuards, Req } from '@nestjs/common';
+import { Body, Controller, Get, Post, UseGuards, Req } from '@nestjs/common';
 import { JwtAuthGuard } from './jwt.guard';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
@@ -53,6 +53,12 @@ export class AuthController {
     return this.authService.profileWithUser(req.user.id, dto);
   }
 
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  async getMe(@Req() req: any) {
+    return this.authService.getUserProfile(req.user.id);
+  }
+
   @Post('2fa/enable')
   @UseGuards(JwtAuthGuard)
   async enable2fa(@Req() req: any) {
@@ -78,6 +84,22 @@ export class AuthController {
   @Post('email/verify')
   async verifyEmail(@Body() dto: VerifyEmailDto) {
     return this.authService.verifyEmail(dto);
+  }
+
+  // Alias endpoints for frontend compatibility
+  @Post('verify-email')
+  async verifyEmailAlias(@Body() body: { email: string; otp: string }) {
+    return this.authService.verifyEmail({ email: body.email, otp: body.otp });
+  }
+
+  @Post('verify-phone')
+  async verifyPhone(@Body() body: { phone: string; otp: string }) {
+    return this.authService.verifyOtp({
+      channel: 'sms',
+      destination: body.phone,
+      code: body.otp,
+      purpose: 'phone_verification',
+    });
   }
 
   @Post('token/refresh')

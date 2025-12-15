@@ -24,7 +24,8 @@
     "migrate:create": "ts-node src/scripts/run-migrations.ts create",
     "seed:system-accounts": "ts-node src/scripts/seed-system-accounts.ts",
     "db:reset": "ts-node src/scripts/reset-database.ts",
-    "seed:ledger": "ts-node src/scripts/seed-ledger.ts"
+    "seed:ledger": "ts-node src/scripts/seed-ledger.ts",
+    "cleanup:duplicates": "ts-node src/scripts/delete-duplicate-chamas.ts"
   },
   "dependencies": {
     "@nestjs/bull": "^11.0.4",
@@ -35,6 +36,7 @@
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^11.1.9",
     "@nestjs/platform-socket.io": "^11.1.9",
+    "@nestjs/schedule": "^6.1.0",
     "@nestjs/websockets": "^11.1.9",
     "@types/nodemailer": "^7.0.4",
     "@types/pdfkit": "^0.17.4",

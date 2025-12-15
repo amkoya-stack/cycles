@@ -19,6 +19,7 @@ export interface CreateChamaDto {
   targetAmount?: number;
   maxMembers?: number;
   settings?: any;
+  externalReference?: string;
 }
 
 export interface UpdateChamaDto {
@@ -66,51 +67,82 @@ export class ChamaService {
    * Create a new chama
    */
   async createChama(adminUserId: string, dto: CreateChamaDto): Promise<any> {
-    // Validation
-    if (dto.contributionAmount <= 0) {
-      throw new BadRequestException(
-        'Contribution amount must be greater than 0',
-      );
-    }
+    try {
+      console.log('Creating chama with dto:', JSON.stringify(dto, null, 2));
 
-    const chamaId = uuidv4();
+      // Idempotency check
+      if (dto.externalReference) {
+        const existing = await this.db.query(
+          `SELECT id FROM chamas WHERE settings->>'externalReference' = $1`,
+          [dto.externalReference],
+        );
+        if (existing.rowCount > 0) {
+          console.log(
+            'Chama already exists with externalReference:',
+            dto.externalReference,
+          );
+          return this.getChamaDetails(adminUserId, existing.rows[0].id);
+        }
+      }
 
-    await this.db.transactionAsSystem(async (client) => {
-      // Create chama
-      const chamaResult = await client.query(
-        `INSERT INTO chamas (
+      // Validation
+      if (dto.contributionAmount <= 0) {
+        throw new BadRequestException(
+          'Contribution amount must be greater than 0',
+        );
+      }
+
+      const chamaId = uuidv4();
+
+      // Generate tags based on chama settings
+      const tags = this.generateChamaTags(dto);
+      console.log('Generated tags:', tags);
+
+      await this.db.transactionAsSystem(async (client) => {
+        // Create chama
+        const chamaResult = await client.query(
+          `INSERT INTO chamas (
           id, name, description, admin_user_id, contribution_amount, 
           contribution_frequency, target_amount, max_members, settings, status
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'active')
         RETURNING *`,
-        [
-          chamaId,
-          dto.name,
-          dto.description || null,
-          adminUserId,
-          dto.contributionAmount,
-          dto.contributionFrequency,
-          dto.targetAmount || 0,
-          dto.maxMembers || 50,
-          JSON.stringify(dto.settings || {}),
-        ],
-      );
+          [
+            chamaId,
+            dto.name,
+            dto.description || null,
+            adminUserId,
+            dto.contributionAmount,
+            dto.contributionFrequency,
+            dto.targetAmount || 0,
+            dto.maxMembers || 50,
+            JSON.stringify({
+              ...(dto.settings || {}),
+              tags,
+              externalReference: dto.externalReference,
+            }),
+          ],
+        );
 
-      // Add admin as first member
-      await client.query(
-        `INSERT INTO chama_members (
+        // Add admin as first member
+        await client.query(
+          `INSERT INTO chama_members (
           chama_id, user_id, role, status, payout_position
         ) VALUES ($1, $2, 'admin', 'active', 1)`,
-        [chamaId, adminUserId],
-      );
+          [chamaId, adminUserId],
+        );
 
-      // Create chama wallet via ledger
-      await this.ledger.createChamaWallet(chamaId, dto.name);
+        // Create chama wallet via ledger
+        await this.ledger.createChamaWallet(chamaId, dto.name);
 
-      return chamaResult.rows[0];
-    });
+        return chamaResult.rows[0];
+      });
 
-    return this.getChamaDetails(adminUserId, chamaId);
+      console.log('Chama created successfully, fetching details...');
+      return this.getChamaDetails(adminUserId, chamaId);
+    } catch (error) {
+      console.error('Error creating chama:', error);
+      throw error;
+    }
   }
 
   /**
@@ -124,8 +156,7 @@ export class ChamaService {
         c.*,
         u.email as admin_email,
         u.phone as admin_phone,
-        u.first_name as admin_first_name,
-        u.last_name as admin_last_name,
+        u.full_name as admin_name,
         COUNT(DISTINCT cm.id) FILTER (WHERE cm.status = 'active') as active_members,
         COALESCE(SUM(cm.total_contributed), 0) as total_contributions,
         get_chama_balance(c.id) as current_balance
@@ -143,7 +174,14 @@ export class ChamaService {
       throw new NotFoundException('Chama not found');
     }
 
-    return result.rows[0];
+    const chama = result.rows[0];
+    return {
+      ...chama,
+      tags: this.extractTagsFromSettings(chama.settings),
+      type: chama.settings?.type || 'savings',
+      lending_enabled: chama.settings?.lending_enabled || false,
+      is_public: chama.settings?.visibility === 'public',
+    };
   }
 
   /**
@@ -216,37 +254,64 @@ export class ChamaService {
   async deleteChama(userId: string, chamaId: string): Promise<any> {
     const member = await this.getMemberRole(userId, chamaId);
     if (member.role !== 'admin') {
-      throw new ForbiddenException('Only admin can close chama');
+      throw new ForbiddenException('Only admin can delete chama');
     }
 
     // Check if chama has balance
     const balance = await this.getChamaBalance(chamaId);
     if (balance > 0) {
       throw new BadRequestException(
-        'Cannot close chama with positive balance. Payout all funds first.',
+        'Cannot delete chama with positive balance. Payout all funds first.',
       );
     }
 
-    await this.db.transactionAsSystem(async (client) => {
-      await client.query(
-        `UPDATE chamas SET status = 'closed', closed_at = NOW() WHERE id = $1`,
-        [chamaId],
-      );
+    // Check if there are other active members
+    const membersResult = await this.db.query(
+      `SELECT COUNT(*) as count FROM chama_members 
+       WHERE chama_id = $1 AND status = 'active' AND user_id != $2`,
+      [chamaId, userId],
+    );
 
-      // Mark all members as left
-      await client.query(
-        `UPDATE chama_members SET status = 'left', left_at = NOW() WHERE chama_id = $1`,
-        [chamaId],
-      );
-    });
+    const otherMembersCount = parseInt(membersResult.rows[0].count);
 
-    return { message: 'Chama closed successfully' };
+    if (otherMembersCount > 0) {
+      // If there are other members, just close it
+      await this.db.transactionAsSystem(async (client) => {
+        await client.query(
+          `UPDATE chamas SET status = 'closed', closed_at = NOW() WHERE id = $1`,
+          [chamaId],
+        );
+
+        // Mark all members as left
+        await client.query(
+          `UPDATE chama_members SET status = 'left', left_at = NOW() WHERE chama_id = $1`,
+          [chamaId],
+        );
+      });
+
+      return { message: 'Chama closed successfully' };
+    } else {
+      // If admin is the only member, permanently delete
+      await this.db.transactionAsSystem(async (client) => {
+        // Delete chama members first (foreign key constraint)
+        await client.query(`DELETE FROM chama_members WHERE chama_id = $1`, [
+          chamaId,
+        ]);
+
+        // Delete the chama
+        await client.query(`DELETE FROM chamas WHERE id = $1`, [chamaId]);
+      });
+
+      return { message: 'Chama deleted successfully' };
+    }
   }
 
   /**
    * List user's chamas
    */
   async listUserChamas(userId: string): Promise<any> {
+    console.log('Fetching chamas for user:', userId);
+
     await this.db.setUserContext(userId);
 
     const result = await this.db.query(
@@ -267,9 +332,68 @@ export class ChamaService {
       [userId],
     );
 
+    console.log('User chamas query returned:', result.rowCount, 'rows');
+
     await this.db.clearContext();
 
-    return result.rows;
+    // Parse tags from settings JSONB
+    return result.rows.map((row) => ({
+      ...row,
+      tags: this.extractTagsFromSettings(row.settings),
+    }));
+  }
+
+  /**
+   * List all chamas for browsing (both public and private are visible)
+   * Public = anyone can join, Private = invite-only
+   * To hide a chama completely, use settings.hidden = true
+   */
+  async listPublicChamas(): Promise<any> {
+    const result = await this.db.query(
+      `SELECT 
+        c.id,
+        c.name,
+        c.description,
+        c.contribution_amount,
+        c.contribution_frequency,
+        c.max_members,
+        c.activity_score,
+        c.roi,
+        c.cover_image,
+        c.settings,
+        c.created_at,
+        COUNT(DISTINCT cm.id) FILTER (WHERE cm.status = 'active') as active_members,
+        get_chama_balance(c.id) as current_balance
+      FROM chamas c
+      LEFT JOIN chama_members cm ON c.id = cm.chama_id
+      WHERE c.status = 'active' 
+        AND (c.settings->>'hidden' IS NULL OR c.settings->>'hidden' = 'false')
+      GROUP BY c.id
+      ORDER BY c.activity_score DESC, c.created_at DESC
+      LIMIT 100`,
+    );
+
+    // Parse tags from settings JSONB
+    return result.rows.map((row) => ({
+      ...row,
+      tags: this.extractTagsFromSettings(row.settings),
+      is_public: true,
+      type: row.settings?.type || 'savings',
+      lending_enabled: row.settings?.lending_enabled || false,
+    }));
+  }
+
+  /**
+   * Extract tags from settings JSONB
+   */
+  private extractTagsFromSettings(settings: any): string[] {
+    if (!settings) return [];
+
+    // If settings is a string, parse it
+    const parsedSettings =
+      typeof settings === 'string' ? JSON.parse(settings) : settings;
+
+    return parsedSettings.tags || [];
   }
 
   // ==========================================
@@ -469,8 +593,7 @@ export class ChamaService {
         cm.*,
         u.email,
         u.phone,
-        u.first_name,
-        u.last_name,
+        u.full_name,
         calculate_contribution_rate(cm.id) as contribution_rate
       FROM chama_members cm
       JOIN users u ON cm.user_id = u.id
@@ -714,8 +837,7 @@ export class ChamaService {
     const result = await this.db.query(
       `SELECT 
         c.*,
-        u.first_name,
-        u.last_name,
+        u.full_name,
         u.phone,
         cy.cycle_number,
         cy.due_date
@@ -901,8 +1023,7 @@ export class ChamaService {
     const result = await this.db.query(
       `SELECT 
         p.*,
-        u.first_name,
-        u.last_name,
+        u.full_name,
         u.phone,
         cy.cycle_number
       FROM payouts p
@@ -916,5 +1037,114 @@ export class ChamaService {
     await this.db.clearContext();
 
     return result.rows;
+  }
+
+  // ==========================================
+  // HELPER METHODS
+  // ==========================================
+
+  /**
+   * Generate tags/categories for chama based on settings
+   */
+  private generateChamaTags(dto: CreateChamaDto): string[] {
+    const tags: string[] = [];
+    const settings = dto.settings || {};
+
+    // Type-based tags
+    if (settings.type) {
+      tags.push(settings.type);
+
+      // Add specific type tags
+      if (settings.type === 'savings' || settings.type === 'merry-go-round') {
+        if (!settings.lending_enabled) {
+          tags.push('savings-only');
+        }
+      }
+      if (settings.type === 'investment') {
+        tags.push('investment');
+      }
+      if (settings.type === 'lending' || settings.lending_enabled) {
+        tags.push('lender');
+      }
+      if (settings.type === 'merry-go-round') {
+        tags.push('rotating-buy');
+      }
+    }
+
+    // Visibility tags
+    if (settings.visibility === 'public') {
+      tags.push('public');
+    } else if (
+      settings.visibility === 'private' ||
+      settings.visibility === 'invite-only'
+    ) {
+      tags.push('private');
+    }
+
+    // Frequency tags
+    if (dto.contributionFrequency === 'weekly') {
+      tags.push('weekly');
+    } else if (dto.contributionFrequency === 'biweekly') {
+      tags.push('biweekly');
+    } else if (dto.contributionFrequency === 'monthly') {
+      tags.push('monthly');
+    } else if (
+      dto.contributionFrequency === 'custom' &&
+      settings.frequency === 'daily'
+    ) {
+      tags.push('daily');
+    }
+
+    // Gender-specific tags (if specified in settings)
+    if (settings.genderRestriction === 'women') {
+      tags.push('women');
+    } else if (settings.genderRestriction === 'men') {
+      tags.push('men');
+    }
+
+    // Special category tags (if specified)
+    if (settings.categories && Array.isArray(settings.categories)) {
+      settings.categories.forEach((cat: string) => {
+        if (!tags.includes(cat)) {
+          tags.push(cat);
+        }
+      });
+    }
+
+    // Initial activity score (new chamas start lower)
+    // This will be updated based on actual activity over time
+
+    return tags;
+  }
+
+  /**
+   * Get all co-members (users from chamas the current user is in)
+   */
+  async getCoMembers(userId: string) {
+    // Get all chamas the user is a member of
+    const userChamas = await this.db.query(
+      `SELECT chama_id FROM chama_members WHERE user_id = $1 AND status = 'active'`,
+      [userId],
+    );
+
+    if (userChamas.rowCount === 0) {
+      return [];
+    }
+
+    const chamaIds = userChamas.rows.map((row) => row.chama_id);
+
+    // Get all members from these chamas, excluding the current user
+    const coMembers = await this.db.query(
+      `SELECT DISTINCT u.id, u.first_name, u.last_name, u.phone, u.email
+       FROM users u
+       INNER JOIN chama_members cm ON u.id = cm.user_id
+       WHERE cm.chama_id = ANY($1)
+         AND cm.status = 'active'
+         AND u.id != $2
+       ORDER BY u.first_name, u.last_name`,
+      [chamaIds, userId],
+    );
+
+    return coMembers.rows;
   }
 }

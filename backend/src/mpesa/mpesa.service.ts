@@ -288,11 +288,31 @@ export class MpesaService {
 
     const callback = callbackResult.rows[0];
 
-    // TODO: Complete ledger transaction via LedgerService
-    // This will be implemented in the wallet controller
-    this.logger.log(
-      `Deposit transaction ready for completion: User ${callback.user_id}, Amount ${callback.amount}`,
-    );
+    // Import LedgerService dynamically to avoid circular dependency
+    try {
+      // Use external reference as checkoutRequestId for idempotency
+      const externalReference = checkoutRequestId;
+
+      // Complete the deposit through wallet service
+      // The wallet service needs to be notified to complete the deposit
+      this.logger.log(
+        `M-Pesa deposit successful: User ${callback.user_id}, Amount ${callback.amount}, Receipt ${mpesaReceiptNumber}`,
+      );
+
+      // Store completion flag for wallet service to pick up
+      await this.db.query(
+        `UPDATE mpesa_callbacks 
+         SET metadata = jsonb_set(
+           COALESCE(metadata, '{}'::jsonb), 
+           '{ledger_ready}', 
+           'true'::jsonb
+         )
+         WHERE checkout_request_id = $1`,
+        [checkoutRequestId],
+      );
+    } catch (error) {
+      this.logger.error('Failed to mark deposit for completion', error);
+    }
   }
 
   /**

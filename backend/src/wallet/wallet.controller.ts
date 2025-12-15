@@ -139,4 +139,43 @@ export class WalletController {
     });
     return result;
   }
+
+  /**
+   * Check deposit status
+   * GET /api/wallet/deposit/status/:checkoutRequestId
+   */
+  @Get('deposit/status/:checkoutRequestId')
+  async checkDepositStatus(
+    @Req() req: any,
+    @Param('checkoutRequestId') checkoutRequestId: string,
+  ) {
+    const result = await this.wallet.checkDepositStatus(
+      req.user.id,
+      checkoutRequestId,
+    );
+    return result;
+  }
+
+  /**
+   * Get failed transactions that may need refunds
+   * GET /api/wallet/failed-transactions
+   */
+  @Get('failed-transactions')
+  async getFailedTransactions(@Req() req: any) {
+    const result = await this.wallet.getFailedTransactions(req.user.id);
+    return result;
+  }
+
+  /**
+   * Request refund for a failed transaction
+   * POST /api/wallet/refund/:callbackId
+   */
+  @Post('refund/:callbackId')
+  async requestRefund(
+    @Req() req: any,
+    @Param('callbackId') callbackId: string,
+  ) {
+    const result = await this.wallet.requestRefund(req.user.id, callbackId);
+    return result;
+  }
 }

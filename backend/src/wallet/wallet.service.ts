@@ -10,6 +10,8 @@ import { LedgerService } from '../ledger/ledger.service';
 import { MpesaService } from '../mpesa/mpesa.service';
 import { StatementService } from './statement.service';
 import { NotificationService } from './notification.service';
+import { WalletGateway } from './wallet.gateway';
+import { LimitsService } from './limits.service';
 import { v4 as uuidv4 } from 'uuid';
 
 export interface DepositRequest {
@@ -45,6 +47,8 @@ export class WalletService {
     private readonly mpesa: MpesaService,
     private readonly statement: StatementService,
     private readonly notification: NotificationService,
+    private readonly walletGateway: WalletGateway,
+    private readonly limits: LimitsService,
   ) {}
 
   /**
@@ -73,6 +77,9 @@ export class WalletService {
     if (request.amount <= 0) {
       throw new BadRequestException('Amount must be greater than 0');
     }
+
+    // Validate against limits
+    await this.limits.validateTransaction(userId, 'deposit', request.amount);
 
     // Generate external reference for idempotency
     const externalReference = uuidv4();
@@ -155,6 +162,9 @@ export class WalletService {
       throw new BadRequestException('Amount must be greater than 0');
     }
 
+    // Validate against limits
+    await this.limits.validateTransaction(userId, 'withdrawal', request.amount);
+
     // Check balance
     const balance = await this.getBalance(userId);
     if (balance < request.amount) {
@@ -230,6 +240,9 @@ export class WalletService {
       throw new BadRequestException('Amount must be greater than 0');
     }
 
+    // Validate against limits
+    await this.limits.validateTransaction(senderId, 'transfer', request.amount);
+
     // Get recipient by phone number
     const recipientResult = await this.db.query(
       'SELECT id FROM users WHERE phone = $1 LIMIT 1',
@@ -284,6 +297,19 @@ export class WalletService {
       }
     } catch (error) {
       console.error('Failed to send transfer receipt:', error);
+    }
+
+    // Emit WebSocket events for both sender and recipient
+    try {
+      const senderBalance = await this.getBalance(senderId);
+      const recipientBalance = await this.getBalance(recipientId);
+      this.walletGateway.emitBalanceUpdate(senderId, senderBalance.toString());
+      this.walletGateway.emitBalanceUpdate(
+        recipientId,
+        recipientBalance.toString(),
+      );
+    } catch (error) {
+      console.error('Failed to emit WebSocket updates:', error);
     }
 
     return result;
@@ -451,5 +477,111 @@ export class WalletService {
         filename: `statement-${userId}-${Date.now()}.csv`,
       };
     }
+  }
+
+  /**
+   * Check deposit status
+   */
+  async checkDepositStatus(
+    userId: string,
+    checkoutRequestId: string,
+  ): Promise<any> {
+    const result = await this.db.query(
+      `SELECT 
+        id,
+        checkout_request_id,
+        amount,
+        status,
+        result_desc,
+        mpesa_receipt_number,
+        transaction_id,
+        initiated_at,
+        callback_received_at
+       FROM mpesa_callbacks
+       WHERE checkout_request_id = $1 AND user_id = $2`,
+      [checkoutRequestId, userId],
+    );
+
+    if (result.rows.length === 0) {
+      throw new NotFoundException('Deposit request not found');
+    }
+
+    return result.rows[0];
+  }
+
+  /**
+   * Get failed transactions for a user
+   */
+  async getFailedTransactions(userId: string): Promise<any[]> {
+    const result = await this.db.query(
+      `SELECT 
+        id,
+        checkout_request_id,
+        amount,
+        status,
+        result_code,
+        result_desc,
+        mpesa_receipt_number,
+        transaction_type,
+        initiated_at,
+        callback_received_at,
+        metadata
+       FROM mpesa_callbacks
+       WHERE user_id = $1 
+       AND (status = 'failed' OR result_code != 0)
+       ORDER BY callback_received_at DESC
+       LIMIT 50`,
+      [userId],
+    );
+
+    return result.rows;
+  }
+
+  /**
+   * Request refund for a failed transaction
+   */
+  async requestRefund(userId: string, callbackId: string): Promise<any> {
+    // Verify the callback belongs to this user and is failed
+    const callbackResult = await this.db.query(
+      `SELECT * FROM mpesa_callbacks 
+       WHERE id = $1 AND user_id = $2`,
+      [callbackId, userId],
+    );
+
+    if (callbackResult.rows.length === 0) {
+      throw new NotFoundException('Transaction not found');
+    }
+
+    const callback = callbackResult.rows[0];
+
+    if (callback.status !== 'failed' && callback.result_code === 0) {
+      throw new BadRequestException('Only failed transactions can be refunded');
+    }
+
+    // Check if already refunded
+    if (callback.metadata?.refunded) {
+      throw new BadRequestException('Refund already requested');
+    }
+
+    // Mark for refund
+    await this.db.query(
+      `UPDATE mpesa_callbacks 
+       SET metadata = jsonb_set(
+         COALESCE(metadata, '{}'::jsonb),
+         '{refund_requested}',
+         to_jsonb(jsonb_build_object(
+           'requested_at', NOW(),
+           'requested_by', $2::text
+         ))
+       )
+       WHERE id = $1`,
+      [callbackId, userId],
+    );
+
+    return {
+      message: 'Refund request submitted successfully',
+      callbackId,
+      status: 'pending_review',
+    };
   }
 }

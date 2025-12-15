@@ -13,15 +13,24 @@ import { JwtAuthGuard } from '../auth/jwt.guard';
 import { ChamaService } from './chama.service';
 
 @Controller('chama')
-@UseGuards(JwtAuthGuard)
 export class ChamaController {
   constructor(private readonly chamaService: ChamaService) {}
+
+  /**
+   * Browse all public chamas (no auth required)
+   * GET /api/chama/public
+   */
+  @Get('public')
+  async listPublicChamas() {
+    return this.chamaService.listPublicChamas();
+  }
 
   /**
    * Create new chama
    * POST /api/chama
    */
   @Post()
+  @UseGuards(JwtAuthGuard)
   async createChama(@Req() req: any, @Body() dto: any) {
     return this.chamaService.createChama(req.user.id, dto);
   }
@@ -31,7 +40,9 @@ export class ChamaController {
    * GET /api/chama
    */
   @Get()
+  @UseGuards(JwtAuthGuard)
   async listChamas(@Req() req: any) {
+    console.log('GET /api/chama called for user:', req.user?.id);
     return this.chamaService.listUserChamas(req.user.id);
   }
 
@@ -40,6 +51,7 @@ export class ChamaController {
    * GET /api/chama/:id
    */
   @Get(':id')
+  @UseGuards(JwtAuthGuard)
   async getChamaDetails(@Req() req: any, @Param('id') chamaId: string) {
     return this.chamaService.getChamaDetails(req.user.id, chamaId);
   }
@@ -49,6 +61,7 @@ export class ChamaController {
    * PUT /api/chama/:id
    */
   @Put(':id')
+  @UseGuards(JwtAuthGuard)
   async updateChama(
     @Req() req: any,
     @Param('id') chamaId: string,
@@ -62,6 +75,7 @@ export class ChamaController {
    * DELETE /api/chama/:id
    */
   @Delete(':id')
+  @UseGuards(JwtAuthGuard)
   async deleteChama(@Req() req: any, @Param('id') chamaId: string) {
     return this.chamaService.deleteChama(req.user.id, chamaId);
   }
@@ -71,6 +85,7 @@ export class ChamaController {
    * POST /api/chama/:id/invite
    */
   @Post(':id/invite')
+  @UseGuards(JwtAuthGuard)
   async inviteMember(
     @Req() req: any,
     @Param('id') chamaId: string,
@@ -84,6 +99,7 @@ export class ChamaController {
    * POST /api/chama/invite/:inviteId/accept
    */
   @Post('invite/:inviteId/accept')
+  @UseGuards(JwtAuthGuard)
   async acceptInvite(@Req() req: any, @Param('inviteId') inviteId: string) {
     return this.chamaService.acceptInvite(req.user.id, inviteId);
   }
@@ -93,6 +109,7 @@ export class ChamaController {
    * GET /api/chama/:id/members
    */
   @Get(':id/members')
+  @UseGuards(JwtAuthGuard)
   async listMembers(@Req() req: any, @Param('id') chamaId: string) {
     return this.chamaService.listMembers(req.user.id, chamaId);
   }
@@ -102,6 +119,7 @@ export class ChamaController {
    * DELETE /api/chama/:id/members/:userId
    */
   @Delete(':id/members/:userId')
+  @UseGuards(JwtAuthGuard)
   async removeMember(
     @Req() req: any,
     @Param('id') chamaId: string,
@@ -115,6 +133,7 @@ export class ChamaController {
    * PUT /api/chama/:id/members/:userId/role
    */
   @Put(':id/members/:userId/role')
+  @UseGuards(JwtAuthGuard)
   async updateMemberRole(
     @Req() req: any,
     @Param('id') chamaId: string,
@@ -134,6 +153,7 @@ export class ChamaController {
    * GET /api/chama/:id/balance
    */
   @Get(':id/balance')
+  @UseGuards(JwtAuthGuard)
   async getChamaBalance(@Req() req: any, @Param('id') chamaId: string) {
     const balance = await this.chamaService.getChamaBalance(chamaId);
     return { balance };
@@ -144,6 +164,7 @@ export class ChamaController {
    * POST /api/chama/:id/cycles
    */
   @Post(':id/cycles')
+  @UseGuards(JwtAuthGuard)
   async createCycle(
     @Req() req: any,
     @Param('id') chamaId: string,
@@ -157,6 +178,7 @@ export class ChamaController {
    * GET /api/chama/:id/cycles/active
    */
   @Get(':id/cycles/active')
+  @UseGuards(JwtAuthGuard)
   async getActiveCycle(@Req() req: any, @Param('id') chamaId: string) {
     return this.chamaService.getActiveCycle(req.user.id, chamaId);
   }
@@ -166,6 +188,7 @@ export class ChamaController {
    * GET /api/chama/:id/cycles
    */
   @Get(':id/cycles')
+  @UseGuards(JwtAuthGuard)
   async getCycleHistory(@Req() req: any, @Param('id') chamaId: string) {
     return this.chamaService.getCycleHistory(req.user.id, chamaId);
   }
@@ -175,6 +198,7 @@ export class ChamaController {
    * POST /api/chama/:id/cycles/:cycleId/contribute
    */
   @Post(':id/cycles/:cycleId/contribute')
+  @UseGuards(JwtAuthGuard)
   async contribute(
     @Req() req: any,
     @Param('id') chamaId: string,
@@ -194,6 +218,7 @@ export class ChamaController {
    * GET /api/chama/:id/contributions
    */
   @Get(':id/contributions')
+  @UseGuards(JwtAuthGuard)
   async getContributionHistory(@Req() req: any, @Param('id') chamaId: string) {
     return this.chamaService.getContributionHistory(req.user.id, chamaId);
   }
@@ -203,6 +228,7 @@ export class ChamaController {
    * GET /api/chama/:id/members/:userId/contributions
    */
   @Get(':id/members/:userId/contributions')
+  @UseGuards(JwtAuthGuard)
   async getMemberContributions(
     @Req() req: any,
     @Param('id') chamaId: string,
@@ -220,6 +246,7 @@ export class ChamaController {
    * POST /api/chama/:id/cycles/:cycleId/payout
    */
   @Post(':id/cycles/:cycleId/payout')
+  @UseGuards(JwtAuthGuard)
   async executePayout(
     @Req() req: any,
     @Param('id') chamaId: string,
@@ -235,5 +262,15 @@ export class ChamaController {
   @Get(':id/payouts')
   async getPayoutHistory(@Req() req: any, @Param('id') chamaId: string) {
     return this.chamaService.getPayoutHistory(req.user.id, chamaId);
+  }
+
+  /**
+   * Get all co-members (users from chamas the current user is in)
+   * GET /api/chama/co-members/all
+   */
+  @Get('co-members/all')
+  @UseGuards(JwtAuthGuard)
+  async getCoMembers(@Req() req: any) {
+    return this.chamaService.getCoMembers(req.user.id);
   }
 }

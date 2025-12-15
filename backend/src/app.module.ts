@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { BullModule } from '@nestjs/bull';
+import { ScheduleModule } from '@nestjs/schedule';
 import { DatabaseModule } from './database/database.module';
 import { RedisModule } from './cache/redis.module';
 import { UsersModule } from './users/users.module';
@@ -9,6 +10,7 @@ import { WalletModule } from './wallet/wallet.module';
 import { ChamaModule } from './chama/chama.module';
 import { LedgerModule } from './ledger/ledger.module';
 import { MpesaModule } from './mpesa/mpesa.module';
+import { AdminModule } from './admin/admin.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -18,6 +20,7 @@ import { AppService } from './app.service';
       isGlobal: true,
       envFilePath: '.env',
     }),
+    ScheduleModule.forRoot(),
     BullModule.forRoot({
       redis: {
         host: process.env.REDIS_HOST || 'localhost',
@@ -32,6 +35,7 @@ import { AppService } from './app.service';
     LedgerModule,
     MpesaModule,
     ChamaModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [AppService],

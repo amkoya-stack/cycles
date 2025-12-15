@@ -53,8 +53,29 @@ export class UsersService {
 
   async updateProfile(userId: string, dto: ProfileDto) {
     await this.db.query(
-      'UPDATE users SET profile_photo_url = COALESCE($1, profile_photo_url), bio = COALESCE($2, bio) WHERE id = $3',
-      [dto.profilePhotoUrl ?? null, dto.bio ?? null, userId],
+      `UPDATE users SET 
+        profile_photo_url = COALESCE($1, profile_photo_url), 
+        bio = COALESCE($2, bio),
+        full_name = COALESCE($3, full_name),
+        dob = COALESCE($4, dob),
+        id_number = COALESCE($5, id_number),
+        website = COALESCE($6, website),
+        facebook = COALESCE($7, facebook),
+        twitter = COALESCE($8, twitter),
+        linkedin = COALESCE($9, linkedin)
+      WHERE id = $10`,
+      [
+        dto.profilePhotoUrl ?? null,
+        dto.bio ?? null,
+        dto.full_name ?? null,
+        dto.date_of_birth ?? null,
+        dto.id_number ?? null,
+        dto.website ?? null,
+        dto.facebook ?? null,
+        dto.twitter ?? null,
+        dto.linkedin ?? null,
+        userId,
+      ],
     );
     return { status: 'profile_saved' };
   }

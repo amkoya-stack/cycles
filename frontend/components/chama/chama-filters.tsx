@@ -9,15 +9,21 @@ interface ChamaFiltersProps {
 
 const filters = [
   { id: "all", label: "All" },
-  { id: "savings", label: "Savings" },
+  { id: "top-rated", label: "Top-rated" },
+  { id: "most-active", label: "Most active" },
   { id: "investment", label: "Investment" },
-  { id: "rotating-items", label: "Rotating Items" },
-  { id: "women", label: "Women" },
-  { id: "youth", label: "Youth" },
-  { id: "high-trust", label: "High Trust" },
-  { id: "accepts-borrowers", label: "Accepts Borrowers" },
-  { id: "high-returns", label: "High Returns" },
+  { id: "lender", label: "Lender" },
+  { id: "savings-only", label: "Savings-only" },
+  { id: "public", label: "Public" },
   { id: "private", label: "Private" },
+  { id: "rotating-buy", label: "Rotating buy" },
+  { id: "high-returns", label: "High returns" },
+  { id: "travel", label: "Travel" },
+  { id: "men", label: "Men" },
+  { id: "women", label: "Women" },
+  { id: "daily", label: "Daily" },
+  { id: "weekly", label: "Weekly" },
+  { id: "monthly", label: "Monthly" },
 ];
 
 export function ChamaFilters({
@@ -25,7 +31,7 @@ export function ChamaFilters({
   onFilterChange,
 }: ChamaFiltersProps) {
   const [showMore, setShowMore] = useState(false);
-  const [visibleCount, setVisibleCount] = useState(filters.length);
+  const [visibleCount, setVisibleCount] = useState(9); // Show first 9 by default
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -38,8 +44,8 @@ export function ChamaFilters({
 
       // Estimate button widths based on text length
       const buttonWidths = filters.map((filter) => {
-        // Approximate: 6.5px per character + 32px padding (px-4 = 16px each side)
-        return filter.label.length * 6.5 + 32;
+        // Approximate: 6px per character + 32px padding (px-4 = 16px each side)
+        return filter.label.length * 6 + 32;
       });
 
       // First check if all items fit without More button
@@ -68,7 +74,7 @@ export function ChamaFilters({
         count++;
       }
 
-      setVisibleCount(Math.max(1, count));
+      setVisibleCount(Math.max(9, count)); // Always show at least 9 filters
     };
 
     calculateVisibleItems();
@@ -83,15 +89,15 @@ export function ChamaFilters({
   return (
     <div ref={containerRef}>
       {/* First line */}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex gap-2 overflow-hidden">
         {visibleFilters.map((filter) => (
           <button
             key={filter.id}
             onClick={() => onFilterChange(filter.id)}
             className={
               activeFilter === filter.id
-                ? "px-4 py-2 rounded-full bg-[#083232] text-white text-sm font-medium transition-colors whitespace-nowrap"
-                : "px-4 py-2 rounded-full border border-gray-300 text-gray-700 text-sm hover:border-[#083232] hover:text-[#083232] transition-colors whitespace-nowrap"
+                ? "px-4 py-2 rounded-full bg-[#083232] text-white text-sm font-medium transition-colors whitespace-nowrap flex-shrink-0"
+                : "px-4 py-2 rounded-full border border-gray-300 text-gray-700 text-sm hover:border-[#083232] hover:text-[#083232] transition-colors whitespace-nowrap flex-shrink-0"
             }
           >
             {filter.label}
@@ -101,7 +107,7 @@ export function ChamaFilters({
         {hiddenFilters.length > 0 && (
           <button
             onClick={() => setShowMore(!showMore)}
-            className="px-4 py-2 rounded-full border border-gray-300 text-gray-700 text-sm hover:border-[#083232] hover:text-[#083232] transition-colors whitespace-nowrap"
+            className="px-4 py-2 rounded-full border border-gray-300 text-gray-700 text-sm hover:border-[#083232] hover:text-[#083232] transition-colors whitespace-nowrap flex-shrink-0"
           >
             {showMore ? "Less..." : "More..."}
           </button>

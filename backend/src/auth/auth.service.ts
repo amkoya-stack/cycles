@@ -15,6 +15,7 @@ import {
 } from './crypto.util';
 import { UsersService } from '../users/users.service';
 import { LedgerService } from '../ledger/ledger.service';
+import { EmailService } from './email.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { SendOtpDto } from './dto/send-otp.dto';
@@ -30,6 +31,7 @@ export class AuthService {
     private readonly config: ConfigService,
     private readonly users: UsersService,
     private readonly ledger: LedgerService,
+    private readonly emailService: EmailService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -37,25 +39,65 @@ export class AuthService {
       throw new BadRequestException('email or phone is required');
     }
     const { email, phone, password } = dto;
+
+    // Check if user exists and their verification status
     const existing = await this.db.query(
-      'SELECT id FROM users WHERE (email = $1 AND $1 IS NOT NULL) OR (phone = $2 AND $2 IS NOT NULL) LIMIT 1',
+      'SELECT id, email_verified, phone_verified FROM users WHERE (email = $1 AND $1 IS NOT NULL) OR (phone = $2 AND $2 IS NOT NULL) LIMIT 1',
       [email || null, phone || null],
     );
+
     if (existing.rowCount > 0) {
-      throw new BadRequestException('User already exists');
+      const user = existing.rows[0] as any;
+      const isEmailVerified = user.email_verified;
+      const isPhoneVerified = user.phone_verified;
+
+      // If user exists and is verified, don't allow re-registration
+      if (isEmailVerified || isPhoneVerified) {
+        throw new BadRequestException('User already exists');
+      }
+
+      // User exists but not verified - resend OTP and allow them to verify
+      const userId = user.id as string;
+
+      // Update password in case they forgot what they used before
+      const passwordHash = await hashPassword(password);
+      await this.db.query('UPDATE users SET password_hash = $1 WHERE id = $2', [
+        passwordHash,
+        userId,
+      ]);
+
+      // Resend OTP codes
+      if (phone) {
+        const code = Math.floor(100000 + Math.random() * 900000).toString();
+        await this.createOtp(userId, 'sms', phone, 'phone_verification', code);
+      }
+      if (email) {
+        const code = Math.floor(100000 + Math.random() * 900000).toString();
+        await this.createOtp(
+          userId,
+          'email',
+          email,
+          'email_verification',
+          code,
+        );
+      }
+
+      return { userId, message: 'Verification code resent' };
     }
+
+    // New user - create account
     const passwordHash = await hashPassword(password);
+    const fullName =
+      `${dto.firstName || ''} ${dto.lastName || ''}`.trim() || null;
     const res = await this.db.query<{ id: string }>(
-      'INSERT INTO users (email, phone, password_hash) VALUES ($1, $2, $3) RETURNING id',
-      [email || null, phone || null, passwordHash],
+      'INSERT INTO users (email, phone, password_hash, full_name) VALUES ($1, $2, $3, $4) RETURNING id',
+      [email || null, phone || null, passwordHash, fullName],
     );
     const userId = res.rows[0].id;
 
     // ✨ Auto-create personal wallet for user
     try {
-      const userName = `${dto.firstName || 'User'} ${dto.lastName || ''}`
-        .trim()
-        .slice(0, 100);
+      const userName = fullName || 'User';
       await this.ledger.createUserWallet(userId, userName);
     } catch (error) {
       // Log error but don't fail registration (wallet can be created later)
@@ -295,6 +337,32 @@ export class AuthService {
       'INSERT INTO otp_codes (user_id, channel, destination, code, purpose, expires_at) VALUES ($1, $2, $3, $4, $5, $6)',
       [userId, channel, destination, hashed, purpose, expires],
     );
+
+    // Send OTP via email if channel is email
+    if (channel === 'email') {
+      await this.emailService.sendOtpEmail({
+        email: destination,
+        code,
+        purpose,
+      });
+    }
+    // TODO: Implement SMS sending via Africa's Talking when ready
+  }
+
+  async getUserProfile(userId: string) {
+    const result = await this.db.query(
+      `SELECT id, email, phone, full_name, dob as date_of_birth, id_number, bio,
+              website, facebook, twitter, linkedin,
+              email_verified, phone_verified, two_factor_enabled, created_at 
+       FROM users WHERE id = $1`,
+      [userId],
+    );
+
+    if (result.rows.length === 0) {
+      throw new BadRequestException('User not found');
+    }
+
+    return result.rows[0];
   }
 
   private async issueTokens(userId: string | null) {
@@ -303,7 +371,7 @@ export class AuthService {
     const accessToken = signJwt(
       { sub: userId, type: 'access' },
       secret,
-      15 * 60,
+      4 * 60 * 60, // 4 hours
     );
     const refreshToken = randomBytes(32).toString('hex');
     const refreshExpires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days

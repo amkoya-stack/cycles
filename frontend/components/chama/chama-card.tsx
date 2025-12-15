@@ -1,9 +1,11 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { formatAmount, formatFrequency } from "@/lib/utils";
 
 interface ChamaCardProps {
   chama: {
@@ -11,14 +13,17 @@ interface ChamaCardProps {
     name: string;
     description?: string;
     cover_image?: string;
-    icon: string;
-    is_public: boolean;
-    lending_enabled: boolean;
-    members_count: number;
+    icon?: string;
+    is_public?: boolean;
+    lending_enabled?: boolean;
+    members_count?: number;
+    active_members?: number;
     contribution_amount: number;
     contribution_frequency: string;
-    roi: number;
-    default_rate: string;
+    roi?: number;
+    default_rate?: string;
+    role?: string;
+    settings?: any;
   };
   onJoin?: (chamaId: string) => void;
   onView?: (chamaId: string) => void;
@@ -38,29 +43,16 @@ export function ChamaCard({ chama, onJoin, onView }: ChamaCardProps) {
           />
         ) : (
           <div className="w-full h-full bg-[#083232] flex items-center justify-center text-white text-4xl">
-            {chama.icon}
+            {chama.icon || "🟢"}
           </div>
         )}
       </div>
 
       {/* Content */}
       <div className="p-3 space-y-2 flex-1 flex flex-col">
-        {/* Header Badges */}
-        <div className="flex items-center justify-between flex-shrink-0">
-          <div className="flex items-center gap-2">
-            <span className="text-xl">{chama.icon}</span>
-            <Badge variant="outline" className="text-xs">
-              {chama.is_public ? "Public" : "Private"}
-            </Badge>
-          </div>
-          {chama.lending_enabled && (
-            <Badge
-              variant="outline"
-              className="text-xs text-[#2e856e] border-[#2e856e]"
-            >
-              💸 Lending OK
-            </Badge>
-          )}
+        {/* Header */}
+        <div className="flex-shrink-0">
+          <span className="text-xl">{chama.icon || "🟢"}</span>
         </div>
 
         {/* Chama Name */}
@@ -70,32 +62,42 @@ export function ChamaCard({ chama, onJoin, onView }: ChamaCardProps) {
 
         {/* Stats Line 1 */}
         <p className="text-xs text-gray-600 flex-shrink-0">
-          {chama.members_count >= 1000
-            ? `${(chama.members_count / 1000).toFixed(1)}k`
-            : chama.members_count}{" "}
-          Members · KSh {chama.contribution_amount.toLocaleString()}/
-          {chama.contribution_frequency.slice(0, 2)}
+          {formatAmount(chama.members_count || chama.active_members || 0)}{" "}
+          Members · KSh {formatAmount(chama.contribution_amount)}/
+          {formatFrequency(chama.contribution_frequency)} ·{" "}
+          {chama.is_public !== false ? "Public" : "Private"}
+          {(chama.lending_enabled || chama.settings?.lending_enabled) &&
+            " · Lending"}
         </p>
 
         {/* Stats Line 2 */}
-        <p className="text-xs text-gray-600 flex-shrink-0">
-          ROI: {chama.roi}% · Default rate: {chama.default_rate}
-        </p>
+        {chama.default_rate && (
+          <p className="text-xs text-gray-600 flex-shrink-0">
+            Default rate: {chama.default_rate}
+          </p>
+        )}
 
         {/* Description */}
         <p className="text-xs text-gray-600 line-clamp-2 flex-shrink-0">
           {chama.description}
         </p>
 
-        {/* Join Button */}
+        {/* Action Button */}
         <Button
           className="w-full bg-[#083232] hover:bg-[#2e856e] text-white mt-auto"
           onClick={(e) => {
             e.preventDefault();
-            onJoin?.(chama.id);
+            if (chama.role) {
+              // User is a member, view the chama
+              const slug = chama.name.toLowerCase().replace(/\s+/g, "-");
+              window.location.href = `/${encodeURIComponent(slug)}`;
+            } else {
+              // Not a member, allow joining
+              onJoin?.(chama.id);
+            }
           }}
         >
-          Join this Cycle
+          {chama.role ? "View Cycle" : "Join this Cycle"}
         </Button>
       </div>
     </Card>
