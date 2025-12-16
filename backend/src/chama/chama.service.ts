@@ -9,6 +9,7 @@ import {
 import { DatabaseService } from '../database/database.service';
 import { LedgerService } from '../ledger/ledger.service';
 import { NotificationService } from '../wallet/notification.service';
+import { ContributionService } from './contribution.service';
 import { v4 as uuidv4 } from 'uuid';
 
 export interface CreateChamaDto {
@@ -59,6 +60,7 @@ export class ChamaService {
     private readonly db: DatabaseService,
     private readonly ledger: LedgerService,
     private readonly notification: NotificationService,
+    private readonly contributionService: ContributionService,
   ) {}
 
   // ==========================================
@@ -1198,9 +1200,9 @@ export class ChamaService {
   }
 
   /**
-   * Get contribution history
+   * Get contribution history (legacy - for backward compatibility)
    */
-  async getContributionHistory(userId: string, chamaId: string): Promise<any> {
+  async getContributionHistoryLegacy(userId: string, chamaId: string): Promise<any> {
     await this.getMemberRole(userId, chamaId);
 
     await this.db.setUserContext(userId);
@@ -1653,5 +1655,68 @@ export class ChamaService {
         total_contributions: totalContributions,
       },
     };
+  }
+
+  // ==========================================
+  // CONTRIBUTION SYSTEM (Phase 5A)
+  // ==========================================
+
+  /**
+   * Create a contribution for a cycle
+   */
+  async createContribution(userId: string, dto: any) {
+    return this.contributionService.createContribution(userId, dto);
+  }
+
+  /**
+   * Get contribution history with filters
+   */
+  async getContributionHistory(userId: string, query: any) {
+    return this.contributionService.getContributionHistory(userId, query);
+  }
+
+  /**
+   * Get cycle contribution summary
+   */
+  async getCycleContributionSummary(cycleId: string, userId: string) {
+    return this.contributionService.getCycleContributionSummary(
+      cycleId,
+      userId,
+    );
+  }
+
+  /**
+   * Setup auto-debit for member
+   */
+  async setupAutoDebit(userId: string, dto: any) {
+    return this.contributionService.setupAutoDebit(userId, dto);
+  }
+
+  /**
+   * Update auto-debit settings
+   */
+  async updateAutoDebit(userId: string, autoDebitId: string, dto: any) {
+    return this.contributionService.updateAutoDebit(userId, autoDebitId, dto);
+  }
+
+  /**
+   * Get member penalties
+   */
+  async getMemberPenalties(userId: string, chamaId?: string) {
+    return this.contributionService.getMemberPenalties(userId, chamaId);
+  }
+
+  /**
+   * Request penalty waiver
+   */
+  async requestPenaltyWaiver(userId: string, dto: any) {
+    return this.contributionService.requestPenaltyWaiver(userId, dto);
+  }
+
+  /**
+   * Vote on penalty waiver
+   */
+  async votePenaltyWaiver(userId: string, dto: any) {
+    return this.contributionService.votePenaltyWaiver(userId, dto);
   }
 }

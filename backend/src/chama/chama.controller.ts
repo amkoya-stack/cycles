@@ -277,13 +277,13 @@ export class ChamaController {
   }
 
   /**
-   * Get contribution history
+   * Get contribution history (legacy)
    * GET /api/chama/:id/contributions
    */
   @Get(':id/contributions')
   @UseGuards(JwtAuthGuard)
-  async getContributionHistory(@Req() req: any, @Param('id') chamaId: string) {
-    return this.chamaService.getContributionHistory(req.user.id, chamaId);
+  async getContributionHistoryLegacy(@Req() req: any, @Param('id') chamaId: string) {
+    return this.chamaService.getContributionHistoryLegacy(req.user.id, chamaId);
   }
 
   /**
@@ -349,5 +349,93 @@ export class ChamaController {
     @Body() dto: any,
   ) {
     return this.chamaService.leaveChama(req.user.id, chamaId, dto);
+  }
+
+  // ============================================================================
+  // CONTRIBUTION ENDPOINTS (Phase 5A)
+  // ============================================================================
+
+  /**
+   * Make a contribution to a cycle
+   * POST /api/chama/contributions
+   */
+  @Post('contributions')
+  @UseGuards(JwtAuthGuard)
+  async createContribution(@Req() req: any, @Body() dto: any) {
+    return this.chamaService.createContribution(req.user.id, dto);
+  }
+
+  /**
+   * Get contribution history
+   * GET /api/chama/contributions
+   */
+  @Get('contributions')
+  @UseGuards(JwtAuthGuard)
+  async getContributionHistory(@Req() req: any, @Body() query: any) {
+    return this.chamaService.getContributionHistory(req.user.id, query);
+  }
+
+  /**
+   * Get cycle contribution summary (dashboard)
+   * GET /api/chama/cycles/:cycleId/summary
+   */
+  @Get('cycles/:cycleId/summary')
+  @UseGuards(JwtAuthGuard)
+  async getCycleSummary(@Req() req: any, @Param('cycleId') cycleId: string) {
+    return this.chamaService.getCycleContributionSummary(cycleId, req.user.id);
+  }
+
+  /**
+   * Setup auto-debit
+   * POST /api/chama/auto-debit
+   */
+  @Post('auto-debit')
+  @UseGuards(JwtAuthGuard)
+  async setupAutoDebit(@Req() req: any, @Body() dto: any) {
+    return this.chamaService.setupAutoDebit(req.user.id, dto);
+  }
+
+  /**
+   * Update auto-debit settings
+   * PUT /api/chama/auto-debit/:id
+   */
+  @Put('auto-debit/:id')
+  @UseGuards(JwtAuthGuard)
+  async updateAutoDebit(
+    @Req() req: any,
+    @Param('id') autoDebitId: string,
+    @Body() dto: any,
+  ) {
+    return this.chamaService.updateAutoDebit(req.user.id, autoDebitId, dto);
+  }
+
+  /**
+   * Get member penalties
+   * GET /api/chama/penalties
+   */
+  @Get('penalties')
+  @UseGuards(JwtAuthGuard)
+  async getMemberPenalties(@Req() req: any, @Param('chamaId') chamaId?: string) {
+    return this.chamaService.getMemberPenalties(req.user.id, chamaId);
+  }
+
+  /**
+   * Request penalty waiver
+   * POST /api/chama/penalties/waiver
+   */
+  @Post('penalties/waiver')
+  @UseGuards(JwtAuthGuard)
+  async requestPenaltyWaiver(@Req() req: any, @Body() dto: any) {
+    return this.chamaService.requestPenaltyWaiver(req.user.id, dto);
+  }
+
+  /**
+   * Vote on penalty waiver
+   * POST /api/chama/penalties/waiver/vote
+   */
+  @Post('penalties/waiver/vote')
+  @UseGuards(JwtAuthGuard)
+  async votePenaltyWaiver(@Req() req: any, @Body() dto: any) {
+    return this.chamaService.votePenaltyWaiver(req.user.id, dto);
   }
 }
