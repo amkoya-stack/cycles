@@ -266,7 +266,12 @@ export class ReminderService {
         break;
 
       case ReminderChannel.EMAIL:
-        await this.sendEmailReminder(reminder.email, reminder.full_name, message, reminder);
+        await this.sendEmailReminder(
+          reminder.email,
+          reminder.full_name,
+          message,
+          reminder,
+        );
         break;
 
       case ReminderChannel.PUSH:

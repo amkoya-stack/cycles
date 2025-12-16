@@ -9,6 +9,7 @@ Phase 5A implements a comprehensive contribution tracking and management system 
 ### 1. Database Layer (Migration 011)
 
 **New Tables:**
+
 - `contribution_penalties` - Tracks late payment penalties with status workflow
 - `penalty_waiver_requests` - Democratic penalty waiver requests
 - `penalty_waiver_votes` - Member votes on penalty waivers
@@ -16,9 +17,11 @@ Phase 5A implements a comprehensive contribution tracking and management system 
 - `contribution_auto_debits` - Automated contribution scheduling
 
 **Extended Tables:**
+
 - `contributions` - Added payment_method, mpesa_receipt, auto_debit_id, receipt tracking
 
 **Database Functions:**
+
 - `calculate_late_penalty(amount, days_late, penalty_rate)` - Auto-calculates penalties
 - `get_member_pending_penalties(member_id)` - Returns total pending penalties
 - `has_contributed_to_cycle(member_id, cycle_id)` - Quick contribution check
@@ -26,10 +29,12 @@ Phase 5A implements a comprehensive contribution tracking and management system 
 - `schedule_cycle_reminders(cycle_id)` - Creates reminder records for all members
 
 **Database Triggers:**
+
 - `trigger_create_late_penalties` - Auto-creates penalties when cycle completes
 - `trigger_update_member_stats` - Updates member total_contributed and last_contribution_at
 
 **Database Views:**
+
 - `member_contribution_dashboard` - Member stats with pending penalties and on-time rate
 - `cycle_contribution_status` - Cycle progress with completion percentage
 
@@ -38,21 +43,23 @@ Phase 5A implements a comprehensive contribution tracking and management system 
 **File:** `backend/src/chama/dto/contribution.dto.ts`
 
 **Enums:**
+
 ```typescript
 enum ContributionType {
-  FIXED = 'fixed',
-  FLEXIBLE = 'flexible',
-  INCOME_BASED = 'income_based',
+  FIXED = "fixed",
+  FLEXIBLE = "flexible",
+  INCOME_BASED = "income_based",
 }
 
 enum PaymentMethod {
-  WALLET = 'wallet',
-  MPESA_DIRECT = 'mpesa_direct',
-  AUTO_DEBIT = 'auto_debit',
+  WALLET = "wallet",
+  MPESA_DIRECT = "mpesa_direct",
+  AUTO_DEBIT = "auto_debit",
 }
 ```
 
 **Key DTOs:**
+
 - `CreateContributionDto` - Contribution submission with validation
 - `ContributionHistoryQueryDto` - Flexible filtering for contribution history
 - `CycleContributionSummaryDto` - Dashboard data for cycles
@@ -68,36 +75,43 @@ enum PaymentMethod {
 **Core Methods:**
 
 **Contribution Processing:**
+
 - `createContribution(userId, dto)` - Main contribution method
-  * Verifies member status and cycle validity
-  * Validates contribution amount based on chama settings (fixed/flexible/income-based)
-  * Routes to wallet or M-Pesa payment
-  * Records contribution in database
-  * Updates cycle collected_amount
-  * Checks cycle completion
+
+  - Verifies member status and cycle validity
+  - Validates contribution amount based on chama settings (fixed/flexible/income-based)
+  - Routes to wallet or M-Pesa payment
+  - Records contribution in database
+  - Updates cycle collected_amount
+  - Checks cycle completion
 
 - `processWalletContribution()` - Uses LedgerService for wallet-based contributions
 - `processMpesaContribution()` - Initiates M-Pesa STK push via MpesaService
 
 **History & Dashboard:**
+
 - `getContributionHistory(userId, query)` - Fetches contributions with filters
 - `getCycleContributionSummary(cycleId, userId)` - Returns cycle summary and member statuses
 
 **Auto-Debit Management:**
+
 - `setupAutoDebit(userId, dto)` - Configures auto-debit for member
 - `updateAutoDebit(userId, autoDebitId, dto)` - Updates auto-debit settings
 
 **Penalty System:**
+
 - `getMemberPenalties(userId, chamaId?)` - Fetches member's penalties
 - `requestPenaltyWaiver(userId, dto)` - Creates waiver request, calculates votes needed
 - `votePenaltyWaiver(userId, dto)` - Records vote, checks threshold, auto-approves if majority reached
 
 **Cycle Management:**
+
 - `checkCycleCompletion(cycleId)` - Checks if all contributed, marks complete, triggers auto-payout
 - `triggerAutoPayout(cycleId)` - Processes automatic payout using LedgerService
 - `calculateNextExecutionDate()` - Helper for scheduling auto-debits
 
 **Dependencies:**
+
 - DatabaseService - Database operations
 - LedgerService - Financial transactions (processContribution, processPayout)
 - WalletService - Wallet balance checks
@@ -125,6 +139,7 @@ All endpoints protected with `JwtAuthGuard` and use `@Req() req.user.id` for aut
 ### 5. Service Integration Layer
 
 **Files Modified:**
+
 - `backend/src/chama/chama.service.ts` - Added ContributionService injection and delegate methods
 - `backend/src/chama/chama.module.ts` - Added ContributionService to providers and MpesaModule to imports
 
@@ -136,30 +151,36 @@ ChamaService acts as facade/orchestrator, delegating contribution-specific opera
 ### 1. Flexible Contribution Types
 
 **Fixed Amount:**
+
 - Chama specifies exact amount (e.g., KES 1,000 per month)
 - System validates contribution matches expected amount
 
 **Flexible Range:**
+
 - Chama specifies min/max range (e.g., KES 500-2,000)
 - System validates contribution falls within range
 
 **Income-Based:**
+
 - Chama specifies percentage (e.g., 5% of income)
 - Members self-declare income and contribute accordingly
 
 ### 2. Multiple Payment Methods
 
 **Wallet Payment:**
+
 - Instant deduction from member's wallet
 - Uses double-entry ledger via `LedgerService.processContribution()`
 - Includes 4.5% fee calculation
 
 **M-Pesa Direct:**
+
 - Initiates STK push via Safaricom API
 - Member completes payment on phone
 - Callback updates contribution status
 
 **Auto-Debit:**
+
 - Member sets up recurring contributions
 - Executed automatically on specified day of month
 - Can be fixed amount or match cycle amount
@@ -168,17 +189,20 @@ ChamaService acts as facade/orchestrator, delegating contribution-specific opera
 ### 3. Late Payment Penalties
 
 **Auto-Calculation:**
+
 - Database trigger `trigger_create_late_penalties` runs on cycle completion
 - Calculates penalty: `amount * (penalty_rate/100) * days_late`
 - Creates penalty records for late/missing contributions
 
 **Democratic Waiver System:**
+
 - Members can request penalty waiver with reason
 - Requires majority vote from active members
 - Auto-approves when threshold reached
 - Members can vote approve/reject with optional comment
 
 **Penalty Status Workflow:**
+
 ```
 pending → paid (member pays penalty)
        → waived (majority votes to waive)
@@ -188,6 +212,7 @@ pending → paid (member pays penalty)
 ### 4. Contribution Receipts
 
 **Receipt Tracking:**
+
 - `receipt_sent_at` timestamp for email/SMS receipts
 - `mpesa_receipt` stores M-Pesa receipt number
 - Email/SMS confirmation sent after successful contribution
@@ -195,11 +220,13 @@ pending → paid (member pays penalty)
 ### 5. Cycle Completion & Auto-Payout
 
 **Cycle Completion Check:**
+
 - Runs after each contribution
 - Verifies all active members have contributed
 - Marks cycle as 'completed' when threshold reached
 
 **Auto-Payout Trigger:**
+
 - If chama has `auto_payout_enabled = true`
 - Gets next recipient via rotation order
 - Processes payout using `LedgerService.processPayout()`
@@ -208,12 +235,14 @@ pending → paid (member pays penalty)
 ### 6. Member Dashboards
 
 **member_contribution_dashboard View:**
+
 - Member stats (total_contributed, on_time_rate)
 - Pending penalties sum
 - Last contribution date
 - Current cycle status
 
 **cycle_contribution_status View:**
+
 - Cycle progress (collected/expected)
 - Completion percentage
 - List of pending member IDs
@@ -225,20 +254,10 @@ pending → paid (member pays penalty)
 
 ```typescript
 // Contribution (includes 4.5% fee)
-await ledger.processContribution(
-  userId,
-  chamaId,
-  amount,
-  description
-);
+await ledger.processContribution(userId, chamaId, amount, description);
 
 // Payout (no fee)
-await ledger.processPayout(
-  chamaId,
-  recipientUserId,
-  amount,
-  description
-);
+await ledger.processPayout(chamaId, recipientUserId, amount, description);
 ```
 
 ### MpesaService Integration
@@ -246,10 +265,10 @@ await ledger.processPayout(
 ```typescript
 // Initiate STK push
 const result = await mpesa.stkPush({
-  phoneNumber: '254712345678',
+  phoneNumber: "254712345678",
   amount: 1000,
-  accountReference: 'CHAMA-abc123',
-  transactionDesc: 'Chama contribution',
+  accountReference: "CHAMA-abc123",
+  transactionDesc: "Chama contribution",
 });
 
 // Returns: checkoutRequestId for tracking
@@ -261,13 +280,14 @@ const result = await mpesa.stkPush({
 // Check wallet balance before contribution
 const balance = await wallet.getBalance(userId);
 if (balance < totalAmount) {
-  throw new BadRequestException('Insufficient balance');
+  throw new BadRequestException("Insufficient balance");
 }
 ```
 
 ## 📊 Database Schema Changes
 
 ### contribution_penalties
+
 ```sql
 - id (uuid, PK)
 - chama_id (uuid, FK)
@@ -282,6 +302,7 @@ if (balance < totalAmount) {
 ```
 
 ### penalty_waiver_requests
+
 ```sql
 - id (uuid, PK)
 - penalty_id (uuid, FK)
@@ -294,6 +315,7 @@ if (balance < totalAmount) {
 ```
 
 ### penalty_waiver_votes
+
 ```sql
 - id (uuid, PK)
 - waiver_request_id (uuid, FK)
@@ -304,6 +326,7 @@ if (balance < totalAmount) {
 ```
 
 ### contribution_reminders
+
 ```sql
 - id (uuid, PK)
 - cycle_id (uuid, FK)
@@ -315,6 +338,7 @@ if (balance < totalAmount) {
 ```
 
 ### contribution_auto_debits
+
 ```sql
 - id (uuid, PK)
 - chama_id (uuid, FK)
@@ -333,16 +357,19 @@ if (balance < totalAmount) {
 ## 🧪 Testing Status
 
 ### TypeScript Compilation
+
 ✅ No TypeScript errors
 ✅ All imports resolved
 ✅ Method signatures compatible
 
 ### Integration Points Verified
+
 ✅ LedgerService.processContribution() - 4 arguments
 ✅ LedgerService.processPayout() - 4 arguments
 ✅ MpesaService.stkPush() - STKPushRequest object
 
 ### Pending Testing
+
 ⏳ End-to-end contribution flow (wallet payment)
 ⏳ End-to-end contribution flow (M-Pesa payment)
 ⏳ Cycle completion and auto-payout trigger
@@ -352,19 +379,22 @@ if (balance < totalAmount) {
 ## 🔜 Pending Implementation
 
 ### 1. Reminder Scheduler Service
+
 **Purpose:** Automated reminder system for contributions
 
 **Tasks:**
+
 - Create `ReminderSchedulerService` with cron jobs
 - Schedule reminders: 3 days before due date, on due date, overdue
 - Send reminders via SMS/email/push/WhatsApp
 - Update reminder status in `contribution_reminders` table
 
 **Implementation:**
+
 ```typescript
 @Injectable()
 export class ReminderSchedulerService {
-  @Cron('0 9 * * *') // Daily at 9 AM
+  @Cron("0 9 * * *") // Daily at 9 AM
   async processReminders() {
     // Get pending reminders due today
     // Send via notification channels
@@ -374,9 +404,11 @@ export class ReminderSchedulerService {
 ```
 
 ### 2. Auto-Debit Processor Service
+
 **Purpose:** Execute scheduled auto-debits
 
 **Tasks:**
+
 - Create `AutoDebitProcessorService` with cron jobs
 - Run daily to check for due auto-debits
 - Execute payments via wallet or M-Pesa
@@ -384,10 +416,11 @@ export class ReminderSchedulerService {
 - Update `next_execution_at` for next cycle
 
 **Implementation:**
+
 ```typescript
 @Injectable()
 export class AutoDebitProcessorService {
-  @Cron('0 0 * * *') // Daily at midnight
+  @Cron("0 0 * * *") // Daily at midnight
   async processAutoDebits() {
     // Get auto-debits due today
     // Execute via wallet or M-Pesa
@@ -398,9 +431,11 @@ export class AutoDebitProcessorService {
 ```
 
 ### 3. Frontend Components
+
 **Purpose:** User interface for contribution system
 
 **Tasks:**
+
 - Contribution dashboard page
 - Make contribution form (with payment method selection)
 - Contribution history view
@@ -410,9 +445,11 @@ export class AutoDebitProcessorService {
 - Reminder preferences UI
 
 ### 4. Phase 5B: Rotation & Payout System
+
 **Purpose:** Advanced rotation and payout management
 
 **Features:**
+
 - Automatic cycle generation based on frequency
 - Smart rotation order (random, sequential, need-based, vote-based)
 - Multi-recipient payouts (split modes)
@@ -422,9 +459,11 @@ export class AutoDebitProcessorService {
 ## 📝 API Documentation
 
 ### POST /api/chama/contributions
+
 Create a new contribution
 
 **Request Body:**
+
 ```json
 {
   "chamaId": "uuid",
@@ -437,6 +476,7 @@ Create a new contribution
 ```
 
 **Response:**
+
 ```json
 {
   "contributionId": "uuid",
@@ -448,9 +488,11 @@ Create a new contribution
 ```
 
 ### GET /api/chama/contributions
+
 Get contribution history with filters
 
 **Query Parameters:**
+
 - `chamaId` (optional) - Filter by chama
 - `cycleId` (optional) - Filter by cycle
 - `memberId` (optional) - Filter by member
@@ -458,6 +500,7 @@ Get contribution history with filters
 - `offset` (optional) - Pagination offset
 
 **Response:**
+
 ```json
 {
   "contributions": [
@@ -479,9 +522,11 @@ Get contribution history with filters
 ```
 
 ### GET /api/chama/cycles/:cycleId/summary
+
 Get cycle contribution summary
 
 **Response:**
+
 ```json
 {
   "cycle": {
@@ -512,9 +557,11 @@ Get cycle contribution summary
 ```
 
 ### POST /api/chama/auto-debit
+
 Setup auto-debit for member
 
 **Request Body:**
+
 ```json
 {
   "chamaId": "uuid",
@@ -527,6 +574,7 @@ Setup auto-debit for member
 ```
 
 **Response:**
+
 ```json
 {
   "autoDebitId": "uuid",
@@ -536,9 +584,11 @@ Setup auto-debit for member
 ```
 
 ### PUT /api/chama/auto-debit/:id
+
 Update auto-debit settings
 
 **Request Body:**
+
 ```json
 {
   "enabled": true,
@@ -550,12 +600,15 @@ Update auto-debit settings
 ```
 
 ### GET /api/chama/penalties
+
 Get member penalties
 
 **Query Parameters:**
+
 - `chamaId` (optional) - Filter by chama
 
 **Response:**
+
 ```json
 {
   "penalties": [
@@ -575,9 +628,11 @@ Get member penalties
 ```
 
 ### POST /api/chama/penalties/waiver
+
 Request penalty waiver
 
 **Request Body:**
+
 ```json
 {
   "penaltyId": "uuid",
@@ -586,6 +641,7 @@ Request penalty waiver
 ```
 
 **Response:**
+
 ```json
 {
   "waiverRequestId": "uuid",
@@ -595,9 +651,11 @@ Request penalty waiver
 ```
 
 ### POST /api/chama/penalties/waiver/vote
+
 Vote on penalty waiver
 
 **Request Body:**
+
 ```json
 {
   "waiverRequestId": "uuid",
@@ -607,6 +665,7 @@ Vote on penalty waiver
 ```
 
 **Response:**
+
 ```json
 {
   "message": "Vote recorded",
@@ -619,17 +678,21 @@ Vote on penalty waiver
 ## 🚀 Deployment Notes
 
 ### Environment Variables Required
+
 None - Uses existing database connection
 
 ### Database Migration
+
 Migration 011 already applied successfully
 
 ### Service Dependencies
+
 - PostgreSQL (existing)
 - Redis (existing)
 - M-Pesa API credentials (existing in .env)
 
 ### Performance Considerations
+
 - Database views (member_contribution_dashboard, cycle_contribution_status) are indexed
 - Triggers are efficient with minimal overhead
 - Auto-debit processor should run during low-traffic hours (midnight)
@@ -638,6 +701,7 @@ Migration 011 already applied successfully
 ## 📊 Metrics & Monitoring
 
 ### Key Metrics to Track
+
 - Contribution success rate (wallet vs M-Pesa)
 - Average contribution time
 - Penalty waiver approval rate
@@ -646,6 +710,7 @@ Migration 011 already applied successfully
 - Late payment percentage
 
 ### Logging Points
+
 - Contribution attempts (success/failure)
 - M-Pesa STK push initiation
 - Penalty creation and waiver votes
@@ -675,6 +740,7 @@ Migration 011 already applied successfully
 Phase 5A backend implementation is **COMPLETE** and ready for testing.
 
 **Next Steps:**
+
 1. Test contribution flows (wallet + M-Pesa)
 2. Implement reminder scheduler service
 3. Implement auto-debit processor service

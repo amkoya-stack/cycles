@@ -70,9 +70,7 @@ export class NotificationService {
     text?: string;
   }): Promise<void> {
     if (!this.transporter) {
-      this.logger.warn(
-        'Email transporter not initialized. Skipping email.',
-      );
+      this.logger.warn('Email transporter not initialized. Skipping email.');
       return;
     }
 
@@ -88,10 +86,7 @@ export class NotificationService {
       await this.transporter.sendMail(mailOptions);
       this.logger.log(`Email sent to ${options.to}`);
     } catch (error: any) {
-      this.logger.error(
-        `Failed to send email: ${error.message}`,
-        error.stack,
-      );
+      this.logger.error(`Failed to send email: ${error.message}`, error.stack);
     }
   }
 

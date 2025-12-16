@@ -113,7 +113,7 @@ export class ContributionService {
 
     // Process payment based on method
     let transactionId: string | null = null;
-    let feeAmount = 0;
+    const feeAmount = 0;
 
     switch (dto.paymentMethod) {
       case PaymentMethod.WALLET:
@@ -191,7 +191,10 @@ export class ContributionService {
 
     // Cancel pending reminders for this member
     if (this.reminderService) {
-      await this.reminderService.cancelRemindersForMember(dto.cycleId, member.id);
+      await this.reminderService.cancelRemindersForMember(
+        dto.cycleId,
+        member.id,
+      );
     }
 
     // Check if cycle is complete and trigger payout if configured
