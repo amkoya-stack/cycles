@@ -12,6 +12,7 @@ export interface ReconciliationResult {
   status: 'completed' | 'failed' | 'warning';
   isBalanced: boolean;
   ledgerBalance: number;
+  ledgerBalanceFormatted: string;
   externalBalance?: number;
   difference: number;
   mismatchCount: number;
@@ -122,6 +123,7 @@ export class ReconciliationService {
         status,
         isBalanced: balanceCheck.isBalanced && mismatchCount === 0,
         ledgerBalance: balanceCheck.totalDebitBalance,
+        ledgerBalanceFormatted: `KES ${balanceCheck.totalDebitBalance.toFixed(2)}`,
         difference: balanceCheck.difference,
         mismatchCount,
         mismatches,

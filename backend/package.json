@@ -38,6 +38,7 @@
     "@nestjs/platform-socket.io": "^11.1.9",
     "@nestjs/schedule": "^6.1.0",
     "@nestjs/websockets": "^11.1.9",
+    "@radix-ui/react-alert-dialog": "^1.1.15",
     "@types/nodemailer": "^7.0.4",
     "@types/pdfkit": "^0.17.4",
     "axios": "^1.13.2",

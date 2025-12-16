@@ -2,6 +2,7 @@ import {
   Injectable,
   BadRequestException,
   UnauthorizedException,
+  NotFoundException,
 } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import { randomBytes } from 'crypto';
@@ -293,13 +294,13 @@ export class AuthService {
   }
 
   async verifyEmail(dto: { email: string; otp: string }) {
-    await this.verifyOtp({
+    const result = await this.verifyOtp({
       channel: 'email',
       destination: dto.email,
       code: dto.otp,
       purpose: 'email_verification',
     });
-    return { status: 'email_verified' };
+    return result;
   }
 
   async refreshToken(refreshToken: string) {
@@ -360,6 +361,19 @@ export class AuthService {
 
     if (result.rows.length === 0) {
       throw new BadRequestException('User not found');
+    }
+
+    return result.rows[0];
+  }
+
+  async getProfile(userId: string) {
+    const result = await this.db.query(
+      'SELECT id, email, phone, full_name, email_verified, phone_verified, two_factor_enabled FROM users WHERE id = $1',
+      [userId],
+    );
+
+    if (result.rows.length === 0) {
+      throw new NotFoundException('User not found');
     }
 
     return result.rows[0];

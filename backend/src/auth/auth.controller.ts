@@ -106,4 +106,10 @@ export class AuthController {
   async refreshToken(@Body() body: { refreshToken: string }) {
     return this.authService.refreshToken(body.refreshToken);
   }
+
+  @Get('profile')
+  @UseGuards(JwtAuthGuard)
+  async getProfile(@Req() req: any) {
+    return this.authService.getProfile(req.user.id);
+  }
 }

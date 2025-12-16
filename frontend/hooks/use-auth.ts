@@ -1,7 +1,14 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 
 export function useAuth() {
+  // Always start as false to match server-side rendering
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  // Check localStorage after component mounts (client-side only)
+  useEffect(() => {
+    const accessToken = localStorage.getItem("accessToken");
+    setIsAuthenticated(!!accessToken);
+  }, []);
 
   const validateToken = useCallback(async () => {
     const accessToken = localStorage.getItem("accessToken");
@@ -10,26 +17,17 @@ export function useAuth() {
       return;
     }
 
-    // Validate token by making a test request
-    try {
-      const response = await fetch("http://localhost:3001/api/wallet/balance", {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      });
-
-      if (response.status === 401) {
-        // Token is invalid/expired
-        localStorage.removeItem("accessToken");
-        setIsAuthenticated(false);
-      } else {
-        setIsAuthenticated(true);
-      }
-    } catch (error) {
-      // If request fails, assume authenticated (offline scenario)
-      setIsAuthenticated(!!accessToken);
-    }
+    // Just check if token exists - don't validate with API call
+    // The backend will reject invalid tokens anyway
+    setIsAuthenticated(true);
   }, []);
 
-  return { isAuthenticated, validateToken };
+  const logout = useCallback(() => {
+    localStorage.removeItem("accessToken");
+    localStorage.removeItem("refreshToken");
+    setIsAuthenticated(false);
+    window.location.href = "/";
+  }, []);
+
+  return { isAuthenticated, validateToken, logout };
 }

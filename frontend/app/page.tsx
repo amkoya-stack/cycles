@@ -32,6 +32,18 @@ export default function HomePage() {
     fetchChamas();
   }, [validateToken, fetchChamas]);
 
+  // Re-check auth on mount and when localStorage changes (for after OTP verification)
+  useEffect(() => {
+    const checkAuth = () => {
+      validateToken();
+    };
+
+    // Listen for storage events (e.g., when tokens are added)
+    window.addEventListener("storage", checkAuth);
+
+    return () => window.removeEventListener("storage", checkAuth);
+  }, [validateToken]);
+
   useEffect(() => {
     const handleScroll = () => {
       if (searchBarRef.current) {
@@ -75,7 +87,7 @@ export default function HomePage() {
   };
 
   return (
-    <>
+    <div className="min-h-screen bg-gray-50 flex flex-col">
       <HomeNavbar
         isAuthenticated={isAuthenticated}
         showSearchInNav={showSearchInNav}
@@ -83,7 +95,7 @@ export default function HomePage() {
         onSearchChange={setSearchQuery}
       />
 
-      <div className="flex-1 bg-gray-50 pt-16">
+      <div className="flex-1 pt-16">
         <main className="max-w-[1085px] mx-auto px-4 py-8">
           <HomeHeader isAuthenticated={isAuthenticated} />
 
@@ -128,6 +140,6 @@ export default function HomePage() {
       </div>
 
       <Footer />
-    </>
+    </div>
   );
 }

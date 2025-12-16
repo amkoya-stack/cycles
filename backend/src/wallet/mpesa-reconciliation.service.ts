@@ -70,11 +70,14 @@ export class MpesaReconciliationService {
       `Processing ${transactionType} callback: ${checkoutRequestId}`,
     );
 
+    // Convert amount to number once (it comes as string from database)
+    const numericAmount = parseFloat(amount);
+
     if (transactionType === 'deposit') {
       // Complete deposit through ledger
       const result = await this.ledger.processDeposit(
         userId,
-        amount,
+        numericAmount,
         checkoutRequestId, // Use as external reference for idempotency
         `M-Pesa deposit - Receipt: ${mpesaReceiptNumber}`,
       );
@@ -103,7 +106,7 @@ export class MpesaReconciliationService {
           await this.notification.sendDepositReceipt(
             user.email,
             user.phone,
-            amount,
+            numericAmount,
             checkoutRequestId,
             mpesaReceiptNumber,
           );
@@ -114,7 +117,7 @@ export class MpesaReconciliationService {
 
       // Record usage for limits tracking
       try {
-        await this.limits.recordUsage(userId, 'deposit', parseFloat(amount));
+        await this.limits.recordUsage(userId, 'deposit', numericAmount);
       } catch (error) {
         this.logger.error('Failed to record deposit usage', error);
       }
@@ -348,6 +351,9 @@ export class MpesaReconciliationService {
 
     this.logger.log(`Processing refund for ${checkoutRequestId}`);
 
+    // Convert amount to number (it comes as string from database)
+    const numericAmount = parseFloat(amount);
+
     // In a real scenario, you'd trigger M-Pesa B2C transaction here
     // For now, we'll just mark it as refund initiated
 
@@ -364,7 +370,7 @@ export class MpesaReconciliationService {
          ))
        )
        WHERE id = $2`,
-      [amount, callbackId],
+      [numericAmount, callbackId],
     );
 
     // Send notification
@@ -378,7 +384,7 @@ export class MpesaReconciliationService {
         await this.notification.sendDepositReceipt(
           user.email,
           user.phone,
-          amount,
+          numericAmount,
           checkoutRequestId,
           `REFUND-${mpesaReceiptNumber}`,
         );

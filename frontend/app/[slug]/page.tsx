@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Footer } from "@/components/footer";
 import { HomeNavbar } from "@/components/home/home-navbar";
+import { MemberDirectory } from "@/components/chama/member-directory";
+import { LeaveChamaComponent } from "@/components/chama/leave-chama";
 import {
   Users,
   Calendar,
@@ -24,6 +26,9 @@ import {
   Info,
   Trash2,
   MoreHorizontal,
+  Wallet,
+  LogOut,
+  Upload,
 } from "lucide-react";
 
 interface ChamaDetails {
@@ -46,6 +51,11 @@ interface ChamaDetails {
   type?: string;
   lending_enabled?: boolean;
   is_public?: boolean;
+  user_role?: string;
+  user_member_status?: string;
+  is_member?: boolean;
+  has_pending_request?: boolean;
+  cover_image?: string;
 }
 
 type TabType =
@@ -58,6 +68,7 @@ type TabType =
   | "financials"
   | "activity"
   | "documents"
+  | "settings"
   | "about";
 
 export default function CycleBySlugPage() {
@@ -74,6 +85,8 @@ export default function CycleBySlugPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showMoreTabs, setShowMoreTabs] = useState(false);
   const [visibleTabCount, setVisibleTabCount] = useState(10);
+  const [isJoining, setIsJoining] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const tabContainerRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
@@ -82,50 +95,77 @@ export default function CycleBySlugPage() {
       try {
         const accessToken = localStorage.getItem("accessToken");
 
-        // First, fetch all public chamas to find by name
-        const response = await fetch("http://localhost:3001/api/chama/public");
+        if (accessToken) {
+          // For authenticated users, first try to get the chama ID from public list, then get full details
+          try {
+            const response = await fetch(
+              "http://localhost:3001/api/chama/public"
+            );
+            if (!response.ok) {
+              throw new Error("Failed to load chamas");
+            }
 
-        if (!response.ok) {
-          throw new Error("Failed to load cycle");
-        }
+            const chamas = await response.json();
+            const decodedSlug = decodeURIComponent(slug);
+            const matchedChama = chamas.find(
+              (c: any) =>
+                c.name.toLowerCase().replace(/\s+/g, "-") ===
+                  decodedSlug.toLowerCase() ||
+                c.name.toLowerCase() === decodedSlug.toLowerCase()
+            );
 
-        const chamas = await response.json();
+            if (!matchedChama) {
+              throw new Error("Cycle not found");
+            }
 
-        // Decode the slug and find matching chama by name
-        const decodedSlug = decodeURIComponent(slug);
-        const matchedChama = chamas.find(
-          (c: any) =>
-            c.name.toLowerCase().replace(/\s+/g, "-") ===
-              decodedSlug.toLowerCase() ||
-            c.name.toLowerCase() === decodedSlug.toLowerCase()
-        );
-
-        if (!matchedChama) {
-          throw new Error("Cycle not found");
-        }
-
-        // Now fetch full details by ID
-        const detailResponse = await fetch(
-          `http://localhost:3001/api/chama/${matchedChama.id}`,
-          accessToken
-            ? {
+            // Get authenticated user details
+            const detailResponse = await fetch(
+              `http://localhost:3001/api/chama/${matchedChama.id}`,
+              {
                 headers: {
                   Authorization: `Bearer ${accessToken}`,
                 },
               }
-            : {}
-        );
+            );
 
-        if (!detailResponse.ok) {
-          throw new Error("Failed to load cycle details");
-        }
+            if (!detailResponse.ok) {
+              throw new Error("Failed to load cycle details");
+            }
 
-        const data = await detailResponse.json();
-        setChama(data);
+            const data = await detailResponse.json();
+            setChama(data);
+            setUserRole(data.user_role);
+          } catch (authError) {
+            // If authenticated call fails, fall back to public endpoint
+            const publicResponse = await fetch(
+              `http://localhost:3001/api/chama/public/slug/${encodeURIComponent(
+                slug
+              )}`
+            );
 
-        // Check if user is a member and get their role
-        if (accessToken && data.role) {
-          setUserRole(data.role);
+            if (!publicResponse.ok) {
+              throw new Error("Failed to load cycle details");
+            }
+
+            const data = await publicResponse.json();
+            setChama(data);
+            setUserRole(null);
+          }
+        } else {
+          // Non-authenticated users use public endpoint by slug
+          const publicResponse = await fetch(
+            `http://localhost:3001/api/chama/public/slug/${encodeURIComponent(
+              slug
+            )}`
+          );
+
+          if (!publicResponse.ok) {
+            throw new Error("Failed to load cycle details");
+          }
+
+          const data = await publicResponse.json();
+          setChama(data);
+          setUserRole(null);
         }
       } catch (err: any) {
         setError(err.message || "Unable to load cycle");
@@ -138,6 +178,86 @@ export default function CycleBySlugPage() {
       fetchChamaBySlug();
     }
   }, [slug]);
+
+  const getJoinButtonText = () => {
+    if (isJoining) return "Processing...";
+    if (chama.has_pending_request) return "Request Sent";
+    return chama.is_public ? "Join Cycle" : "Request to Join";
+  };
+
+  const getJoinButtonDisabled = () => {
+    return isJoining || chama.has_pending_request;
+  };
+
+  const handleJoinCycle = async () => {
+    if (!chama) return;
+
+    // Don't allow action if there's already a pending request
+    if (chama.has_pending_request) return;
+
+    // Check if user is logged in
+    const accessToken = localStorage.getItem("accessToken");
+    if (!accessToken) {
+      // Redirect to login page for non-authenticated users
+      router.push("/auth/login");
+      return;
+    }
+
+    try {
+      if (chama.is_public) {
+        setIsJoining(true);
+        // Join public chama directly
+        const response = await fetch(
+          `http://localhost:3001/api/chama/${chama.id}/invite/accept-public`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          }
+        );
+
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(data.message || "Failed to join cycle");
+        }
+
+        // Refresh the page to update membership status
+        window.location.reload();
+      } else {
+        setIsJoining(true);
+        // Request to join private chama
+        const response = await fetch(
+          `http://localhost:3001/api/chama/${chama.id}/invite/request`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          }
+        );
+
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(data.message || "Failed to send join request");
+        }
+
+        const result = await response.json();
+
+        // Update state to reflect pending request
+        setChama((prev: any) => ({
+          ...prev,
+          has_pending_request: true,
+        }));
+
+        alert(result.message || "Join request sent successfully!");
+      }
+    } catch (err: any) {
+      alert(err.message || "Unable to join cycle");
+    } finally {
+      setIsJoining(false);
+    }
+  };
 
   const formatAmount = (amount: number) => {
     if (!amount) return "0";
@@ -155,6 +275,89 @@ export default function CycleBySlugPage() {
       custom: "Custom",
     };
     return map[freq] || freq;
+  };
+
+  const handleImageUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file size (5MB max)
+    if (file.size > 5 * 1024 * 1024) {
+      alert("Image size must be less than 5MB");
+      return;
+    }
+
+    // Validate file type
+    if (!file.type.startsWith("image/")) {
+      alert("Please upload an image file");
+      return;
+    }
+
+    setUploadingImage(true);
+    try {
+      // Convert to base64
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64String = reader.result as string;
+
+        const accessToken = localStorage.getItem("accessToken");
+        if (!accessToken) {
+          router.push("/auth/login");
+          return;
+        }
+
+        // Upload to backend
+        console.log("Uploading image, length:", base64String.length);
+        const response = await fetch(
+          `http://localhost:3001/api/chama/${chama?.id}`,
+          {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify({
+              coverImage: base64String,
+            }),
+          }
+        );
+
+        console.log("Upload response status:", response.status);
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          console.error("Upload failed:", errorData);
+          throw new Error(errorData.message || "Failed to upload image");
+        }
+
+        const updateResult = await response.json();
+        console.log("Update result:", updateResult);
+
+        // Refresh chama data
+        const detailResponse = await fetch(
+          `http://localhost:3001/api/chama/${chama?.id}`,
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          }
+        );
+
+        if (detailResponse.ok) {
+          const updatedChama = await detailResponse.json();
+          setChama(updatedChama);
+        }
+
+        alert("Cover image updated successfully!");
+      };
+
+      reader.readAsDataURL(file);
+    } catch (err: any) {
+      alert(err.message || "Failed to upload image");
+    } finally {
+      setUploadingImage(false);
+    }
   };
 
   const handleDeleteCycle = async () => {
@@ -194,11 +397,11 @@ export default function CycleBySlugPage() {
 
   const canDeleteCycle = () => {
     if (!chama) return false;
-    // Can delete if user is admin and is the only active member
-    return userRole === "admin" && chama.active_members <= 1;
+    // Can delete if user is admin
+    return userRole === "admin";
   };
 
-  const tabs = [
+  const allTabs = [
     { id: "community" as TabType, label: "Community", icon: MessageSquare },
     { id: "classroom" as TabType, label: "Classroom", icon: GraduationCap },
     { id: "meetings" as TabType, label: "Meetings", icon: Video },
@@ -208,8 +411,14 @@ export default function CycleBySlugPage() {
     { id: "financials" as TabType, label: "Financials", icon: TrendingUp },
     { id: "activity" as TabType, label: "Activity", icon: Activity },
     { id: "documents" as TabType, label: "Documents", icon: FileText },
+    { id: "settings" as TabType, label: "Settings", icon: LogOut },
     { id: "about" as TabType, label: "About", icon: Info },
   ];
+
+  // Non-members can only see "About" tab
+  const tabs = chama?.is_member
+    ? allTabs
+    : allTabs.filter((tab) => tab.id === "about");
 
   // Calculate visible tabs based on container width
   useLayoutEffect(() => {
@@ -307,28 +516,54 @@ export default function CycleBySlugPage() {
         );
 
       case "members":
-        return (
-          <div className="space-y-4">
-            <Card className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold">
-                  Members ({chama.active_members}/{chama.max_members})
+        if (!chama.is_member) {
+          return (
+            <div className="space-y-4">
+              <Card className="p-8 text-center">
+                <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  Member Access Required
                 </h3>
-                <Button className="bg-[#083232] hover:bg-[#2e856e]">
-                  <UserPlus className="w-4 h-4 mr-2" />
-                  Invite
-                </Button>
-              </div>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 border rounded-lg">
-                  <div>
-                    <p className="font-medium">{chama.admin_name || "Admin"}</p>
-                    <p className="text-sm text-gray-600">{chama.admin_email}</p>
-                  </div>
-                </div>
-              </div>
-            </Card>
-          </div>
+                <p className="text-gray-600 mb-6">
+                  You need to be a member to view the member directory.
+                </p>
+                {!chama.has_pending_request && (
+                  <Button
+                    onClick={handleJoinCycle}
+                    disabled={getJoinButtonDisabled()}
+                    className={
+                      chama.is_public
+                        ? "bg-[#083232] hover:bg-[#2e856e] text-white"
+                        : "bg-[#f64d52] hover:bg-[#d43d42] text-white"
+                    }
+                  >
+                    <UserPlus className="w-4 h-4 mr-2" />
+                    {getJoinButtonText()}
+                  </Button>
+                )}
+              </Card>
+            </div>
+          );
+        }
+
+        const currentUserId = (() => {
+          try {
+            const accessToken = localStorage.getItem("accessToken");
+            if (!accessToken) return null;
+
+            const payload = JSON.parse(atob(accessToken.split(".")[1]));
+            return payload.sub || payload.userId;
+          } catch {
+            return null;
+          }
+        })();
+
+        return (
+          <MemberDirectory
+            chamaId={chama.id}
+            userRole={userRole}
+            currentUserId={currentUserId}
+          />
         );
 
       case "contributions":
@@ -473,24 +708,105 @@ export default function CycleBySlugPage() {
           </div>
         );
 
+      case "settings":
+        if (!chama.is_member) {
+          return (
+            <div className="space-y-4">
+              <Card className="p-8 text-center">
+                <LogOut className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  Member Access Required
+                </h3>
+                <p className="text-gray-600">
+                  You need to be a member to access chama settings.
+                </p>
+              </Card>
+            </div>
+          );
+        }
+
+        return (
+          <LeaveChamaComponent
+            chamaId={chama.id}
+            chamaName={chama.name}
+            userRole={userRole}
+            memberBalance={chama.current_balance || 0}
+            totalContributions={chama.total_contributions || 0}
+            pendingPayouts={0} // This would come from the API
+          />
+        );
+
       case "about":
         return (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Main Content Area */}
             <div className="lg:col-span-2 space-y-4">
               <Card className="p-6">
-                <h3 className="text-lg font-semibold mb-4">About This Cycle</h3>
                 <div className="space-y-4">
+                  {/* Cover Image Upload/Display - Admin Only */}
+                  {userRole === "admin" && !chama.cover_image && (
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+                      <input
+                        type="file"
+                        id="cover-image-upload"
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        className="hidden"
+                        disabled={uploadingImage}
+                      />
+                      <label
+                        htmlFor="cover-image-upload"
+                        className="cursor-pointer flex flex-col items-center"
+                      >
+                        <Upload className="w-12 h-12 text-gray-400 mb-2" />
+                        <p className="text-sm font-medium text-gray-700">
+                          {uploadingImage
+                            ? "Uploading..."
+                            : "Upload Cover Image"}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          PNG, JPG up to 5MB
+                        </p>
+                      </label>
+                    </div>
+                  )}
+
                   {chama.cover_image && (
-                    <div className="relative w-full h-64 rounded-lg overflow-hidden mb-4">
+                    <div className="relative w-full h-64 rounded-lg overflow-hidden mb-4 group">
                       <Image
                         src={chama.cover_image}
                         alt={chama.name}
                         fill
                         className="object-cover"
                       />
+                      {userRole === "admin" && (
+                        <>
+                          <input
+                            type="file"
+                            id="cover-image-edit"
+                            accept="image/*"
+                            onChange={handleImageUpload}
+                            className="hidden"
+                            disabled={uploadingImage}
+                          />
+                          <label
+                            htmlFor="cover-image-edit"
+                            className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer flex items-center justify-center"
+                          >
+                            <div className="text-white text-center">
+                              <Upload className="w-8 h-8 mx-auto mb-2" />
+                              <p className="text-sm font-medium">
+                                {uploadingImage
+                                  ? "Uploading..."
+                                  : "Change Image"}
+                              </p>
+                            </div>
+                          </label>
+                        </>
+                      )}
                     </div>
                   )}
+
                   <div>
                     <h4 className="font-medium text-gray-900 mb-2">
                       Description
@@ -576,7 +892,38 @@ export default function CycleBySlugPage() {
                       {chama.admin_name || chama.admin_email}
                     </p>
                   </div>
+
+                  {/* Join/Request to Join Button */}
+                  {!chama.is_member && chama.status === "active" && (
+                    <div className="pt-4 border-t border-gray-100">
+                      <button
+                        onClick={handleJoinCycle}
+                        disabled={getJoinButtonDisabled()}
+                        className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg transition-colors cursor-pointer ${
+                          chama.has_pending_request
+                            ? "bg-gray-100 text-gray-600 cursor-not-allowed"
+                            : "bg-[#083232] hover:bg-[#2e856e] text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                        }`}
+                      >
+                        <UserPlus className="w-4 h-4" />
+                        {getJoinButtonText()}
+                      </button>
+                    </div>
+                  )}
                 </div>
+
+                {/* Delete Cycle Button (Admin Only) */}
+                {canDeleteCycle() && (
+                  <div className="mt-6 pt-6 border-t border-gray-200">
+                    <button
+                      onClick={() => setShowDeleteConfirm(true)}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition-colors border border-red-200"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Delete Cycle
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -619,19 +966,6 @@ export default function CycleBySlugPage() {
         title={chama.name}
       />
 
-      {/* Delete Cycle Button (if admin) */}
-      {canDeleteCycle() && (
-        <div className="fixed top-4 right-4 z-50">
-          <button
-            onClick={() => setShowDeleteConfirm(true)}
-            className="p-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors shadow-lg"
-            title="Delete Cycle"
-          >
-            <Trash2 className="w-5 h-5" />
-          </button>
-        </div>
-      )}
-
       {/* Tabs Navigation */}
       <div className="bg-white border-b sticky top-16 z-10 shadow-sm mt-16">
         <div className="max-w-[1085px] mx-auto px-4" ref={tabContainerRef}>
@@ -647,7 +981,7 @@ export default function CycleBySlugPage() {
                   onClick={() => setActiveTab(tab.id)}
                   className={`
                     flex items-center gap-2 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors
-                    border-b-2 min-h-12 flex-shrink-0
+                    border-b-2 min-h-12 flex-shrink-0 cursor-pointer
                     ${
                       isActive
                         ? "border-[#083232] text-[#083232]"
@@ -665,7 +999,7 @@ export default function CycleBySlugPage() {
                 onClick={() => setShowMoreTabs(!showMoreTabs)}
                 className={`
                   flex items-center gap-2 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors
-                  border-b-2 min-h-12 flex-shrink-0
+                  border-b-2 min-h-12 flex-shrink-0 cursor-pointer
                   ${
                     showMoreTabs
                       ? "border-[#083232] text-[#083232]"
@@ -691,7 +1025,7 @@ export default function CycleBySlugPage() {
                     onClick={() => setActiveTab(tab.id)}
                     className={`
                       flex items-center gap-2 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors
-                      border-b-2 min-h-12 flex-shrink-0
+                      border-b-2 min-h-12 flex-shrink-0 cursor-pointer
                       ${
                         isActive
                           ? "border-[#083232] text-[#083232]"

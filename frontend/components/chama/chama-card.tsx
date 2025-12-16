@@ -84,17 +84,12 @@ export function ChamaCard({ chama, onJoin, onView }: ChamaCardProps) {
 
         {/* Action Button */}
         <Button
-          className="w-full bg-[#083232] hover:bg-[#2e856e] text-white mt-auto"
+          className="w-full bg-[#083232] hover:bg-[#2e856e] text-white mt-auto cursor-pointer"
           onClick={(e) => {
             e.preventDefault();
-            if (chama.role) {
-              // User is a member, view the chama
-              const slug = chama.name.toLowerCase().replace(/\s+/g, "-");
-              window.location.href = `/${encodeURIComponent(slug)}`;
-            } else {
-              // Not a member, allow joining
-              onJoin?.(chama.id);
-            }
+            // Navigate to cycle page using slug
+            const slug = chama.name.toLowerCase().replace(/\s+/g, "-");
+            window.location.href = `/${encodeURIComponent(slug)}`;
           }}
         >
           {chama.role ? "View Cycle" : "Join this Cycle"}

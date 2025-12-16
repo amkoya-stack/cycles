@@ -189,9 +189,9 @@ export class NotificationService {
 
       this.logger.log(`SMS receipt sent to ${receipt.phoneNumber}`);
     } catch (error) {
-      this.logger.error(
-        `Failed to send SMS receipt: ${error.message}`,
-        error.stack,
+      // SMS is non-critical, log as warning only
+      this.logger.warn(
+        `SMS disabled: ${error.response?.status === 401 ? 'Invalid credentials' : error.message}`,
       );
     }
   }

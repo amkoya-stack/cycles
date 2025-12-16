@@ -1,18 +1,26 @@
 import { Card } from "@/components/ui/card";
-import { Wallet, Plus, Minus, Send } from "lucide-react";
+import {
+  Wallet,
+  ArrowDownToLine,
+  ArrowUpFromLine,
+  ArrowDownLeft,
+  Receipt,
+} from "lucide-react";
 
 interface BalanceCardProps {
   balance: number;
   onDeposit: () => void;
   onWithdraw: () => void;
-  onTransfer: () => void;
+  onRequest: () => void;
+  onReceipts: () => void;
 }
 
 export function BalanceCard({
   balance,
   onDeposit,
   onWithdraw,
-  onTransfer,
+  onRequest,
+  onReceipts,
 }: BalanceCardProps) {
   const formatAmount = (amount: number) => {
     return new Intl.NumberFormat("en-KE", {
@@ -37,22 +45,29 @@ export function BalanceCard({
           onClick={onDeposit}
           className="flex items-center gap-2 text-white hover:text-gray-200 cursor-pointer"
         >
-          <Plus className="w-4 h-4" />
+          <ArrowDownToLine className="w-4 h-4" />
           Deposit
         </button>
         <button
           onClick={onWithdraw}
           className="flex items-center gap-2 text-white hover:text-gray-200 cursor-pointer"
         >
-          <Minus className="w-4 h-4" />
+          <ArrowUpFromLine className="w-4 h-4" />
           Withdraw
         </button>
         <button
-          onClick={onTransfer}
+          onClick={onRequest}
           className="flex items-center gap-2 text-white hover:text-gray-200 cursor-pointer"
         >
-          <Send className="w-4 h-4" />
-          Transfer
+          <ArrowDownLeft className="w-4 h-4" />
+          Request
+        </button>
+        <button
+          onClick={onReceipts}
+          className="flex items-center gap-2 text-white hover:text-gray-200 cursor-pointer"
+        >
+          <Receipt className="w-4 h-4" />
+          Receipts
         </button>
       </div>
     </Card>

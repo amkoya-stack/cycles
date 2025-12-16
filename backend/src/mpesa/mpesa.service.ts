@@ -1,9 +1,16 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  BadRequestException,
+  Inject,
+  forwardRef,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DatabaseService } from '../database/database.service';
+import { WalletService } from '../wallet/wallet.service';
 import axios from 'axios';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -48,7 +55,34 @@ export class MpesaService {
   constructor(
     private readonly config: ConfigService,
     private readonly db: DatabaseService,
+    @Inject(forwardRef(() => WalletService))
+    private readonly walletService: WalletService,
   ) {}
+
+  /**
+   * Format phone number to M-Pesa format (254XXXXXXXXX)
+   */
+  private formatPhoneNumber(phone: string): string {
+    // Remove all non-digit characters
+    let cleaned = phone.replace(/\D/g, '');
+
+    // If starts with 0, replace with 254
+    if (cleaned.startsWith('0')) {
+      cleaned = '254' + cleaned.substring(1);
+    }
+
+    // If starts with +254, remove the +
+    if (cleaned.startsWith('+254')) {
+      cleaned = cleaned.substring(1);
+    }
+
+    // If doesn't start with 254, add it
+    if (!cleaned.startsWith('254')) {
+      cleaned = '254' + cleaned;
+    }
+
+    return cleaned;
+  }
 
   /**
    * Get OAuth access token from Safaricom
@@ -117,19 +151,27 @@ export class MpesaService {
       'base64',
     );
 
+    // Format phone number
+    const formattedPhone = this.formatPhoneNumber(request.phoneNumber);
+    this.logger.log(
+      `Initiating STK Push to ${formattedPhone} for amount ${request.amount}`,
+    );
+
     const payload = {
       BusinessShortCode: shortCode,
       Password: password,
       Timestamp: timestamp,
       TransactionType: 'CustomerPayBillOnline',
       Amount: Math.round(request.amount), // M-Pesa only accepts whole numbers
-      PartyA: request.phoneNumber,
+      PartyA: formattedPhone,
       PartyB: shortCode,
-      PhoneNumber: request.phoneNumber,
+      PhoneNumber: formattedPhone,
       CallBackURL: callbackUrl,
       AccountReference: request.accountReference,
       TransactionDesc: request.transactionDesc,
     };
+
+    this.logger.debug('STK Push payload:', JSON.stringify(payload, null, 2));
 
     try {
       const response = await axios.post(stkPushUrl, payload, {
@@ -140,6 +182,7 @@ export class MpesaService {
       });
 
       const data = response.data;
+      this.logger.log(`STK Push successful: ${data.CheckoutRequestID}`);
 
       return {
         checkoutRequestId: data.CheckoutRequestID,
@@ -288,30 +331,25 @@ export class MpesaService {
 
     const callback = callbackResult.rows[0];
 
-    // Import LedgerService dynamically to avoid circular dependency
     try {
-      // Use external reference as checkoutRequestId for idempotency
-      const externalReference = checkoutRequestId;
+      this.logger.log(
+        `Completing M-Pesa deposit: User ${callback.user_id}, Amount ${callback.amount}, Receipt ${mpesaReceiptNumber}`,
+      );
 
       // Complete the deposit through wallet service
-      // The wallet service needs to be notified to complete the deposit
-      this.logger.log(
-        `M-Pesa deposit successful: User ${callback.user_id}, Amount ${callback.amount}, Receipt ${mpesaReceiptNumber}`,
+      await this.walletService.completeDeposit(
+        callback.user_id,
+        Number(callback.amount),
+        mpesaReceiptNumber,
+        checkoutRequestId, // Use checkoutRequestId as externalReference for idempotency
       );
 
-      // Store completion flag for wallet service to pick up
-      await this.db.query(
-        `UPDATE mpesa_callbacks 
-         SET metadata = jsonb_set(
-           COALESCE(metadata, '{}'::jsonb), 
-           '{ledger_ready}', 
-           'true'::jsonb
-         )
-         WHERE checkout_request_id = $1`,
-        [checkoutRequestId],
+      this.logger.log(
+        `Deposit completed successfully for user ${callback.user_id}`,
       );
     } catch (error) {
-      this.logger.error('Failed to mark deposit for completion', error);
+      this.logger.error('Failed to complete deposit in ledger:', error);
+      throw error;
     }
   }
 
@@ -336,8 +374,13 @@ export class MpesaService {
     const resultUrl = this.config.get<string>('MPESA_B2C_RESULT_URL');
 
     if (!shortCode || !initiatorName || !securityCredential || !b2cUrl) {
-      throw new Error('M-Pesa B2C configuration incomplete');
+      throw new BadRequestException(
+        'Withdrawals are currently unavailable. M-Pesa B2C configuration required.',
+      );
     }
+
+    // Format phone number to 254XXXXXXXXX
+    const formattedPhone = this.formatPhoneNumber(phoneNumber);
 
     const payload = {
       InitiatorName: initiatorName,
@@ -345,7 +388,7 @@ export class MpesaService {
       CommandID: 'BusinessPayment',
       Amount: Math.round(amount),
       PartyA: shortCode,
-      PartyB: phoneNumber,
+      PartyB: formattedPhone,
       Remarks: remarks,
       QueueTimeOutURL: queueTimeoutUrl,
       ResultURL: resultUrl,

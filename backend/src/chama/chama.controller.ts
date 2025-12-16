@@ -26,6 +26,15 @@ export class ChamaController {
   }
 
   /**
+   * Get public chama details by slug (no auth required)
+   * GET /api/chama/public/slug/:slug
+   */
+  @Get('public/slug/:slug')
+  async getPublicChamaBySlug(@Param('slug') slug: string) {
+    return this.chamaService.getPublicChamaDetailsBySlug(slug);
+  }
+
+  /**
    * Create new chama
    * POST /api/chama
    */
@@ -67,6 +76,12 @@ export class ChamaController {
     @Param('id') chamaId: string,
     @Body() dto: any,
   ) {
+    console.log(
+      'PUT /api/chama/:id - coverImage present:',
+      !!dto.coverImage,
+      'length:',
+      dto.coverImage?.length,
+    );
     return this.chamaService.updateChama(req.user.id, chamaId, dto);
   }
 
@@ -102,6 +117,54 @@ export class ChamaController {
   @UseGuards(JwtAuthGuard)
   async acceptInvite(@Req() req: any, @Param('inviteId') inviteId: string) {
     return this.chamaService.acceptInvite(req.user.id, inviteId);
+  }
+
+  /**
+   * Join public chama (auto-accept)
+   * POST /api/chama/:id/invite/accept-public
+   */
+  @Post(':id/invite/accept-public')
+  @UseGuards(JwtAuthGuard)
+  async joinPublicChama(@Req() req: any, @Param('id') chamaId: string) {
+    return this.chamaService.joinPublicChama(req.user.id, chamaId);
+  }
+
+  /**
+   * Request to join private chama
+   * POST /api/chama/:id/invite/request
+   */
+  @Post(':id/invite/request')
+  @UseGuards(JwtAuthGuard)
+  async requestToJoin(@Req() req: any, @Param('id') chamaId: string) {
+    return this.chamaService.requestToJoin(req.user.id, chamaId);
+  }
+
+  /**
+   * List pending join requests (admin only)
+   * GET /api/chama/:id/invite/requests
+   */
+  @Get(':id/invite/requests')
+  @UseGuards(JwtAuthGuard)
+  async listJoinRequests(@Req() req: any, @Param('id') chamaId: string) {
+    return this.chamaService.listJoinRequests(req.user.id, chamaId);
+  }
+
+  /**
+   * Respond to join request (admin only)
+   * POST /api/chama/invite/:inviteId/respond
+   */
+  @Post('invite/:inviteId/respond')
+  @UseGuards(JwtAuthGuard)
+  async respondToJoinRequest(
+    @Req() req: any,
+    @Param('inviteId') inviteId: string,
+    @Body() dto: { action: 'accept' | 'reject' },
+  ) {
+    return this.chamaService.respondToJoinRequest(
+      req.user.id,
+      inviteId,
+      dto.action,
+    );
   }
 
   /**
@@ -272,5 +335,19 @@ export class ChamaController {
   @UseGuards(JwtAuthGuard)
   async getCoMembers(@Req() req: any) {
     return this.chamaService.getCoMembers(req.user.id);
+  }
+
+  /**
+   * Leave chama
+   * POST /api/chama/:id/leave
+   */
+  @Post(':id/leave')
+  @UseGuards(JwtAuthGuard)
+  async leaveChama(
+    @Req() req: any,
+    @Param('id') chamaId: string,
+    @Body() dto: any,
+  ) {
+    return this.chamaService.leaveChama(req.user.id, chamaId, dto);
   }
 }

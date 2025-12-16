@@ -113,7 +113,7 @@ export default function WalletPage() {
             setPollingCheckoutId(null);
             setDepositStatus("");
             alert("Deposit successful! Your balance has been updated.");
-            fetchWalletData();
+            // Don't fetch - WebSocket will update balance and transactions
           } else if (data.status === "failed" || data.status === "cancelled") {
             setPollingCheckoutId(null);
             setDepositStatus("");
@@ -148,8 +148,10 @@ export default function WalletPage() {
     socketRef.current.on(
       "balanceUpdated",
       (data: { balance: string; timestamp: string }) => {
-        console.log("Balance updated:", data);
+        console.log("Balance updated via WebSocket:", data);
         setBalance(parseFloat(data.balance));
+        // Fetch only transactions to update the list without refetching balance
+        fetchTransactions();
       }
     );
 
@@ -168,7 +170,7 @@ export default function WalletPage() {
           setPollingCheckoutId(null);
           setDepositStatus("");
           alert("Deposit successful! Your balance has been updated.");
-          fetchWalletData();
+          // Don't fetch wallet data - WebSocket already updated balance
         }
       }
     );
@@ -177,7 +179,8 @@ export default function WalletPage() {
       "transactionUpdate",
       (data: { transaction: any; timestamp: string }) => {
         console.log("Transaction update:", data);
-        fetchWalletData(); // Refresh transaction list
+        // Add new transaction to the list instead of refetching everything
+        setTransactions((prev) => [data.transaction, ...prev]);
       }
     );
 
@@ -204,6 +207,26 @@ export default function WalletPage() {
       }
     } catch (error) {
       console.error("Failed to fetch co-members:", error);
+    }
+  };
+
+  const fetchTransactions = async () => {
+    try {
+      const accessToken = localStorage.getItem("accessToken");
+      if (!accessToken) return;
+
+      const txRes = await fetch(
+        "http://localhost:3001/api/wallet/transactions?limit=50",
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
+      );
+      if (txRes.ok) {
+        const txData = await txRes.json();
+        setTransactions(txData.transactions || []);
+      }
+    } catch (error) {
+      console.error("Failed to fetch transactions:", error);
     }
   };
 
@@ -249,22 +272,7 @@ export default function WalletPage() {
       }
 
       // Fetch transactions
-      const txRes = await fetch(
-        "http://localhost:3001/api/wallet/transactions?limit=50",
-        {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        }
-      );
-      if (txRes.ok) {
-        const txData = await txRes.json();
-        setTransactions(txData.transactions || []);
-      } else if (txRes.status === 401) {
-        // Token expired or invalid
-        localStorage.removeItem("accessToken");
-        localStorage.removeItem("refreshToken");
-        router.push("/auth/login");
-        return;
-      }
+      await fetchTransactions();
     } catch (error) {
       console.error("Failed to fetch wallet data:", error);
       alert(
@@ -444,7 +452,8 @@ export default function WalletPage() {
             balance={balance}
             onDeposit={() => setShowDeposit(true)}
             onWithdraw={() => setShowWithdraw(true)}
-            onTransfer={() => setShowTransfer(true)}
+            onRequest={() => alert("Request money feature coming soon!")}
+            onReceipts={() => alert("Receipts feature coming soon!")}
           />
 
           <QuickSendSection
@@ -458,8 +467,13 @@ export default function WalletPage() {
             onMemberClick={(member) => {
               setTransferPhone(member.phone || "");
               setTransferDescription(
-                `Transfer to ${member.first_name} ${member.last_name}`
+                `Transfer to ${member.full_name || member.name || "Member"}`
               );
+              setShowTransfer(true);
+            }}
+            onAddRecipient={() => {
+              setTransferPhone("");
+              setTransferDescription("");
               setShowTransfer(true);
             }}
           />
@@ -495,6 +509,7 @@ export default function WalletPage() {
           recipientPhone={transferPhone}
           amount={transferAmount}
           description={transferDescription}
+          onPhoneChange={setTransferPhone}
           onAmountChange={setTransferAmount}
           onDescriptionChange={setTransferDescription}
           onClose={() => setShowTransfer(false)}

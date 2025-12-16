@@ -79,7 +79,7 @@ export default function VerifyPage() {
 
       // Redirect to home or dashboard after 2 seconds
       setTimeout(() => {
-        router.push("/");
+        window.location.href = "/";
       }, 2000);
     } catch (err: any) {
       // Always show user-friendly error message

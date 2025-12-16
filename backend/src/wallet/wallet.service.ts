@@ -4,6 +4,8 @@ import {
   Injectable,
   BadRequestException,
   NotFoundException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import { LedgerService } from '../ledger/ledger.service';
@@ -44,6 +46,7 @@ export class WalletService {
   constructor(
     private readonly db: DatabaseService,
     private readonly ledger: LedgerService,
+    @Inject(forwardRef(() => MpesaService))
     private readonly mpesa: MpesaService,
     private readonly statement: StatementService,
     private readonly notification: NotificationService,
@@ -126,6 +129,14 @@ export class WalletService {
       externalReference,
       `Deposit from M-Pesa: ${mpesaReceiptNumber}`,
     );
+
+    // Emit balance update via WebSocket
+    try {
+      const newBalance = await this.getBalance(userId);
+      this.walletGateway.emitBalanceUpdate(userId, newBalance.toString());
+    } catch (error) {
+      console.error('Failed to emit balance update:', error);
+    }
 
     // Send receipt notifications
     try {
@@ -243,14 +254,21 @@ export class WalletService {
     // Validate against limits
     await this.limits.validateTransaction(senderId, 'transfer', request.amount);
 
-    // Get recipient by phone number
+    // Get recipient by phone, email, or name
+    const identifier = request.recipientPhone; // Actually can be phone, email, or name
     const recipientResult = await this.db.query(
-      'SELECT id FROM users WHERE phone = $1 LIMIT 1',
-      [request.recipientPhone],
+      `SELECT id FROM users 
+       WHERE phone = $1 
+          OR email = $1 
+          OR LOWER(full_name) = LOWER($1)
+       LIMIT 1`,
+      [identifier],
     );
 
     if (recipientResult.rows.length === 0) {
-      throw new BadRequestException('Recipient not found');
+      throw new BadRequestException(
+        'Recipient not found. Please check the phone number, email, or name.',
+      );
     }
 
     const recipientId = recipientResult.rows[0].id;
@@ -277,15 +295,14 @@ export class WalletService {
         [senderId],
       );
       const recipientNameResult = await this.db.query(
-        'SELECT first_name, last_name FROM users WHERE id = $1',
+        'SELECT full_name FROM users WHERE id = $1',
         [recipientId],
       );
 
       if (senderResult.rows.length > 0 && recipientNameResult.rows.length > 0) {
         const sender = senderResult.rows[0];
         const recipient = recipientNameResult.rows[0];
-        const recipientName =
-          `${recipient.first_name || ''} ${recipient.last_name || ''}`.trim();
+        const recipientName = recipient.full_name || '';
 
         await this.notification.sendTransferReceipt(
           sender.email,
@@ -340,7 +357,7 @@ export class WalletService {
         e.balance_before,
         e.balance_after
       FROM transactions t
-      JOIN transaction_codes tc ON t.code_id = tc.id
+      JOIN transaction_codes tc ON t.transaction_code_id = tc.id
       JOIN entries e ON t.id = e.transaction_id
       JOIN accounts a ON e.account_id = a.id
       WHERE a.user_id = $1

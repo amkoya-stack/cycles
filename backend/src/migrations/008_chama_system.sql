@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS chamas (
     closed_at TIMESTAMPTZ,
     
     CONSTRAINT valid_status CHECK (status IN ('active', 'inactive', 'closed')),
-    CONSTRAINT valid_frequency CHECK (contribution_frequency IN ('weekly', 'biweekly', 'monthly', 'custom')),
+    CONSTRAINT valid_frequency CHECK (contribution_frequency IN ('daily', 'weekly', 'biweekly', 'monthly', 'custom')),
     CONSTRAINT positive_contribution CHECK (contribution_amount > 0)
 );
 

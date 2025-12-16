@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { DatabaseModule } from '../database/database.module';
 import { LedgerModule } from '../ledger/ledger.module';
 import { MpesaModule } from '../mpesa/mpesa.module';
@@ -11,7 +11,7 @@ import { WalletGateway } from './wallet.gateway';
 import { LimitsService } from './limits.service';
 
 @Module({
-  imports: [DatabaseModule, LedgerModule, MpesaModule],
+  imports: [DatabaseModule, LedgerModule, forwardRef(() => MpesaModule)],
   controllers: [WalletController],
   providers: [
     WalletService,

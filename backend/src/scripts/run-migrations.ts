@@ -26,13 +26,19 @@ class MigrationRunner {
   private migrationsPath: string;
 
   constructor() {
-    this.pool = new Pool({
+    const dbConfig = {
       host: process.env.DB_HOST || 'localhost',
       port: parseInt(process.env.DB_PORT || '5432'),
       user: process.env.DB_USERNAME || 'postgres',
       password: process.env.DB_PASSWORD,
       database: process.env.DB_DATABASE || 'chama_platform',
-    });
+    };
+
+    console.log(
+      `🔌 Connecting to database: ${dbConfig.database} on ${dbConfig.host}:${dbConfig.port}`,
+    );
+
+    this.pool = new Pool(dbConfig);
 
     this.migrationsPath = path.join(__dirname, '..', 'migrations');
   }
@@ -58,10 +64,18 @@ class MigrationRunner {
    * Get list of executed migrations
    */
   async getExecutedMigrations(): Promise<string[]> {
-    const result = await this.pool.query(
-      'SELECT filename FROM migrations ORDER BY id ASC',
-    );
-    return result.rows.map((row) => row.filename);
+    try {
+      const result = await this.pool.query(
+        'SELECT filename FROM migrations ORDER BY id ASC',
+      );
+      console.log(
+        `🔍 Found ${result.rows.length} executed migrations in migrations table`,
+      );
+      return result.rows.map((row) => row.filename);
+    } catch (error) {
+      console.log(`⚠️  Migrations table doesn't exist yet (${error.message})`);
+      return [];
+    }
   }
 
   /**

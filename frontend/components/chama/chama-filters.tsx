@@ -96,8 +96,8 @@ export function ChamaFilters({
             onClick={() => onFilterChange(filter.id)}
             className={
               activeFilter === filter.id
-                ? "px-4 py-2 rounded-full bg-[#083232] text-white text-sm font-medium transition-colors whitespace-nowrap flex-shrink-0"
-                : "px-4 py-2 rounded-full border border-gray-300 text-gray-700 text-sm hover:border-[#083232] hover:text-[#083232] transition-colors whitespace-nowrap flex-shrink-0"
+                ? "px-4 py-2 rounded-full bg-[#083232] text-white text-sm font-medium transition-colors whitespace-nowrap flex-shrink-0 cursor-pointer"
+                : "px-4 py-2 rounded-full border border-gray-300 text-gray-700 text-sm hover:border-[#083232] hover:text-[#083232] transition-colors whitespace-nowrap flex-shrink-0 cursor-pointer"
             }
           >
             {filter.label}
@@ -107,7 +107,7 @@ export function ChamaFilters({
         {hiddenFilters.length > 0 && (
           <button
             onClick={() => setShowMore(!showMore)}
-            className="px-4 py-2 rounded-full border border-gray-300 text-gray-700 text-sm hover:border-[#083232] hover:text-[#083232] transition-colors whitespace-nowrap flex-shrink-0"
+            className="px-4 py-2 rounded-full border border-gray-300 text-gray-700 text-sm hover:border-[#083232] hover:text-[#083232] transition-colors whitespace-nowrap flex-shrink-0 cursor-pointer"
           >
             {showMore ? "Less..." : "More..."}
           </button>
@@ -123,8 +123,8 @@ export function ChamaFilters({
               onClick={() => onFilterChange(filter.id)}
               className={
                 activeFilter === filter.id
-                  ? "px-4 py-2 rounded-full bg-[#083232] text-white text-sm font-medium transition-colors whitespace-nowrap"
-                  : "px-4 py-2 rounded-full border border-gray-300 text-gray-700 text-sm hover:border-[#083232] hover:text-[#083232] transition-colors whitespace-nowrap"
+                  ? "px-4 py-2 rounded-full bg-[#083232] text-white text-sm font-medium transition-colors whitespace-nowrap cursor-pointer"
+                  : "px-4 py-2 rounded-full border border-gray-300 text-gray-700 text-sm hover:border-[#083232] hover:text-[#083232] transition-colors whitespace-nowrap cursor-pointer"
               }
             >
               {filter.label}

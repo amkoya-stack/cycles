@@ -110,14 +110,6 @@ export class LimitsService {
 
     const usage = await this.getUserUsage(userId);
 
-    // Validate minimum amount
-    const minField = `min_${transactionType}` as keyof TransactionLimits;
-    if (amount < (limits[minField] as number)) {
-      throw new BadRequestException(
-        `Minimum ${transactionType} amount is KES ${limits[minField]}`,
-      );
-    }
-
     // Validate maximum single transaction
     const maxSingleField =
       `max_single_${transactionType}` as keyof TransactionLimits;

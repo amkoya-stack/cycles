@@ -61,4 +61,51 @@ export class MpesaController {
       return { ResultCode: 1, ResultDesc: 'Failed to process timeout' };
     }
   }
+
+  /**
+   * DEV ONLY: Simulate M-Pesa callback for testing
+   * POST /api/mpesa/test-callback/:checkoutRequestId
+   * Simulates successful payment callback
+   */
+  @Post('test-callback/:checkoutRequestId')
+  async simulateCallback(@Body() body: { checkoutRequestId: string }) {
+    const checkoutRequestId = body.checkoutRequestId;
+    this.logger.warn(
+      `[DEV] Simulating successful M-Pesa callback for ${checkoutRequestId}`,
+    );
+
+    // Simulate M-Pesa successful callback payload
+    const mockPayload = {
+      Body: {
+        stkCallback: {
+          MerchantRequestID: 'mock-' + Date.now(),
+          CheckoutRequestID: checkoutRequestId,
+          ResultCode: 0,
+          ResultDesc: 'The service request is processed successfully.',
+          CallbackMetadata: {
+            Item: [
+              { Name: 'Amount', Value: 10 },
+              { Name: 'MpesaReceiptNumber', Value: `TEST${Date.now()}` },
+              { Name: 'Balance', Value: 0 },
+              { Name: 'TransactionDate', Value: 20251215143900 },
+              { Name: 'PhoneNumber', Value: 254707276958 },
+            ],
+          },
+        },
+      },
+    };
+
+    try {
+      await this.mpesa.handleCallback(mockPayload);
+      this.logger.log(`[DEV] Mock callback processed successfully`);
+      return {
+        success: true,
+        message: 'Mock callback processed',
+        payload: mockPayload,
+      };
+    } catch (error) {
+      this.logger.error('[DEV] Mock callback failed', error);
+      throw error;
+    }
+  }
 }
