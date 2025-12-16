@@ -10,6 +10,7 @@ import { DatabaseService } from '../database/database.service';
 import { LedgerService } from '../ledger/ledger.service';
 import { NotificationService } from '../wallet/notification.service';
 import { ContributionService } from './contribution.service';
+import { ReminderService } from './reminder.service';
 import { v4 as uuidv4 } from 'uuid';
 
 export interface CreateChamaDto {
@@ -61,6 +62,7 @@ export class ChamaService {
     private readonly ledger: LedgerService,
     private readonly notification: NotificationService,
     private readonly contributionService: ContributionService,
+    private readonly reminderService: ReminderService,
   ) {}
 
   // ==========================================
@@ -1055,6 +1057,9 @@ export class ChamaService {
         ],
       );
     });
+
+    // Schedule reminders for the new cycle
+    await this.reminderService.scheduleRemindersForNewCycle(cycleId);
 
     return { cycleId, cycleNumber, message: 'Cycle created successfully' };
   }

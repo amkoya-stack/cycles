@@ -5,11 +5,14 @@ import {
   BadRequestException,
   NotFoundException,
   Logger,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import { LedgerService } from '../ledger/ledger.service';
 import { WalletService } from '../wallet/wallet.service';
 import { MpesaService } from '../mpesa/mpesa.service';
+import { ReminderService } from './reminder.service';
 import {
   CreateContributionDto,
   ContributionHistoryQueryDto,
@@ -30,6 +33,8 @@ export class ContributionService {
     private readonly ledger: LedgerService,
     private readonly wallet: WalletService,
     private readonly mpesa: MpesaService,
+    @Inject(forwardRef(() => ReminderService))
+    private readonly reminderService: ReminderService,
   ) {}
 
   /**
@@ -183,6 +188,11 @@ export class ContributionService {
        WHERE id = $3`,
       [dto.amount, feeAmount, dto.cycleId],
     );
+
+    // Cancel pending reminders for this member
+    if (this.reminderService) {
+      await this.reminderService.cancelRemindersForMember(dto.cycleId, member.id);
+    }
 
     // Check if cycle is complete and trigger payout if configured
     await this.checkCycleCompletion(dto.cycleId);

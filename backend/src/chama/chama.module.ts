@@ -6,11 +6,12 @@ import { MpesaModule } from '../mpesa/mpesa.module';
 import { ChamaController } from './chama.controller';
 import { ChamaService } from './chama.service';
 import { ContributionService } from './contribution.service';
+import { ReminderService } from './reminder.service';
 
 @Module({
   imports: [DatabaseModule, LedgerModule, WalletModule, MpesaModule],
   controllers: [ChamaController],
-  providers: [ChamaService, ContributionService],
+  providers: [ChamaService, ContributionService, ReminderService],
   exports: [ChamaService],
 })
 export class ChamaModule {}

@@ -61,6 +61,41 @@ export class NotificationService {
   }
 
   /**
+   * Send generic email (for reminders, notifications, etc.)
+   */
+  async sendEmail(options: {
+    to: string;
+    subject: string;
+    html?: string;
+    text?: string;
+  }): Promise<void> {
+    if (!this.transporter) {
+      this.logger.warn(
+        'Email transporter not initialized. Skipping email.',
+      );
+      return;
+    }
+
+    try {
+      const mailOptions = {
+        from: this.config.get<string>('SMTP_FROM') || 'noreply@cycle.app',
+        to: options.to,
+        subject: options.subject,
+        html: options.html,
+        text: options.text,
+      };
+
+      await this.transporter.sendMail(mailOptions);
+      this.logger.log(`Email sent to ${options.to}`);
+    } catch (error: any) {
+      this.logger.error(
+        `Failed to send email: ${error.message}`,
+        error.stack,
+      );
+    }
+  }
+
+  /**
    * Send transaction receipt via email
    */
   async sendEmailReceipt(receipt: EmailReceipt): Promise<void> {
