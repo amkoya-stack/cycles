@@ -282,7 +282,10 @@ export class ChamaController {
    */
   @Get(':id/contributions')
   @UseGuards(JwtAuthGuard)
-  async getContributionHistoryLegacy(@Req() req: any, @Param('id') chamaId: string) {
+  async getContributionHistoryLegacy(
+    @Req() req: any,
+    @Param('id') chamaId: string,
+  ) {
     return this.chamaService.getContributionHistoryLegacy(req.user.id, chamaId);
   }
 
@@ -415,7 +418,10 @@ export class ChamaController {
    */
   @Get('penalties')
   @UseGuards(JwtAuthGuard)
-  async getMemberPenalties(@Req() req: any, @Param('chamaId') chamaId?: string) {
+  async getMemberPenalties(
+    @Req() req: any,
+    @Param('chamaId') chamaId?: string,
+  ) {
     return this.chamaService.getMemberPenalties(req.user.id, chamaId);
   }
 

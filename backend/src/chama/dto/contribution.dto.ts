@@ -1,4 +1,13 @@
-import { IsNotEmpty, IsNumber, IsOptional, IsEnum, IsUUID, IsString, Min, IsBoolean } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsEnum,
+  IsUUID,
+  IsString,
+  Min,
+  IsBoolean,
+} from 'class-validator';
 
 export enum ContributionType {
   FIXED = 'fixed',

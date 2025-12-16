@@ -471,7 +471,23 @@ export class LedgerService {
     chamaId: string,
     amount: number,
     description: string,
+    externalReference?: string,
   ): Promise<any> {
+    // Idempotency: Check if contribution already processed
+    if (externalReference) {
+      const existing = await this.db.query(
+        `SELECT t.*
+         FROM transactions t
+         JOIN transaction_codes tc ON t.transaction_code_id = tc.id
+         WHERE tc.code = 'CONTRIBUTION' AND t.external_reference = $1 AND t.status = 'completed'
+         LIMIT 1`,
+        [externalReference],
+      );
+      if (existing.rows.length > 0) {
+        return existing.rows[0]; // Return existing transaction
+      }
+    }
+
     const reference = `CTB-${uuidv4()}`;
 
     // Get accounts
@@ -527,6 +543,7 @@ export class LedgerService {
         amount: totalAmount,
         description: description,
         initiatedBy: userId,
+        externalReference: externalReference,
         metadata: {
           userId,
           chamaId,
@@ -553,7 +570,23 @@ export class LedgerService {
     userId: string,
     amount: number,
     description: string,
+    externalReference?: string,
   ): Promise<any> {
+    // Idempotency: Check if payout already processed
+    if (externalReference) {
+      const existing = await this.db.query(
+        `SELECT t.*
+         FROM transactions t
+         JOIN transaction_codes tc ON t.transaction_code_id = tc.id
+         WHERE tc.code = 'PAYOUT' AND t.external_reference = $1 AND t.status = 'completed'
+         LIMIT 1`,
+        [externalReference],
+      );
+      if (existing.rows.length > 0) {
+        return existing.rows[0]; // Return existing transaction
+      }
+    }
+
     const reference = `PAY-${uuidv4()}`;
 
     // Get accounts
@@ -593,6 +626,7 @@ export class LedgerService {
         transactionCode: 'PAYOUT',
         amount: amount,
         description: description,
+        externalReference: externalReference,
         metadata: { chamaId, userId },
       },
       entries,

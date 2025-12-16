@@ -1,18 +1,23 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
-import { Injectable, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+  Logger,
+} from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import { LedgerService } from '../ledger/ledger.service';
 import { WalletService } from '../wallet/wallet.service';
 import { MpesaService } from '../mpesa/mpesa.service';
-import { 
-  CreateContributionDto, 
+import {
+  CreateContributionDto,
   ContributionHistoryQueryDto,
   SetupAutoDebitDto,
   UpdateAutoDebitDto,
   CreatePenaltyWaiverDto,
   VotePenaltyWaiverDto,
-  PaymentMethod 
+  PaymentMethod,
 } from './dto/contribution.dto';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -37,11 +42,13 @@ export class ContributionService {
        FROM chama_members cm
        JOIN chamas ch ON cm.chama_id = ch.id
        WHERE cm.chama_id = $1 AND cm.user_id = $2 AND cm.status = 'active'`,
-      [dto.chamaId, userId]
+      [dto.chamaId, userId],
     );
 
     if (memberCheck.rowCount === 0) {
-      throw new BadRequestException('You are not an active member of this chama');
+      throw new BadRequestException(
+        'You are not an active member of this chama',
+      );
     }
 
     const member = memberCheck.rows[0];
@@ -51,7 +58,7 @@ export class ContributionService {
     const cycleCheck = await this.db.query(
       `SELECT * FROM contribution_cycles 
        WHERE id = $1 AND chama_id = $2 AND status = 'active'`,
-      [dto.cycleId, dto.chamaId]
+      [dto.cycleId, dto.chamaId],
     );
 
     if (cycleCheck.rowCount === 0) {
@@ -64,11 +71,13 @@ export class ContributionService {
     const existingContribution = await this.db.query(
       `SELECT id FROM contributions 
        WHERE cycle_id = $1 AND user_id = $2 AND status = 'completed'`,
-      [dto.cycleId, userId]
+      [dto.cycleId, userId],
     );
 
     if (existingContribution.rowCount > 0) {
-      throw new BadRequestException('You have already contributed to this cycle');
+      throw new BadRequestException(
+        'You have already contributed to this cycle',
+      );
     }
 
     // Validate contribution amount based on chama settings
@@ -76,18 +85,26 @@ export class ContributionService {
     if (contributionType === 'fixed') {
       if (dto.amount !== parseFloat(member.contribution_amount)) {
         throw new BadRequestException(
-          `Contribution amount must be exactly ${member.contribution_amount} for this chama`
+          `Contribution amount must be exactly ${member.contribution_amount} for this chama`,
         );
       }
     } else if (contributionType === 'flexible') {
-      const minAmount = parseFloat(settings.min_amount || member.contribution_amount);
-      const maxAmount = parseFloat(settings.max_amount || member.contribution_amount * 2);
+      const minAmount = parseFloat(
+        settings.min_amount || member.contribution_amount,
+      );
+      const maxAmount = parseFloat(
+        settings.max_amount || member.contribution_amount * 2,
+      );
       if (dto.amount < minAmount || dto.amount > maxAmount) {
         throw new BadRequestException(
-          `Contribution amount must be between ${minAmount} and ${maxAmount}`
+          `Contribution amount must be between ${minAmount} and ${maxAmount}`,
         );
       }
     }
+
+    // Generate idempotency key
+    const contributionId = uuidv4();
+    const externalReference = `contribution-${contributionId}`;
 
     // Process payment based on method
     let transactionId: string | null = null;
@@ -100,52 +117,63 @@ export class ContributionService {
           dto.chamaId,
           dto.amount,
           member.id,
-          cycle.cycle_number
+          cycle.cycle_number,
+          externalReference,
         );
         break;
 
       case PaymentMethod.MPESA_DIRECT:
         if (!dto.mpesaPhone) {
-          throw new BadRequestException('M-Pesa phone number required for direct M-Pesa payment');
+          throw new BadRequestException(
+            'M-Pesa phone number required for direct M-Pesa payment',
+          );
         }
         transactionId = await this.processMpesaContribution(
           userId,
           dto.chamaId,
           dto.amount,
           dto.mpesaPhone,
-          member.id
+          member.id,
         );
         break;
 
       case PaymentMethod.AUTO_DEBIT:
-        throw new BadRequestException('Auto-debit contributions are processed automatically');
+        throw new BadRequestException(
+          'Auto-debit contributions are processed automatically',
+        );
 
       default:
         throw new BadRequestException('Invalid payment method');
     }
 
-    // Record the contribution
-    const contributionId = uuidv4();
-    await this.db.query(
-      `INSERT INTO contributions (
-        id, chama_id, cycle_id, member_id, user_id, 
-        transaction_id, amount, fee_amount, payment_method,
-        status, contributed_at, notes
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'completed', NOW(), $10)
-      RETURNING *`,
-      [
-        contributionId,
-        dto.chamaId,
-        dto.cycleId,
-        member.id,
-        userId,
-        transactionId,
-        dto.amount,
-        feeAmount,
-        dto.paymentMethod,
-        dto.notes,
-      ]
+    // Record the contribution with idempotency check
+    const existingRecord = await this.db.query(
+      `SELECT id FROM contributions WHERE id = $1`,
+      [contributionId],
     );
+
+    if (existingRecord.rowCount === 0) {
+      await this.db.query(
+        `INSERT INTO contributions (
+          id, chama_id, cycle_id, member_id, user_id, 
+          transaction_id, amount, fee_amount, payment_method,
+          status, contributed_at, notes
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'completed', NOW(), $10)
+        RETURNING *`,
+        [
+          contributionId,
+          dto.chamaId,
+          dto.cycleId,
+          member.id,
+          userId,
+          transactionId,
+          dto.amount,
+          feeAmount,
+          dto.paymentMethod,
+          dto.notes,
+        ],
+      );
+    }
 
     // Update cycle collected amount
     await this.db.query(
@@ -153,13 +181,15 @@ export class ContributionService {
        SET collected_amount = collected_amount + $1,
            fees_collected = fees_collected + $2
        WHERE id = $3`,
-      [dto.amount, feeAmount, dto.cycleId]
+      [dto.amount, feeAmount, dto.cycleId],
     );
 
     // Check if cycle is complete and trigger payout if configured
     await this.checkCycleCompletion(dto.cycleId);
 
-    this.logger.log(`Contribution created: ${contributionId} for user ${userId}`);
+    this.logger.log(
+      `Contribution created: ${contributionId} for user ${userId}`,
+    );
 
     return {
       contributionId,
@@ -177,7 +207,8 @@ export class ContributionService {
     chamaId: string,
     amount: number,
     memberId: string,
-    cycleNumber: number
+    cycleNumber: number,
+    externalReference: string,
   ): Promise<string> {
     // Use ledger service to process chama contribution
     const result = await this.ledger.processContribution(
@@ -185,6 +216,7 @@ export class ContributionService {
       chamaId,
       amount,
       `Contribution for cycle ${cycleNumber}`,
+      externalReference,
     );
 
     return result.id;
@@ -198,7 +230,7 @@ export class ContributionService {
     chamaId: string,
     amount: number,
     phoneNumber: string,
-    memberId: string
+    memberId: string,
   ): Promise<string> {
     // Initiate M-Pesa STK push for the contribution
     const mpesaResult = await this.mpesa.stkPush({
@@ -220,7 +252,10 @@ export class ContributionService {
   /**
    * Get contribution history
    */
-  async getContributionHistory(userId: string, query: ContributionHistoryQueryDto) {
+  async getContributionHistory(
+    userId: string,
+    query: ContributionHistoryQueryDto,
+  ) {
     const { chamaId, cycleId, memberId, limit = 50, offset = 0 } = query;
 
     let whereClause = 'WHERE c.user_id = $1';
@@ -256,7 +291,7 @@ export class ContributionService {
        ${whereClause}
        ORDER BY c.contributed_at DESC
        LIMIT $${++paramCount} OFFSET $${++paramCount}`,
-      [...params, limit, offset]
+      [...params, limit, offset],
     );
 
     return {
@@ -276,7 +311,7 @@ export class ContributionService {
       `SELECT cy.* FROM contribution_cycles cy
        JOIN chama_members cm ON cy.chama_id = cm.chama_id
        WHERE cy.id = $1 AND cm.user_id = $2`,
-      [cycleId, userId]
+      [cycleId, userId],
     );
 
     if (accessCheck.rowCount === 0) {
@@ -286,7 +321,7 @@ export class ContributionService {
     // Use the database function to get summary
     const summary = await this.db.query(
       'SELECT * FROM get_cycle_contribution_summary($1)',
-      [cycleId]
+      [cycleId],
     );
 
     // Get individual member statuses
@@ -311,7 +346,7 @@ export class ContributionService {
        LEFT JOIN contributions c ON c.cycle_id = cy.id AND c.member_id = cm.id AND c.status = 'completed'
        WHERE cy.id = $1
        ORDER BY u.full_name`,
-      [cycleId]
+      [cycleId],
     );
 
     return {
@@ -328,32 +363,40 @@ export class ContributionService {
     const memberCheck = await this.db.query(
       `SELECT id FROM chama_members 
        WHERE chama_id = $1 AND user_id = $2 AND status = 'active'`,
-      [dto.chamaId, userId]
+      [dto.chamaId, userId],
     );
 
     if (memberCheck.rowCount === 0) {
-      throw new BadRequestException('You are not an active member of this chama');
+      throw new BadRequestException(
+        'You are not an active member of this chama',
+      );
     }
 
     const memberId = memberCheck.rows[0].id;
 
     // Validate payment method
     if (dto.paymentMethod === PaymentMethod.MPESA_DIRECT && !dto.mpesaPhone) {
-      throw new BadRequestException('M-Pesa phone number required for M-Pesa auto-debit');
+      throw new BadRequestException(
+        'M-Pesa phone number required for M-Pesa auto-debit',
+      );
     }
 
     if (dto.amountType === 'fixed' && !dto.fixedAmount) {
-      throw new BadRequestException('Fixed amount required when amount type is fixed');
+      throw new BadRequestException(
+        'Fixed amount required when amount type is fixed',
+      );
     }
 
     // Check if auto-debit already exists
     const existing = await this.db.query(
       'SELECT id FROM contribution_auto_debits WHERE member_id = $1',
-      [memberId]
+      [memberId],
     );
 
     if (existing.rowCount > 0) {
-      throw new BadRequestException('Auto-debit already configured. Use update endpoint to modify.');
+      throw new BadRequestException(
+        'Auto-debit already configured. Use update endpoint to modify.',
+      );
     }
 
     // Calculate next execution date
@@ -377,7 +420,7 @@ export class ContributionService {
         dto.fixedAmount,
         dto.autoDebitDay,
         nextExecution,
-      ]
+      ],
     );
 
     return {
@@ -390,11 +433,15 @@ export class ContributionService {
   /**
    * Update auto-debit settings
    */
-  async updateAutoDebit(userId: string, autoDebitId: string, dto: UpdateAutoDebitDto) {
+  async updateAutoDebit(
+    userId: string,
+    autoDebitId: string,
+    dto: UpdateAutoDebitDto,
+  ) {
     // Verify ownership
     const existing = await this.db.query(
       'SELECT * FROM contribution_auto_debits WHERE id = $1 AND user_id = $2',
-      [autoDebitId, userId]
+      [autoDebitId, userId],
     );
 
     if (existing.rowCount === 0) {
@@ -433,7 +480,7 @@ export class ContributionService {
     if (dto.autoDebitDay) {
       updates.push(`auto_debit_day = $${++paramCount}`);
       values.push(dto.autoDebitDay);
-      
+
       // Recalculate next execution
       const nextExecution = this.calculateNextExecutionDate(dto.autoDebitDay);
       updates.push(`next_execution_at = $${++paramCount}`);
@@ -450,7 +497,7 @@ export class ContributionService {
       `UPDATE contribution_auto_debits 
        SET ${updates.join(', ')}
        WHERE id = $${++paramCount}`,
-      values
+      values,
     );
 
     return { message: 'Auto-debit updated successfully' };
@@ -479,7 +526,7 @@ export class ContributionService {
        JOIN chamas ch ON cp.chama_id = ch.id
        ${whereClause}
        ORDER BY cp.created_at DESC`,
-      params
+      params,
     );
 
     return result.rows;
@@ -495,7 +542,7 @@ export class ContributionService {
        FROM contribution_penalties cp
        JOIN chamas ch ON cp.chama_id = ch.id
        WHERE cp.id = $1 AND cp.user_id = $2 AND cp.status = 'pending'`,
-      [dto.penaltyId, userId]
+      [dto.penaltyId, userId],
     );
 
     if (penaltyCheck.rowCount === 0) {
@@ -506,8 +553,8 @@ export class ContributionService {
 
     // Calculate votes needed (majority of active members)
     const memberCount = await this.db.query(
-      'SELECT COUNT(*) as count FROM chama_members WHERE chama_id = $1 AND status = $\'active\'',
-      [penalty.chama_id]
+      "SELECT COUNT(*) as count FROM chama_members WHERE chama_id = $1 AND status = $'active'",
+      [penalty.chama_id],
     );
 
     const votesNeeded = Math.ceil(parseInt(memberCount.rows[0].count) / 2);
@@ -517,7 +564,7 @@ export class ContributionService {
         penalty_id, requested_by, reason, votes_needed
       ) VALUES ($1, $2, $3, $4)
       RETURNING *`,
-      [dto.penaltyId, userId, dto.reason, votesNeeded]
+      [dto.penaltyId, userId, dto.reason, votesNeeded],
     );
 
     return {
@@ -537,33 +584,39 @@ export class ContributionService {
        FROM penalty_waiver_requests wr
        JOIN contribution_penalties cp ON wr.penalty_id = cp.id
        WHERE wr.id = $1 AND wr.status = 'pending'`,
-      [dto.waiverRequestId]
+      [dto.waiverRequestId],
     );
 
     if (waiverCheck.rowCount === 0) {
-      throw new NotFoundException('Waiver request not found or already resolved');
+      throw new NotFoundException(
+        'Waiver request not found or already resolved',
+      );
     }
 
     const waiver = waiverCheck.rows[0];
 
     // Verify voter is a member of the chama
     const memberCheck = await this.db.query(
-      'SELECT id FROM chama_members WHERE chama_id = $1 AND user_id = $2 AND status = \'active\'',
-      [waiver.chama_id, userId]
+      "SELECT id FROM chama_members WHERE chama_id = $1 AND user_id = $2 AND status = 'active'",
+      [waiver.chama_id, userId],
     );
 
     if (memberCheck.rowCount === 0) {
-      throw new BadRequestException('You are not an active member of this chama');
+      throw new BadRequestException(
+        'You are not an active member of this chama',
+      );
     }
 
     // Check if user already voted
     const existingVote = await this.db.query(
       'SELECT id FROM penalty_waiver_votes WHERE waiver_request_id = $1 AND voter_id = $2',
-      [dto.waiverRequestId, userId]
+      [dto.waiverRequestId, userId],
     );
 
     if (existingVote.rowCount > 0) {
-      throw new BadRequestException('You have already voted on this waiver request');
+      throw new BadRequestException(
+        'You have already voted on this waiver request',
+      );
     }
 
     // Record the vote
@@ -571,14 +624,14 @@ export class ContributionService {
       `INSERT INTO penalty_waiver_votes (
         waiver_request_id, voter_id, vote, comment
       ) VALUES ($1, $2, $3, $4)`,
-      [dto.waiverRequestId, userId, dto.vote, dto.comment]
+      [dto.waiverRequestId, userId, dto.vote, dto.comment],
     );
 
     // Count approve votes
     const voteCount = await this.db.query(
       `SELECT COUNT(*) as count FROM penalty_waiver_votes 
        WHERE waiver_request_id = $1 AND vote = 'approve'`,
-      [dto.waiverRequestId]
+      [dto.waiverRequestId],
     );
 
     const approveCount = parseInt(voteCount.rows[0].count);
@@ -586,7 +639,7 @@ export class ContributionService {
     // Update votes received
     await this.db.query(
       'UPDATE penalty_waiver_requests SET votes_received = $1 WHERE id = $2',
-      [approveCount, dto.waiverRequestId]
+      [approveCount, dto.waiverRequestId],
     );
 
     // Check if enough votes to approve
@@ -595,7 +648,7 @@ export class ContributionService {
         `UPDATE penalty_waiver_requests 
          SET status = 'approved', resolved_at = NOW()
          WHERE id = $1`,
-        [dto.waiverRequestId]
+        [dto.waiverRequestId],
       );
 
       // Waive the penalty
@@ -603,14 +656,14 @@ export class ContributionService {
         `UPDATE contribution_penalties 
          SET status = 'waived', waived_by = $1, waived_at = NOW(), waiver_reason = $2
          WHERE id = $3`,
-        [userId, 'Approved by member vote', waiver.penalty_id]
+        [userId, 'Approved by member vote', waiver.penalty_id],
       );
 
       return { message: 'Penalty waiver approved', status: 'approved' };
     }
 
-    return { 
-      message: 'Vote recorded', 
+    return {
+      message: 'Vote recorded',
       status: 'pending',
       votesReceived: approveCount,
       votesNeeded: waiver.votes_needed,
@@ -623,7 +676,7 @@ export class ContributionService {
   private async checkCycleCompletion(cycleId: string) {
     const summary = await this.db.query(
       'SELECT * FROM get_cycle_contribution_summary($1)',
-      [cycleId]
+      [cycleId],
     );
 
     const { pending_members, total_members } = summary.rows[0];
@@ -635,13 +688,13 @@ export class ContributionService {
          SET status = 'completed', completed_at = NOW()
          WHERE id = $1 
          RETURNING *`,
-        [cycleId]
+        [cycleId],
       );
 
       // Check if auto-payout is enabled
       const chamaSettings = await this.db.query(
         'SELECT settings FROM chamas WHERE id = $1',
-        [cycle.rows[0].chama_id]
+        [cycle.rows[0].chama_id],
       );
 
       const settings = chamaSettings.rows[0].settings;
@@ -649,7 +702,9 @@ export class ContributionService {
         await this.triggerAutoPayout(cycleId);
       }
 
-      this.logger.log(`Cycle ${cycleId} completed with all contributions received`);
+      this.logger.log(
+        `Cycle ${cycleId} completed with all contributions received`,
+      );
     }
   }
 
@@ -659,7 +714,7 @@ export class ContributionService {
   private async triggerAutoPayout(cycleId: string) {
     const cycle = await this.db.query(
       'SELECT * FROM contribution_cycles WHERE id = $1',
-      [cycleId]
+      [cycleId],
     );
 
     if (cycle.rowCount === 0 || cycle.rows[0].payout_executed_at) {
@@ -671,7 +726,7 @@ export class ContributionService {
     // Get next payout recipient
     const recipientId = await this.db.query(
       'SELECT get_next_payout_recipient($1) as recipient_id',
-      [cycleData.chama_id]
+      [cycleData.chama_id],
     );
 
     if (!recipientId.rows[0].recipient_id) {
@@ -682,29 +737,35 @@ export class ContributionService {
     // Process the payout through ledger
     const memberData = await this.db.query(
       'SELECT user_id FROM chama_members WHERE id = $1',
-      [recipientId.rows[0].recipient_id]
+      [recipientId.rows[0].recipient_id],
     );
 
+    const payoutExternalRef = `payout-cycle-${cycleId}`;
     await this.ledger.processPayout(
       cycleData.chama_id,
       memberData.rows[0].user_id,
       cycleData.collected_amount,
       `Payout for cycle ${cycleData.cycle_number}`,
+      payoutExternalRef,
     );
 
-    // Record payout
+    // Record payout (idempotent - only insert if not exists)
     await this.db.query(
       `INSERT INTO payouts (
         chama_id, cycle_id, recipient_member_id, recipient_user_id,
         amount, status, scheduled_at, executed_at
-      ) VALUES ($1, $2, $3, $4, $5, 'completed', NOW(), NOW())`,
+      ) 
+      SELECT $1, $2, $3, $4, $5, 'completed', NOW(), NOW()
+      WHERE NOT EXISTS (
+        SELECT 1 FROM payouts WHERE cycle_id = $2
+      )`,
       [
         cycleData.chama_id,
         cycleId,
         recipientId.rows[0].recipient_id,
         memberData.rows[0].user_id,
         cycleData.collected_amount,
-      ]
+      ],
     );
 
     // Update cycle with payout info
@@ -712,7 +773,7 @@ export class ContributionService {
       `UPDATE contribution_cycles 
        SET payout_recipient_id = $1, payout_amount = $2, payout_executed_at = NOW()
        WHERE id = $3`,
-      [recipientId.rows[0].recipient_id, cycleData.collected_amount, cycleId]
+      [recipientId.rows[0].recipient_id, cycleData.collected_amount, cycleId],
     );
 
     this.logger.log(`Auto-payout executed for cycle ${cycleId}`);

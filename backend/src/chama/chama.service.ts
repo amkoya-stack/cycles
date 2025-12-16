@@ -1202,7 +1202,10 @@ export class ChamaService {
   /**
    * Get contribution history (legacy - for backward compatibility)
    */
-  async getContributionHistoryLegacy(userId: string, chamaId: string): Promise<any> {
+  async getContributionHistoryLegacy(
+    userId: string,
+    chamaId: string,
+  ): Promise<any> {
     await this.getMemberRole(userId, chamaId);
 
     await this.db.setUserContext(userId);
