@@ -51,6 +51,9 @@ export default function WalletPage() {
   const [transferPhone, setTransferPhone] = useState("");
   const [transferAmount, setTransferAmount] = useState("");
   const [transferDescription, setTransferDescription] = useState("");
+  const [selectedRecipientName, setSelectedRecipientName] = useState("");
+  const [selectedChamaId, setSelectedChamaId] = useState<string | null>(null);
+  const [selectedCycleId, setSelectedCycleId] = useState<string | null>(null);
 
   // Polling state
   const [pollingCheckoutId, setPollingCheckoutId] = useState<string | null>(
@@ -72,10 +75,16 @@ export default function WalletPage() {
     fetchCoMembers();
     setupWebSocket();
 
+    // Auto-refresh balance every 10 seconds
+    const balancePolling = setInterval(() => {
+      fetchBalance();
+    }, 10000);
+
     return () => {
       if (socketRef.current) {
         socketRef.current.disconnect();
       }
+      clearInterval(balancePolling);
     };
   }, [validateToken, fetchChamas]);
 
@@ -210,6 +219,33 @@ export default function WalletPage() {
     }
   };
 
+  const fetchBalance = async () => {
+    try {
+      const accessToken = localStorage.getItem("accessToken");
+      if (!accessToken) return;
+
+      const balanceRes = await fetch(
+        "http://localhost:3001/api/wallet/balance",
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
+      );
+      if (balanceRes.ok) {
+        const balanceData = await balanceRes.json();
+        setBalance(balanceData.balance);
+      } else if (balanceRes.status === 401) {
+        // Token expired - redirect to login
+        localStorage.removeItem("accessToken");
+        localStorage.removeItem("refreshToken");
+        router.push("/auth/login");
+      } else if (balanceRes.status === 404) {
+        console.error("Wallet not found for this user");
+      }
+    } catch (error) {
+      console.error("Failed to fetch balance:", error);
+    }
+  };
+
   const fetchTransactions = async () => {
     try {
       const accessToken = localStorage.getItem("accessToken");
@@ -250,26 +286,7 @@ export default function WalletPage() {
       }
 
       // Fetch balance
-      const balanceRes = await fetch(
-        "http://localhost:3001/api/wallet/balance",
-        {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        }
-      );
-      if (balanceRes.ok) {
-        const balanceData = await balanceRes.json();
-        setBalance(balanceData.balance);
-      } else if (balanceRes.status === 401) {
-        // Token expired or invalid
-        localStorage.removeItem("accessToken");
-        localStorage.removeItem("refreshToken");
-        router.push("/auth/login");
-        return;
-      } else if (balanceRes.status === 404) {
-        // Wallet not found - might need to be created
-        console.error("Wallet not found for this user");
-        alert("Your wallet hasn't been created yet. Please contact support.");
-      }
+      await fetchBalance();
 
       // Fetch transactions
       await fetchTransactions();
@@ -372,7 +389,16 @@ export default function WalletPage() {
   };
 
   const handleTransfer = async () => {
-    if (!transferPhone || !transferAmount) return;
+    if (!transferAmount) return;
+
+    // For chama contributions, we need chamaId
+    if (selectedChamaId && !transferPhone) {
+      await handleChamaContribution();
+      return;
+    }
+
+    // For regular transfers, we need recipient phone
+    if (!transferPhone) return;
 
     setActionLoading(true);
     try {
@@ -400,12 +426,58 @@ export default function WalletPage() {
         setTransferPhone("");
         setTransferAmount("");
         setTransferDescription("");
+        setSelectedRecipientName("");
+        setSelectedChamaId(null);
+        setSelectedCycleId(null);
         fetchWalletData();
       } else {
         alert(`Transfer failed: ${data.message || "Unknown error"}`);
       }
     } catch (error) {
       alert("Transfer request failed");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleChamaContribution = async () => {
+    if (!selectedChamaId || !selectedCycleId || !transferAmount) return;
+
+    setActionLoading(true);
+    try {
+      const accessToken = localStorage.getItem("accessToken");
+      const response = await fetch(
+        `http://localhost:3001/api/chama/${selectedChamaId}/cycles/${selectedCycleId}/contribute`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            amount: parseFloat(transferAmount),
+            paymentMethod: "wallet",
+            notes: transferDescription,
+          }),
+        }
+      );
+
+      const data = await response.json();
+      if (response.ok) {
+        alert("Contribution successful!");
+        setShowTransfer(false);
+        setTransferPhone("");
+        setTransferAmount("");
+        setTransferDescription("");
+        setSelectedRecipientName("");
+        setSelectedChamaId(null);
+        setSelectedCycleId(null);
+        fetchWalletData();
+      } else {
+        alert(`Contribution failed: ${data.message || "Unknown error"}`);
+      }
+    } catch (error) {
+      alert("Contribution request failed");
     } finally {
       setActionLoading(false);
     }
@@ -454,24 +526,78 @@ export default function WalletPage() {
             onWithdraw={() => setShowWithdraw(true)}
             onRequest={() => alert("Request money feature coming soon!")}
             onReceipts={() => alert("Receipts feature coming soon!")}
+            onBalanceUpdate={fetchBalance}
           />
 
           <QuickSendSection
             chamas={chamas}
             coMembers={coMembers}
-            onChamaClick={(chama) => {
-              setTransferPhone(chama.phone || "");
-              setTransferDescription(`Transfer to ${chama.name}`);
-              setShowTransfer(true);
+            onChamaClick={async (chama) => {
+              // Fetch active cycle for this chama
+              try {
+                const accessToken = localStorage.getItem("accessToken");
+                const response = await fetch(
+                  `http://localhost:3001/api/chama/${chama.id}/cycles/active`,
+                  {
+                    headers: { Authorization: `Bearer ${accessToken}` },
+                  }
+                );
+
+                if (response.ok) {
+                  const text = await response.text();
+
+                  // Handle empty response or null
+                  if (!text || text === "null" || text.trim() === "") {
+                    alert(
+                      "No active contribution cycle found.\n\nAn admin must create a rotation in the Rotation tab. This will automatically create the first contribution cycle."
+                    );
+                    return;
+                  }
+
+                  let cycle;
+                  try {
+                    cycle = JSON.parse(text);
+                  } catch (parseError) {
+                    console.error("Failed to parse cycle data:", text);
+                    alert("Invalid response from server");
+                    return;
+                  }
+
+                  if (!cycle || !cycle.id) {
+                    alert("No active contribution cycle found");
+                    return;
+                  }
+
+                  setSelectedChamaId(chama.id);
+                  setSelectedCycleId(cycle.id);
+                  setSelectedRecipientName(chama.name);
+                  setTransferPhone("");
+                  setTransferDescription(`Contribution to ${chama.name}`);
+                  setTransferAmount(cycle.expected_amount?.toString() || "");
+                  setShowTransfer(true);
+                } else {
+                  const errorText = await response.text();
+                  console.error("Error fetching cycle:", errorText);
+                  alert(
+                    "Failed to fetch cycle. You may not be a member of this chama."
+                  );
+                }
+              } catch (error) {
+                alert("Failed to load contribution cycle");
+                console.error(error);
+              }
             }}
             onMemberClick={(member) => {
+              setSelectedChamaId(null);
+              const memberName = member.full_name || member.name || "Member";
+              setSelectedRecipientName(memberName);
               setTransferPhone(member.phone || "");
-              setTransferDescription(
-                `Transfer to ${member.full_name || member.name || "Member"}`
-              );
+              setTransferDescription(`Transfer to ${memberName}`);
               setShowTransfer(true);
             }}
             onAddRecipient={() => {
+              setSelectedChamaId(null);
+              setSelectedRecipientName("");
               setTransferPhone("");
               setTransferDescription("");
               setShowTransfer(true);
@@ -507,12 +633,19 @@ export default function WalletPage() {
         <TransferModal
           isOpen={showTransfer}
           recipientPhone={transferPhone}
+          recipientName={selectedRecipientName}
           amount={transferAmount}
           description={transferDescription}
+          chamaId={selectedChamaId}
           onPhoneChange={setTransferPhone}
           onAmountChange={setTransferAmount}
           onDescriptionChange={setTransferDescription}
-          onClose={() => setShowTransfer(false)}
+          onClose={() => {
+            setShowTransfer(false);
+            setSelectedRecipientName("");
+            setSelectedChamaId(null);
+            setSelectedCycleId(null);
+          }}
           onSubmit={handleTransfer}
           isLoading={actionLoading}
         />

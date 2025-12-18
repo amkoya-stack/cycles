@@ -11,6 +11,7 @@ import {
   LogOut,
   Settings,
 } from "lucide-react";
+import { NotificationBell } from "@/components/notifications/notification-bell";
 
 interface HomeNavbarProps {
   isAuthenticated: boolean;
@@ -70,6 +71,14 @@ export function HomeNavbar({
             },
           }
         );
+
+        if (profileResponse.status === 401) {
+          // Token expired or invalid, clear auth state
+          localStorage.removeItem("accessToken");
+          localStorage.removeItem("refreshToken");
+          window.location.reload();
+          return;
+        }
 
         if (profileResponse.ok) {
           const profileData = await profileResponse.json();
@@ -254,10 +263,9 @@ export function HomeNavbar({
             <div className="flex items-center space-x-4 flex-shrink-0">
               {isAuthenticated ? (
                 <>
-                  <button className="p-2 hover:bg-white/10 rounded-lg transition-colors relative">
-                    <Bell className="w-5 h-5" />
-                    <span className="absolute top-1 right-1 w-2 h-2 bg-[#f64d52] rounded-full"></span>
-                  </button>
+                  <div className="text-white">
+                    <NotificationBell />
+                  </div>
                   <Link
                     href="/wallet"
                     className="p-2 hover:bg-white/10 rounded-lg transition-colors"

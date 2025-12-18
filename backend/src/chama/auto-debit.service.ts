@@ -234,7 +234,7 @@ export class AutoDebitService {
       );
     } catch (error: any) {
       let status = AutoDebitStatus.FAILED;
-      let errorMessage = error.message;
+      const errorMessage = error.message;
 
       // Check if it's insufficient balance error
       if (

@@ -1,5 +1,15 @@
 import { useState, useCallback, useEffect } from "react";
 
+const isTokenExpired = (token: string): boolean => {
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    const expirationTime = payload.exp * 1000; // Convert to milliseconds
+    return Date.now() >= expirationTime;
+  } catch (error) {
+    return true; // If we can't decode it, treat it as expired
+  }
+};
+
 export function useAuth() {
   // Always start as false to match server-side rendering
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -7,7 +17,14 @@ export function useAuth() {
   // Check localStorage after component mounts (client-side only)
   useEffect(() => {
     const accessToken = localStorage.getItem("accessToken");
-    setIsAuthenticated(!!accessToken);
+    if (!accessToken || isTokenExpired(accessToken)) {
+      // Token is missing or expired, clear storage
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("refreshToken");
+      setIsAuthenticated(false);
+    } else {
+      setIsAuthenticated(true);
+    }
   }, []);
 
   const validateToken = useCallback(async () => {
@@ -17,8 +34,14 @@ export function useAuth() {
       return;
     }
 
-    // Just check if token exists - don't validate with API call
-    // The backend will reject invalid tokens anyway
+    // Check if token is expired
+    if (isTokenExpired(accessToken)) {
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("refreshToken");
+      setIsAuthenticated(false);
+      return;
+    }
+
     setIsAuthenticated(true);
   }, []);
 

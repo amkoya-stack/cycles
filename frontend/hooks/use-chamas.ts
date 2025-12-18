@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useCallback } from "react";
-import { mockChamas } from "@/lib/mock-data";
 
 export function useChamas() {
   const [chamas, setChamas] = useState<any[]>([]);
@@ -59,8 +58,8 @@ export function useChamas() {
       setChamas(allChamas);
     } catch (error) {
       console.error("Error fetching chamas:", error);
-      // Use mock data as fallback if API fails
-      setChamas(mockChamas);
+      // Set empty array if API fails
+      setChamas([]);
     } finally {
       setLoading(false);
     }

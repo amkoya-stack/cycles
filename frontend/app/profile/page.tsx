@@ -10,6 +10,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { HomeNavbar } from "@/components/home/home-navbar";
 import { Footer } from "@/components/footer";
 import { useAuth } from "@/hooks/use-auth";
+import { ReputationCard } from "@/components/reputation/reputation-card";
+import { BadgeGrid } from "@/components/reputation/badge";
 import {
   User,
   Mail,
@@ -58,6 +60,9 @@ export default function ProfilePage() {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>("personal");
+  const [allReputations, setAllReputations] = useState<any[]>([]);
+  const [allBadges, setAllBadges] = useState<any[]>([]);
+  const [userChamas, setUserChamas] = useState<any[]>([]);
 
   // Form state
   const [fullName, setFullName] = useState("");
@@ -72,6 +77,7 @@ export default function ProfilePage() {
   useEffect(() => {
     validateToken();
     fetchProfile();
+    fetchUserChamas();
   }, [validateToken]);
 
   const fetchProfile = async () => {
@@ -107,6 +113,81 @@ export default function ProfilePage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchUserChamas = async () => {
+    try {
+      const accessToken = localStorage.getItem("accessToken");
+      if (!accessToken) return;
+
+      const response = await fetch(
+        "http://localhost:3001/api/chama/my-chamas",
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+
+      if (response.ok) {
+        const chamas = await response.json();
+        setUserChamas(chamas);
+
+        // Fetch reputation for each chama
+        await fetchAllReputations(chamas);
+      }
+    } catch (error) {
+      console.error("Error fetching chamas:", error);
+    }
+  };
+
+  const fetchAllReputations = async (chamas: any[]) => {
+    const accessToken = localStorage.getItem("accessToken");
+    if (!accessToken || !profile) return;
+
+    const reputations = [];
+    const badges = [];
+
+    for (const chama of chamas) {
+      try {
+        const repResponse = await fetch(
+          `http://localhost:3001/api/reputation/${chama.id}/me`,
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          }
+        );
+
+        if (repResponse.ok) {
+          const repData = await repResponse.json();
+          reputations.push({
+            ...repData.reputation,
+            chamaName: chama.name,
+            chamaId: chama.id,
+          });
+        }
+
+        const badgesResponse = await fetch(
+          `http://localhost:3001/api/reputation/${chama.id}/badges/${profile.id}`,
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          }
+        );
+
+        if (badgesResponse.ok) {
+          const badgesData = await badgesResponse.json();
+          badges.push(...(badgesData.badges || []));
+        }
+      } catch (err) {
+        console.error(`Failed to fetch reputation for chama ${chama.id}:`, err);
+      }
+    }
+
+    setAllReputations(reputations);
+    setAllBadges(badges);
   };
 
   const handleSave = async () => {
@@ -638,6 +719,48 @@ export default function ProfilePage() {
                       </div>
                     </div>
                   </div>
+
+                  {/* Reputation & Badges Section */}
+                  {allReputations.length > 0 && (
+                    <>
+                      <div className="mt-8 pt-6 border-t border-gray-200">
+                        <div className="flex items-center gap-2 mb-4">
+                          <Trophy className="w-5 h-5 text-[#083232]" />
+                          <h3 className="text-lg font-bold text-gray-900">
+                            Reputation & Badges
+                          </h3>
+                        </div>
+
+                        <div className="space-y-6">
+                          {/* Reputation Cards */}
+                          {allReputations.map((rep) => (
+                            <div key={rep.chamaId}>
+                              <p className="text-sm font-medium text-gray-700 mb-2">
+                                {rep.chamaName}
+                              </p>
+                              <ReputationCard
+                                reputation={rep}
+                                badges={allBadges.filter(
+                                  (b) => b.chamaId === rep.chamaId
+                                )}
+                                size="compact"
+                              />
+                            </div>
+                          ))}
+
+                          {/* All Badges */}
+                          {allBadges.length > 0 && (
+                            <div className="mt-6">
+                              <h4 className="text-md font-semibold text-gray-900 mb-4">
+                                All Earned Badges ({allBadges.length})
+                              </h4>
+                              <BadgeGrid badges={allBadges} size="sm" />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </Card>
               )}
 

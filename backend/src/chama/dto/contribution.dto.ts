@@ -62,6 +62,15 @@ export class ContributionHistoryQueryDto {
   memberId?: string;
 
   @IsOptional()
+  @IsString()
+  status?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  page?: number = 1;
+
+  @IsOptional()
   @IsNumber()
   @Min(1)
   limit?: number = 50;

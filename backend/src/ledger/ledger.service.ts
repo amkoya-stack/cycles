@@ -495,11 +495,11 @@ export class LedgerService {
     const chamaAccount = await this.getChamaAccount(chamaId);
     const revenueAccount = await this.getSystemAccount('REVENUE_FEES');
 
-    // Calculate fee (4.5%)
+    // Calculate fee (4.5%) with proper rounding to avoid floating-point errors
     const feePercentage = 4.5;
-    const feeAmount = (amount * feePercentage) / 100;
+    const feeAmount = Math.round(amount * feePercentage) / 100; // 4.5% then round to 2 decimals
     const netAmount = amount; // chama receives full amount globally
-    const totalAmount = amount + feeAmount; // user pays amount + fee globally
+    const totalAmount = Math.round((amount + feeAmount) * 100) / 100; // Round to 2 decimals
 
     // Validate
     if (amount <= 0) {
@@ -738,19 +738,24 @@ export class LedgerService {
         let balanceAfter: number;
 
         // Calculate new balance based on account normality and entry direction
+        // Round to 2 decimal places to avoid floating-point precision errors
         if (account.normality === AccountNormality.DEBIT) {
           // Debit normal accounts: Debits increase, Credits decrease
           if (entry.direction === EntryDirection.DEBIT) {
-            balanceAfter = balanceBefore + entry.amount;
+            balanceAfter =
+              Math.round((balanceBefore + entry.amount) * 100) / 100;
           } else {
-            balanceAfter = balanceBefore - entry.amount;
+            balanceAfter =
+              Math.round((balanceBefore - entry.amount) * 100) / 100;
           }
         } else {
           // Credit normal accounts: Credits increase, Debits decrease
           if (entry.direction === EntryDirection.CREDIT) {
-            balanceAfter = balanceBefore + entry.amount;
+            balanceAfter =
+              Math.round((balanceBefore + entry.amount) * 100) / 100;
           } else {
-            balanceAfter = balanceBefore - entry.amount;
+            balanceAfter =
+              Math.round((balanceBefore - entry.amount) * 100) / 100;
           }
         }
 

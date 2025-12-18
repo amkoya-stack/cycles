@@ -8,13 +8,18 @@ import {
   Param,
   UseGuards,
   Req,
+  Query,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { ChamaService } from './chama.service';
+import { ChamaReputationService } from './chama-reputation.service';
 
 @Controller('chama')
 export class ChamaController {
-  constructor(private readonly chamaService: ChamaService) {}
+  constructor(
+    private readonly chamaService: ChamaService,
+    private readonly reputationService: ChamaReputationService,
+  ) {}
 
   /**
    * Browse all public chamas (no auth required)
@@ -53,6 +58,17 @@ export class ChamaController {
   async listChamas(@Req() req: any) {
     console.log('GET /api/chama called for user:', req.user?.id);
     return this.chamaService.listUserChamas(req.user.id);
+  }
+
+  /**
+   * Get upcoming contributions for user (for wallet alert)
+   * GET /api/chama/upcoming-contributions
+   * NOTE: Must come BEFORE :id route to avoid UUID parsing error
+   */
+  @Get('upcoming-contributions')
+  @UseGuards(JwtAuthGuard)
+  async getUpcomingContributions(@Req() req: any) {
+    return this.chamaService.getUpcomingContributions(req.user.id);
   }
 
   /**
@@ -374,7 +390,7 @@ export class ChamaController {
    */
   @Get('contributions')
   @UseGuards(JwtAuthGuard)
-  async getContributionHistory(@Req() req: any, @Body() query: any) {
+  async getContributionHistory(@Req() req: any, @Query() query: any) {
     return this.chamaService.getContributionHistory(req.user.id, query);
   }
 
@@ -443,5 +459,50 @@ export class ChamaController {
   @UseGuards(JwtAuthGuard)
   async votePenaltyWaiver(@Req() req: any, @Body() dto: any) {
     return this.chamaService.votePenaltyWaiver(req.user.id, dto);
+  }
+
+  // ================== CHAMA REPUTATION ENDPOINTS ==================
+
+  /**
+   * Get chama reputation score and breakdown
+   * GET /api/chama/:id/reputation
+   */
+  @Get(':id/reputation')
+  async getChamaReputation(@Param('id') chamaId: string) {
+    return this.reputationService.calculateChamaReputation(chamaId);
+  }
+
+  /**
+   * Get top-rated chamas (leaderboard)
+   * GET /api/chama/reputation/leaderboard
+   */
+  @Get('reputation/leaderboard')
+  async getTopRatedChamas(@Query('limit') limit?: string) {
+    const limitNum = limit ? parseInt(limit, 10) : 10;
+    return this.reputationService.getTopRatedChamas(limitNum);
+  }
+
+  /**
+   * Search chamas by reputation criteria
+   * GET /api/chama/reputation/search?minScore=500&minTier=silver&maxDefaultRate=5
+   */
+  @Get('reputation/search')
+  async searchByReputation(
+    @Query('minScore') minScore?: string,
+    @Query('minTier')
+    minTier?: 'bronze' | 'silver' | 'gold' | 'platinum' | 'diamond',
+    @Query('maxDefaultRate') maxDefaultRate?: string,
+    @Query('minRetentionRate') minRetentionRate?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.reputationService.searchByReputation({
+      minScore: minScore ? parseInt(minScore, 10) : undefined,
+      minTier,
+      maxDefaultRate: maxDefaultRate ? parseFloat(maxDefaultRate) : undefined,
+      minRetentionRate: minRetentionRate
+        ? parseFloat(minRetentionRate)
+        : undefined,
+      limit: limit ? parseInt(limit, 10) : undefined,
+    });
   }
 }

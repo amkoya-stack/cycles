@@ -5,8 +5,10 @@ import { Input } from "@/components/ui/input";
 interface TransferModalProps {
   isOpen: boolean;
   recipientPhone: string;
+  recipientName?: string;
   amount: string;
   description: string;
+  chamaId?: string | null;
   onPhoneChange: (value: string) => void;
   onAmountChange: (value: string) => void;
   onDescriptionChange: (value: string) => void;
@@ -18,8 +20,10 @@ interface TransferModalProps {
 export function TransferModal({
   isOpen,
   recipientPhone,
+  recipientName,
   amount,
   description,
+  chamaId,
   onPhoneChange,
   onAmountChange,
   onDescriptionChange,
@@ -29,18 +33,24 @@ export function TransferModal({
 }: TransferModalProps) {
   if (!isOpen) return null;
 
-  const isRecipientPreSelected = description && recipientPhone;
+  const isRecipientPreSelected = !!recipientName;
+  const isChamaContribution = !!chamaId;
 
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <Card className="max-w-[320px] w-full p-6 shadow-2xl border-0">
         <h3 className="text-xl font-semibold mb-1 text-center text-gray-900">
-          Send Money
+          {isChamaContribution ? "Contribute" : "Send Money"}
         </h3>
-        {description && (
-          <p className="text-sm text-gray-500 mb-6 text-center">
-            {description}
-          </p>
+        {isRecipientPreSelected && (
+          <div className="mb-6 text-center">
+            <p className="text-sm text-gray-500 mb-1">
+              {isChamaContribution ? "Contributing to" : "Transfer to"}
+            </p>
+            <p className="text-lg font-semibold text-[#083232]">
+              {recipientName}
+            </p>
+          </div>
         )}
         <div className="space-y-4">
           {!isRecipientPreSelected && (

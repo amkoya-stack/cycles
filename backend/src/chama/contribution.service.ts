@@ -13,6 +13,7 @@ import { LedgerService } from '../ledger/ledger.service';
 import { WalletService } from '../wallet/wallet.service';
 import { MpesaService } from '../mpesa/mpesa.service';
 import { ReminderService } from './reminder.service';
+import { ReputationAutomationService } from '../reputation/reputation-automation.service';
 import {
   CreateContributionDto,
   ContributionHistoryQueryDto,
@@ -35,6 +36,7 @@ export class ContributionService {
     private readonly mpesa: MpesaService,
     @Inject(forwardRef(() => ReminderService))
     private readonly reminderService: ReminderService,
+    private readonly reputationAutomation: ReputationAutomationService,
   ) {}
 
   /**
@@ -269,7 +271,8 @@ export class ContributionService {
     userId: string,
     query: ContributionHistoryQueryDto,
   ) {
-    const { chamaId, cycleId, memberId, limit = 50, offset = 0 } = query;
+    const { chamaId, cycleId, memberId, status, page = 1, limit = 50 } = query;
+    const offset = (page - 1) * limit;
 
     let whereClause = 'WHERE c.user_id = $1';
     const params: any[] = [userId];
@@ -288,6 +291,11 @@ export class ContributionService {
     if (memberId) {
       whereClause += ` AND c.member_id = $${++paramCount}`;
       params.push(memberId);
+    }
+
+    if (status) {
+      whereClause += ` AND c.status = $${++paramCount}`;
+      params.push(status);
     }
 
     const result = await this.db.query(

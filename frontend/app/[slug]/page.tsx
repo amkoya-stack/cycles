@@ -11,6 +11,12 @@ import { Footer } from "@/components/footer";
 import { HomeNavbar } from "@/components/home/home-navbar";
 import { MemberDirectory } from "@/components/chama/member-directory";
 import { LeaveChamaComponent } from "@/components/chama/leave-chama";
+import { RotationPayoutPage } from "@/components/chama/rotation-payout-page";
+import { ReputationPage } from "@/components/reputation/reputation-page";
+import { ActivityFeed } from "@/components/chama/activity-feed";
+import { GovernanceSection } from "@/components/governance/governance-section";
+import { ContributionDashboard } from "@/components/chama/contribution-dashboard";
+import { ContributionHistory } from "@/components/chama/contribution-history";
 import {
   Users,
   Calendar,
@@ -29,6 +35,7 @@ import {
   Wallet,
   LogOut,
   Upload,
+  Trophy,
 } from "lucide-react";
 
 interface ChamaDetails {
@@ -83,8 +90,6 @@ export default function CycleBySlugPage() {
   const [userRole, setUserRole] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [showMoreTabs, setShowMoreTabs] = useState(false);
-  const [visibleTabCount, setVisibleTabCount] = useState(10);
   const [isJoining, setIsJoining] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const tabContainerRef = useRef<HTMLDivElement>(null);
@@ -402,58 +407,23 @@ export default function CycleBySlugPage() {
   };
 
   const allTabs = [
+    { id: "about" as TabType, label: "About", icon: Info },
     { id: "community" as TabType, label: "Community", icon: MessageSquare },
-    { id: "classroom" as TabType, label: "Classroom", icon: GraduationCap },
-    { id: "meetings" as TabType, label: "Meetings", icon: Video },
     { id: "members" as TabType, label: "Members", icon: Users },
+    { id: "meetings" as TabType, label: "Meetings", icon: Video },
+    { id: "classroom" as TabType, label: "Classroom", icon: GraduationCap },
     { id: "contributions" as TabType, label: "Contributions", icon: HandCoins },
     { id: "rotation" as TabType, label: "Rotation", icon: Repeat },
     { id: "financials" as TabType, label: "Financials", icon: TrendingUp },
     { id: "activity" as TabType, label: "Activity", icon: Activity },
     { id: "documents" as TabType, label: "Documents", icon: FileText },
     { id: "settings" as TabType, label: "Settings", icon: LogOut },
-    { id: "about" as TabType, label: "About", icon: Info },
   ];
 
-  // Non-members can only see "About" tab
+  // Non-members can only see "About" tab, members see all except Settings (admin only)
   const tabs = chama?.is_member
-    ? allTabs
+    ? allTabs.filter((tab) => tab.id !== "settings" || userRole === "admin")
     : allTabs.filter((tab) => tab.id === "about");
-
-  // Calculate visible tabs based on container width
-  useLayoutEffect(() => {
-    const calculateVisibleTabs = () => {
-      if (!tabContainerRef.current) return;
-
-      const containerWidth = tabContainerRef.current.offsetWidth;
-      const moreButtonWidth = 100; // Approximate width of More button
-      let availableWidth = containerWidth - moreButtonWidth;
-      let count = 0;
-
-      for (let i = 0; i < tabRefs.current.length; i++) {
-        const tab = tabRefs.current[i];
-        if (!tab) continue;
-
-        const tabWidth = tab.offsetWidth + 4; // Add gap
-        if (availableWidth >= tabWidth) {
-          availableWidth -= tabWidth;
-          count++;
-        } else {
-          break;
-        }
-      }
-
-      // Ensure at least 3 tabs are visible, or all if they all fit
-      setVisibleTabCount(Math.max(3, count));
-    };
-
-    // Initial calculation
-    calculateVisibleTabs();
-
-    // Recalculate on window resize
-    window.addEventListener("resize", calculateVisibleTabs);
-    return () => window.removeEventListener("resize", calculateVisibleTabs);
-  }, [tabs]);
 
   const renderTabContent = () => {
     if (!chama) return null;
@@ -461,22 +431,20 @@ export default function CycleBySlugPage() {
     switch (activeTab) {
       case "community":
         return (
-          <div className="space-y-4">
-            <Card className="p-6">
-              <h3 className="text-lg font-semibold mb-4">Community Feed</h3>
-              <p className="text-gray-600">
-                Share updates, ask questions, and engage with your cycle
-                members.
-              </p>
-              <div className="mt-4 space-y-4">
-                <div className="border-t pt-4">
-                  <p className="text-sm text-gray-500">
-                    No posts yet. Be the first to share something!
-                  </p>
-                </div>
-              </div>
-            </Card>
-          </div>
+          <GovernanceSection
+            chamaId={chama.id}
+            userId={(() => {
+              try {
+                const accessToken = localStorage.getItem("accessToken");
+                if (!accessToken) return "";
+                const payload = JSON.parse(atob(accessToken.split(".")[1]));
+                return payload.sub || payload.userId || "";
+              } catch {
+                return "";
+              }
+            })()}
+            userRole={userRole || "member"}
+          />
         );
 
       case "classroom":
@@ -567,57 +535,32 @@ export default function CycleBySlugPage() {
         );
 
       case "contributions":
-        return (
-          <div className="space-y-4">
-            <Card className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold">Contribution History</h3>
-                <Button className="bg-[#f64d52] hover:bg-[#d43d42]">
-                  Make Contribution
-                </Button>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                <div className="p-4 bg-gray-50 rounded-lg">
-                  <p className="text-sm text-gray-600">Amount</p>
-                  <p className="text-xl font-bold">
-                    KSh {formatAmount(chama.contribution_amount)}
-                  </p>
-                </div>
-                <div className="p-4 bg-gray-50 rounded-lg">
-                  <p className="text-sm text-gray-600">Frequency</p>
-                  <p className="text-xl font-bold">
-                    {formatFrequency(chama.contribution_frequency)}
-                  </p>
-                </div>
-                <div className="p-4 bg-gray-50 rounded-lg">
-                  <p className="text-sm text-gray-600">Total Collected</p>
-                  <p className="text-xl font-bold">
-                    KSh {formatAmount(chama.total_contributions)}
-                  </p>
-                </div>
-              </div>
-              <p className="text-sm text-gray-500">
-                No contributions recorded yet.
-              </p>
-            </Card>
-          </div>
-        );
+        return <ContributionHistory chamaId={chama.id} />;
 
       case "rotation":
         return (
-          <div className="space-y-4">
-            <Card className="p-6">
-              <h3 className="text-lg font-semibold mb-4">Rotation Schedule</h3>
-              <p className="text-gray-600">
-                Track who receives payouts and when.
-              </p>
-              <div className="mt-4">
-                <p className="text-sm text-gray-500">
-                  Rotation schedule will be available once contributions begin.
-                </p>
-              </div>
-            </Card>
-          </div>
+          <RotationPayoutPage
+            chamaId={chama.id}
+            isAdmin={userRole === "admin"}
+          />
+        );
+
+      case "reputation":
+        return (
+          <ReputationPage
+            chamaId={chama.id}
+            userId={(() => {
+              try {
+                const accessToken = localStorage.getItem("accessToken");
+                if (!accessToken) return "";
+                const payload = JSON.parse(atob(accessToken.split(".")[1]));
+                return payload.sub || payload.userId || "";
+              } catch {
+                return "";
+              }
+            })()}
+            isAdmin={userRole === "admin"}
+          />
         );
 
       case "financials":
@@ -672,26 +615,7 @@ export default function CycleBySlugPage() {
         );
 
       case "activity":
-        return (
-          <div className="space-y-4">
-            <Card className="p-6">
-              <h3 className="text-lg font-semibold mb-4">Recent Activity</h3>
-              <div className="space-y-3">
-                <div className="flex items-start gap-3 p-3 border rounded-lg">
-                  <div className="bg-green-100 p-2 rounded-full">
-                    <Activity className="w-4 h-4 text-green-600" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">Cycle Created</p>
-                    <p className="text-xs text-gray-600">
-                      {new Date(chama.created_at).toLocaleString()}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </Card>
-          </div>
-        );
+        return <ActivityFeed chamaId={chama.id} />;
 
       case "documents":
         return (
@@ -969,10 +893,8 @@ export default function CycleBySlugPage() {
       {/* Tabs Navigation */}
       <div className="bg-white border-b sticky top-16 z-10 shadow-sm mt-16">
         <div className="max-w-[1085px] mx-auto px-4" ref={tabContainerRef}>
-          {/* First line of tabs */}
           <div className="flex items-center gap-1">
-            {tabs.slice(0, visibleTabCount).map((tab, index) => {
-              const Icon = tab.icon;
+            {tabs.map((tab, index) => {
               const isActive = activeTab === tab.id;
               return (
                 <button
@@ -989,57 +911,11 @@ export default function CycleBySlugPage() {
                     }
                   `}
                 >
-                  <Icon className="w-4 h-4" />
                   {tab.label}
                 </button>
               );
             })}
-            {tabs.length > visibleTabCount && (
-              <button
-                onClick={() => setShowMoreTabs(!showMoreTabs)}
-                className={`
-                  flex items-center gap-2 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors
-                  border-b-2 min-h-12 flex-shrink-0 cursor-pointer
-                  ${
-                    showMoreTabs
-                      ? "border-[#083232] text-[#083232]"
-                      : "border-transparent text-gray-600 hover:text-[#083232] hover:border-gray-300"
-                  }
-                `}
-              >
-                <MoreHorizontal className="w-4 h-4" />
-                More
-              </button>
-            )}
           </div>
-
-          {/* Second line of tabs (expandable) */}
-          {showMoreTabs && tabs.length > visibleTabCount && (
-            <div className="flex items-center gap-1 border-t">
-              {tabs.slice(visibleTabCount).map((tab) => {
-                const Icon = tab.icon;
-                const isActive = activeTab === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`
-                      flex items-center gap-2 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors
-                      border-b-2 min-h-12 flex-shrink-0 cursor-pointer
-                      ${
-                        isActive
-                          ? "border-[#083232] text-[#083232]"
-                          : "border-transparent text-gray-600 hover:text-[#083232] hover:border-gray-300"
-                      }
-                    `}
-                  >
-                    <Icon className="w-4 h-4" />
-                    {tab.label}
-                  </button>
-                );
-              })}
-            </div>
-          )}
         </div>
       </div>
 

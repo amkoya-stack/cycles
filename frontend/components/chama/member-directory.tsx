@@ -5,6 +5,13 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Badge as ReputationBadge } from "@/components/reputation/badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   Select,
   SelectContent,
@@ -49,6 +56,8 @@ import {
   UserCheck,
   UserX,
   Clock,
+  Trophy,
+  RefreshCw,
 } from "lucide-react";
 
 interface Member {
@@ -67,6 +76,12 @@ interface Member {
   last_activity_at?: string;
   profile_picture?: string;
   location?: string;
+  reputation?: {
+    totalScore: number;
+    tier: "bronze" | "silver" | "gold" | "platinum" | "diamond";
+    contributionConsistencyRate: number;
+    contributionStreakMonths: number;
+  };
 }
 
 interface JoinRequest {
@@ -136,6 +151,10 @@ export function MemberDirectory({
   const [newRole, setNewRole] = useState<string>("");
   const [showRemoveDialog, setShowRemoveDialog] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [calculating, setCalculating] = useState(false);
+  const [leaderboardPeriod, setLeaderboardPeriod] = useState<
+    "7days" | "30days" | "alltime"
+  >("7days");
 
   useEffect(() => {
     fetchMembers();
@@ -163,11 +182,71 @@ export function MemberDirectory({
       }
 
       const data = await response.json();
-      setMembers(data);
+
+      // Fetch reputation for each member
+      const membersWithReputation = await Promise.all(
+        data.map(async (member: Member) => {
+          try {
+            const repResponse = await fetch(
+              `http://localhost:3001/api/reputation/${chamaId}/user/${member.user_id}`,
+              {
+                headers: {
+                  Authorization: `Bearer ${accessToken}`,
+                },
+              }
+            );
+
+            if (repResponse.ok) {
+              const repData = await repResponse.json();
+              return {
+                ...member,
+                reputation: repData.reputation,
+              };
+            }
+          } catch (err) {
+            console.error(
+              `Failed to fetch reputation for ${member.user_id}:`,
+              err
+            );
+          }
+          return member;
+        })
+      );
+
+      setMembers(membersWithReputation);
     } catch (error) {
       console.error("Error fetching members:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const recalculateReputation = async () => {
+    if (!currentUserId) return;
+
+    setCalculating(true);
+    try {
+      const accessToken = localStorage.getItem("accessToken");
+      if (!accessToken) return;
+
+      const response = await fetch(
+        `http://localhost:3001/api/reputation/${chamaId}/calculate`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+
+      if (response.ok) {
+        // Refresh members list to get updated reputation
+        await fetchMembers();
+      }
+    } catch (err) {
+      console.error("Failed to recalculate reputation:", err);
+    } finally {
+      setCalculating(false);
     }
   };
 
@@ -429,271 +508,412 @@ export function MemberDirectory({
         </Card>
       )}
 
-      {/* Header with stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="p-4">
-          <div className="flex items-center gap-3">
-            <div className="bg-blue-100 p-2 rounded-lg">
-              <Users className="w-5 h-5 text-blue-600" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-600">Total Members</p>
-              <p className="text-xl font-bold">{members.length}</p>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="flex items-center gap-3">
-            <div className="bg-green-100 p-2 rounded-lg">
-              <Activity className="w-5 h-5 text-green-600" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-600">Active Members</p>
-              <p className="text-xl font-bold">
-                {members.filter((m) => m.status === "active").length}
-              </p>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="flex items-center gap-3">
-            <div className="bg-purple-100 p-2 rounded-lg">
-              <Crown className="w-5 h-5 text-purple-600" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-600">Leadership</p>
-              <p className="text-xl font-bold">
-                {
-                  members.filter((m) =>
-                    ["chairperson", "treasurer", "secretary"].includes(m.role)
-                  ).length
-                }
-              </p>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="flex items-center gap-3">
-            <div className="bg-yellow-100 p-2 rounded-lg">
-              <Star className="w-5 h-5 text-yellow-600" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-600">Avg. Activity</p>
-              <p className="text-xl font-bold">
-                {members.length > 0
-                  ? Math.round(
-                      members.reduce((sum, m) => sum + m.activity_score, 0) /
-                        members.length
-                    )
-                  : 0}
-                %
-              </p>
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      {/* Filters and search */}
-      <Card className="p-4">
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="flex-1">
-            <div className="relative">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-              <Input
-                placeholder="Search members by name or email..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <Select value={roleFilter} onValueChange={setRoleFilter}>
-              <SelectTrigger className="w-40">
-                <SelectValue placeholder="Filter by role" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Roles</SelectItem>
-                <SelectItem value="chairperson">Chairperson</SelectItem>
-                <SelectItem value="treasurer">Treasurer</SelectItem>
-                <SelectItem value="secretary">Secretary</SelectItem>
-                <SelectItem value="member">Member</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-36">
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="inactive">Inactive</SelectItem>
-                <SelectItem value="suspended">Suspended</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Select value={sortBy} onValueChange={setSortBy}>
-              <SelectTrigger className="w-36">
-                <SelectValue placeholder="Sort by" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="name">Name</SelectItem>
-                <SelectItem value="role">Role</SelectItem>
-                <SelectItem value="joinDate">Join Date</SelectItem>
-                <SelectItem value="activity">Activity Score</SelectItem>
-                <SelectItem value="contributions">Contributions</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      </Card>
-
-      {/* Member list */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {filteredMembers.map((member) => {
-          const roleConfig = ROLE_CONFIG[member.role];
-          const RoleIcon = roleConfig.icon;
-
-          return (
-            <Card key={member.user_id} className="p-4">
-              <div className="flex items-start justify-between">
-                <div className="flex items-start gap-3 flex-1">
-                  {/* Profile picture placeholder */}
-                  <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center">
-                    {member.profile_picture ? (
-                      <img
-                        src={member.profile_picture}
-                        alt={member.name}
-                        className="w-full h-full rounded-full object-cover"
-                      />
-                    ) : (
-                      <User className="w-6 h-6 text-gray-400" />
-                    )}
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-semibold text-gray-900 truncate">
-                        {member.name}
-                        {member.user_id === currentUserId && (
-                          <span className="text-sm text-gray-500 font-normal ml-1">
-                            (You)
-                          </span>
-                        )}
-                      </h3>
-                      {member.warnings_count > 0 && (
-                        <AlertTriangle className="w-4 h-4 text-yellow-500" />
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-2 mb-2">
-                      <Badge className={`${roleConfig.color} text-xs`}>
-                        <RoleIcon className="w-3 h-3 mr-1" />
-                        {roleConfig.label}
-                      </Badge>
-                      <Badge
-                        variant={
-                          member.status === "active" ? "default" : "secondary"
-                        }
-                        className="text-xs"
-                      >
-                        {member.status}
-                      </Badge>
-                    </div>
-
-                    <div className="space-y-1 text-sm text-gray-600">
-                      <div className="flex items-center gap-1">
-                        <Mail className="w-3 h-3" />
-                        <span className="truncate">{member.email}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Phone className="w-3 h-3" />
-                        <span>{member.phone}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Calendar className="w-3 h-3" />
-                        <span>
-                          Joined{" "}
-                          {new Date(member.joined_at).toLocaleDateString()}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Activity and contribution metrics */}
-                    <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t">
-                      <div className="text-center">
-                        <p className="text-xs text-gray-600">Activity Score</p>
-                        <p
-                          className={`text-sm font-semibold ${
-                            member.activity_score >= 80
-                              ? "text-green-600"
-                              : member.activity_score >= 60
-                              ? "text-yellow-600"
-                              : "text-red-600"
-                          }`}
-                        >
-                          {member.activity_score}%
-                        </p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-xs text-gray-600">
-                          Contribution Rate
-                        </p>
-                        <p className="text-sm font-semibold text-blue-600">
-                          {member.contribution_rate}%
-                        </p>
-                      </div>
-                    </div>
-                  </div>
+      {/* Main layout with sidebar */}
+      <div className="flex gap-6">
+        {/* Left side - Main content */}
+        <div className="flex-1 space-y-4">
+          {/* Filters and search */}
+          <Card className="p-4">
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex-1">
+                <div className="relative">
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Input
+                    placeholder="Search members by name or email..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10"
+                  />
                 </div>
-
-                {/* Actions menu */}
-                {canManageMembers && member.user_id !== currentUserId && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      {canAssignRoles && (
-                        <DropdownMenuItem
-                          onClick={() => openRoleDialog(member)}
-                        >
-                          <Settings className="mr-2 h-4 w-4" />
-                          Change Role
-                        </DropdownMenuItem>
-                      )}
-                      <DropdownMenuItem
-                        onClick={() => openRemoveDialog(member)}
-                        className="text-red-600"
-                      >
-                        <UserMinus className="mr-2 h-4 w-4" />
-                        Remove Member
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
               </div>
-            </Card>
-          );
-        })}
-      </div>
+              <div className="flex gap-2">
+                <Select value={roleFilter} onValueChange={setRoleFilter}>
+                  <SelectTrigger className="w-40">
+                    <SelectValue placeholder="Filter by role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Roles</SelectItem>
+                    <SelectItem value="chairperson">Chairperson</SelectItem>
+                    <SelectItem value="treasurer">Treasurer</SelectItem>
+                    <SelectItem value="secretary">Secretary</SelectItem>
+                    <SelectItem value="member">Member</SelectItem>
+                  </SelectContent>
+                </Select>
 
-      {filteredMembers.length === 0 && (
-        <Card className="p-8 text-center">
-          <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">
-            No members found
-          </h3>
-          <p className="text-gray-600">
-            {searchQuery || roleFilter !== "all" || statusFilter !== "all"
-              ? "Try adjusting your search or filters"
-              : "This chama doesn't have any members yet"}
-          </p>
-        </Card>
-      )}
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-36">
+                    <SelectValue placeholder="Filter by status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                    <SelectItem value="suspended">Suspended</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Select value={sortBy} onValueChange={setSortBy}>
+                  <SelectTrigger className="w-36">
+                    <SelectValue placeholder="Sort by" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="name">Name</SelectItem>
+                    <SelectItem value="role">Role</SelectItem>
+                    <SelectItem value="joinDate">Join Date</SelectItem>
+                    <SelectItem value="activity">Activity Score</SelectItem>
+                    <SelectItem value="contributions">Contributions</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </Card>
+
+          {/* Member list */}
+          <div className="space-y-2">
+            {filteredMembers.map((member) => {
+              const roleConfig = ROLE_CONFIG[member.role];
+              const RoleIcon = roleConfig.icon;
+
+              return (
+                <Card
+                  key={member.user_id}
+                  className="p-4 hover:bg-gray-50 transition-colors"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    {/* Left side: Avatar + Info */}
+                    <div className="flex items-start gap-4 flex-1 min-w-0">
+                      {/* Avatar with online indicator */}
+                      <div className="relative flex-shrink-0">
+                        <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center">
+                          {member.profile_picture ? (
+                            <img
+                              src={member.profile_picture}
+                              alt={member.name}
+                              className="w-full h-full rounded-full object-cover"
+                            />
+                          ) : (
+                            <User className="w-6 h-6 text-gray-400" />
+                          )}
+                        </div>
+                        {/* Online status indicator */}
+                        <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></div>
+                      </div>
+
+                      {/* Member details */}
+                      <div className="flex-1 min-w-0 pt-1">
+                        <h3 className="font-semibold text-gray-900 truncate mb-1">
+                          {member.name}
+                          {member.user_id === currentUserId && (
+                            <span className="text-sm text-gray-500 font-normal ml-1">
+                              (You)
+                            </span>
+                          )}
+                        </h3>
+
+                        <div className="mb-2">
+                          <Badge className={`${roleConfig.color} text-xs`}>
+                            <RoleIcon className="w-3 h-3 mr-1" />
+                            {roleConfig.label}
+                          </Badge>
+                        </div>
+
+                        <div className="flex items-center gap-4 text-sm text-gray-600">
+                          <div className="flex items-center gap-1">
+                            <Mail className="w-3 h-3" />
+                            <span className="truncate">{member.email}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Calendar className="w-3 h-3" />
+                            <span>
+                              Joined{" "}
+                              {new Date(member.joined_at).toLocaleDateString()}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right side: Reputation + Actions */}
+                    <div className="flex items-center gap-4 flex-shrink-0">
+                      {/* Reputation Score */}
+                      {member.reputation ? (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger>
+                              <div className="flex flex-col items-center gap-1">
+                                <ReputationBadge
+                                  tier={member.reputation.tier}
+                                  name=""
+                                  size="sm"
+                                  showLabel={false}
+                                />
+                                <span className="text-xs font-semibold text-gray-700">
+                                  {member.reputation.totalScore}
+                                </span>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <div className="text-xs space-y-1">
+                                <p className="font-semibold">
+                                  Reputation: {member.reputation.totalScore}{" "}
+                                  points
+                                </p>
+                                <p>Tier: {member.reputation.tier}</p>
+                                <p>
+                                  Consistency:{" "}
+                                  {member.reputation.contributionConsistencyRate.toFixed(
+                                    0
+                                  )}
+                                  %
+                                </p>
+                                <p>
+                                  Streak:{" "}
+                                  {member.reputation.contributionStreakMonths}{" "}
+                                  months
+                                </p>
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      ) : (
+                        <div className="flex flex-col items-center gap-1">
+                          <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
+                            <Star className="w-4 h-4 text-gray-400" />
+                          </div>
+                          <span className="text-xs text-gray-400">N/A</span>
+                        </div>
+                      )}
+
+                      {/* Actions menu */}
+                      {canManageMembers && member.user_id !== currentUserId && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            {canAssignRoles && (
+                              <DropdownMenuItem
+                                onClick={() => openRoleDialog(member)}
+                              >
+                                <Settings className="mr-2 h-4 w-4" />
+                                Change Role
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem
+                              onClick={() => openRemoveDialog(member)}
+                              className="text-red-600"
+                            >
+                              <UserMinus className="mr-2 h-4 w-4" />
+                              Remove Member
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
+                    </div>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+
+          {filteredMembers.length === 0 && (
+            <Card className="p-8 text-center">
+              <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                No members found
+              </h3>
+              <p className="text-gray-600">
+                {searchQuery || roleFilter !== "all" || statusFilter !== "all"
+                  ? "Try adjusting your search or filters"
+                  : "This chama doesn't have any members yet"}
+              </p>
+            </Card>
+          )}
+        </div>
+
+        {/* Right side - Reputation Sidebar */}
+        <div className="w-80 space-y-4">
+          {/* My Reputation Card */}
+          <Card className="p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <Trophy className="w-5 h-5 text-[#083232]" />
+              <h3 className="font-semibold text-lg">My Reputation</h3>
+            </div>
+
+            {members.find((m) => m.user_id === currentUserId)?.reputation ? (
+              <div className="space-y-4">
+                <div className="text-center p-4 bg-gradient-to-br from-[#083232] to-[#2e856e] rounded-lg text-white">
+                  <p className="text-sm opacity-90 mb-1">Your Score</p>
+                  <p className="text-4xl font-bold">
+                    {members.find((m) => m.user_id === currentUserId)
+                      ?.reputation?.totalScore || 0}
+                  </p>
+                  <p className="text-sm opacity-90 mt-1 capitalize">
+                    {members.find((m) => m.user_id === currentUserId)
+                      ?.reputation?.tier || "unrated"}
+                  </p>
+                </div>
+                <Button
+                  className="w-full bg-[#083232] hover:bg-[#2e856e]"
+                  size="sm"
+                  onClick={recalculateReputation}
+                  disabled={calculating}
+                >
+                  {calculating ? (
+                    <>
+                      <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                      Calculating...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                      Refresh Score
+                    </>
+                  )}
+                </Button>
+              </div>
+            ) : (
+              <div className="text-center py-6">
+                <Trophy className="mx-auto mb-3 text-gray-400" size={48} />
+                <h4 className="font-semibold text-gray-900 mb-2">
+                  No Reputation Data Yet
+                </h4>
+                <p className="text-sm text-gray-600 mb-4">
+                  Start contributing to build your reputation in this chama
+                </p>
+                <Button
+                  className="w-full bg-[#083232] hover:bg-[#2e856e]"
+                  size="sm"
+                  onClick={recalculateReputation}
+                  disabled={calculating}
+                >
+                  {calculating ? (
+                    <>
+                      <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                      Calculating...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                      Calculate My Reputation
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
+          </Card>
+
+          {/* Leaderboard Card */}
+          <Card className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Trophy className="w-5 h-5 text-[#f64d52]" />
+                <h3 className="font-semibold text-lg">Leaderboard</h3>
+              </div>
+            </div>
+
+            {/* Period Selector */}
+            <div className="flex gap-2 mb-4">
+              <Button
+                size="sm"
+                variant={leaderboardPeriod === "7days" ? "default" : "outline"}
+                onClick={() => setLeaderboardPeriod("7days")}
+                className={
+                  leaderboardPeriod === "7days"
+                    ? "bg-[#083232] hover:bg-[#2e856e]"
+                    : ""
+                }
+              >
+                7 Days
+              </Button>
+              <Button
+                size="sm"
+                variant={leaderboardPeriod === "30days" ? "default" : "outline"}
+                onClick={() => setLeaderboardPeriod("30days")}
+                className={
+                  leaderboardPeriod === "30days"
+                    ? "bg-[#083232] hover:bg-[#2e856e]"
+                    : ""
+                }
+              >
+                30 Days
+              </Button>
+              <Button
+                size="sm"
+                variant={
+                  leaderboardPeriod === "alltime" ? "default" : "outline"
+                }
+                onClick={() => setLeaderboardPeriod("alltime")}
+                className={
+                  leaderboardPeriod === "alltime"
+                    ? "bg-[#083232] hover:bg-[#2e856e]"
+                    : ""
+                }
+              >
+                All Time
+              </Button>
+            </div>
+
+            {/* Top Members List */}
+            <div className="space-y-3">
+              {members
+                .filter((m) => m.reputation?.totalScore)
+                .sort(
+                  (a, b) =>
+                    (b.reputation?.totalScore || 0) -
+                    (a.reputation?.totalScore || 0)
+                )
+                .slice(0, 5)
+                .map((member, index) => (
+                  <div
+                    key={member.id}
+                    className="flex items-center gap-3 p-3 rounded-lg bg-gradient-to-r from-gray-50 to-transparent border border-gray-100"
+                  >
+                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-br from-[#083232] to-[#2e856e] text-white font-bold text-sm">
+                      {index + 1}
+                    </div>
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <div className="relative flex-shrink-0">
+                        {member.profile_picture ? (
+                          <img
+                            src={member.profile_picture}
+                            alt={member.name}
+                            className="w-8 h-8 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#083232] to-[#2e856e] flex items-center justify-center text-white text-xs font-semibold">
+                            {member.name?.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                      </div>
+                      <span className="text-sm font-medium text-gray-900 truncate">
+                        {member.name}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1 text-[#f64d52] font-bold">
+                      <Star className="w-4 h-4 fill-current" />
+                      <span className="text-sm">
+                        {member.reputation?.totalScore || 0}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+
+              {members.filter((m) => m.reputation?.totalScore).length === 0 && (
+                <div className="text-center py-8 text-gray-500 text-sm">
+                  No reputation data yet
+                </div>
+              )}
+            </div>
+          </Card>
+        </div>
+      </div>
 
       {/* Role change dialog */}
       <AlertDialog open={showRoleDialog} onOpenChange={setShowRoleDialog}>

@@ -11,6 +11,9 @@ import { ChamaModule } from './chama/chama.module';
 import { LedgerModule } from './ledger/ledger.module';
 import { MpesaModule } from './mpesa/mpesa.module';
 import { AdminModule } from './admin/admin.module';
+import { ReputationModule } from './reputation/reputation.module';
+import { ActivityModule } from './activity/activity.module';
+import { GovernanceModule } from './governance/governance.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -36,6 +39,9 @@ import { AppService } from './app.service';
     MpesaModule,
     ChamaModule,
     AdminModule,
+    ReputationModule,
+    ActivityModule,
+    GovernanceModule,
   ],
   controllers: [AppController],
   providers: [AppService],

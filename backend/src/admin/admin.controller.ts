@@ -103,8 +103,32 @@ export class AdminController {
     return this.adminService.getUserAnalytics();
   }
 
+  /**   * Process pending reputation events
+   */
+  @Get('reputation/process-pending')
+  async processPendingReputationEvents(@Req() req: any) {
+    await this.checkAdminAccess(req.user.id);
+    // This will be implemented when reputation automation is properly wired
+    return {
+      success: true,
+      message: 'Reputation processing endpoint - to be implemented',
+    };
+  }
+
   /**
-   * Check if user is admin
+   * Calculate chama metrics
+   */
+  @Get('chama-metrics/calculate-all')
+  async calculateAllChamaMetrics(@Req() req: any) {
+    await this.checkAdminAccess(req.user.id);
+    // This will be implemented when chama metrics service is properly wired
+    return {
+      success: true,
+      message: 'Chama metrics calculation endpoint - to be implemented',
+    };
+  }
+
+  /**   * Check if user is admin
    * For now, check if email ends with @cycle.com or is specific admin email
    * In production, use a proper admin role system
    */

@@ -346,7 +346,27 @@ export class WalletService {
       SELECT 
         t.id,
         t.reference,
-        t.description,
+        CASE 
+          WHEN tc.code = 'TRANSFER' AND e.direction = 'debit' THEN 
+            'Transfer to ' || COALESCE((
+              SELECT u.full_name 
+              FROM entries e2 
+              JOIN accounts a2 ON e2.account_id = a2.id 
+              JOIN users u ON a2.user_id = u.id 
+              WHERE e2.transaction_id = t.id AND e2.direction = 'credit'
+              LIMIT 1
+            ), 'Unknown')
+          WHEN tc.code = 'TRANSFER' AND e.direction = 'credit' THEN 
+            'Received from ' || COALESCE((
+              SELECT u.full_name 
+              FROM entries e2 
+              JOIN accounts a2 ON e2.account_id = a2.id 
+              JOIN users u ON a2.user_id = u.id 
+              WHERE e2.transaction_id = t.id AND e2.direction = 'debit'
+              LIMIT 1
+            ), 'Unknown')
+          ELSE t.description
+        END as description,
         t.status,
         t.created_at,
         t.completed_at,

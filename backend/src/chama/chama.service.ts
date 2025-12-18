@@ -5,12 +5,25 @@ import {
   BadRequestException,
   NotFoundException,
   ForbiddenException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import { LedgerService } from '../ledger/ledger.service';
 import { NotificationService } from '../wallet/notification.service';
 import { ContributionService } from './contribution.service';
 import { ReminderService } from './reminder.service';
+import { ChamaReputationService } from './chama-reputation.service';
+import {
+  ActivityService,
+  ActivityCategory,
+  ActivityType,
+} from '../activity/activity.service';
+import {
+  NotificationService as ActivityNotificationService,
+  NotificationChannel,
+  NotificationPriority,
+} from '../activity/notification.service';
 import { v4 as uuidv4 } from 'uuid';
 
 export interface CreateChamaDto {
@@ -63,6 +76,10 @@ export class ChamaService {
     private readonly notification: NotificationService,
     private readonly contributionService: ContributionService,
     private readonly reminderService: ReminderService,
+    @Inject(forwardRef(() => ChamaReputationService))
+    private readonly reputationService: ChamaReputationService,
+    private readonly activityService: ActivityService,
+    private readonly activityNotification: ActivityNotificationService,
   ) {}
 
   // ==========================================
@@ -497,14 +514,34 @@ export class ChamaService {
       LIMIT 100`,
     );
 
-    // Parse tags from settings JSONB
-    return result.rows.map((row) => ({
-      ...row,
-      tags: this.extractTagsFromSettings(row.settings),
-      is_public: true,
-      type: row.settings?.type || 'savings',
-      lending_enabled: row.settings?.lending_enabled || false,
-    }));
+    // Parse tags from settings JSONB and add reputation
+    const chamasWithData = await Promise.all(
+      result.rows.map(async (row) => {
+        // Try to get reputation (may fail for new chamas without metrics)
+        let reputationTier = 'unrated';
+        let reputationScore = 0;
+        try {
+          const reputation =
+            await this.reputationService.calculateChamaReputation(row.id);
+          reputationTier = reputation.tier;
+          reputationScore = reputation.reputationScore;
+        } catch (error) {
+          // New chamas won't have reputation yet - use defaults
+        }
+
+        return {
+          ...row,
+          tags: this.extractTagsFromSettings(row.settings),
+          is_public: true,
+          type: row.settings?.type || 'savings',
+          lending_enabled: row.settings?.lending_enabled || false,
+          reputation_tier: reputationTier,
+          reputation_score: reputationScore,
+        };
+      }),
+    );
+
+    return chamasWithData;
   }
 
   /**
@@ -902,7 +939,7 @@ export class ChamaService {
     }
 
     const member = await this.db.query(
-      'SELECT * FROM chama_members WHERE chama_id = $1 AND user_id = $2',
+      'SELECT cm.*, u.full_name FROM chama_members cm JOIN users u ON cm.user_id = u.id WHERE cm.chama_id = $1 AND cm.user_id = $2',
       [chamaId, memberUserId],
     );
 
@@ -915,6 +952,8 @@ export class ChamaService {
       throw new BadRequestException('Cannot remove chama admin');
     }
 
+    const memberData = member.rows[0];
+
     await this.db.transactionAsSystem(async (client) => {
       await client.query(
         `UPDATE chama_members SET status = 'left', left_at = NOW()
@@ -922,6 +961,32 @@ export class ChamaService {
         [chamaId, memberUserId],
       );
     });
+
+    // Log activity
+    const activityId = await this.activityService.createActivityLog({
+      chamaId,
+      userId,
+      category: ActivityCategory.MEMBERSHIP,
+      activityType: ActivityType.MEMBER_REMOVED,
+      title: `${memberData.full_name} removed from chama`,
+      description: 'Member was removed by admin',
+      metadata: { memberId: memberData.id, memberName: memberData.full_name },
+      entityType: 'member',
+      entityId: memberData.id,
+    });
+
+    // Notify all members
+    await this.activityNotification.notifyChamaMembers(
+      chamaId,
+      {
+        channel: NotificationChannel.IN_APP,
+        priority: NotificationPriority.HIGH,
+        title: 'Member Removed',
+        message: `${memberData.full_name} has been removed from the chama`,
+        activityLogId: activityId,
+      },
+      userId,
+    );
 
     return { message: 'Member removed successfully' };
   }
@@ -944,12 +1009,54 @@ export class ChamaService {
       throw new BadRequestException('Invalid role');
     }
 
+    // Get member details and old role
+    const memberResult = await this.db.query(
+      'SELECT cm.id, cm.role, u.full_name FROM chama_members cm JOIN users u ON cm.user_id = u.id WHERE cm.chama_id = $1 AND cm.user_id = $2',
+      [chamaId, memberUserId],
+    );
+    const member = memberResult.rows[0];
+    const oldRole = member.role;
+
     await this.db.transactionAsSystem(async (client) => {
       await client.query(
         `UPDATE chama_members SET role = $1 WHERE chama_id = $2 AND user_id = $3`,
         [newRole, chamaId, memberUserId],
       );
     });
+
+    // Log activity with audit trail
+    const activityId = await this.activityService.createActivityWithAudit(
+      {
+        chamaId,
+        userId,
+        category: ActivityCategory.MEMBERSHIP,
+        activityType: ActivityType.ROLE_CHANGED,
+        title: `${member.full_name} role changed to ${newRole}`,
+        description: `Member role updated from ${oldRole} to ${newRole}`,
+        metadata: {
+          memberId: member.id,
+          memberName: member.full_name,
+          oldRole,
+          newRole,
+        },
+        entityType: 'member',
+        entityId: member.id,
+      },
+      [{ field: 'role', oldValue: oldRole, newValue: newRole }],
+    );
+
+    // Notify all members
+    await this.activityNotification.notifyChamaMembers(
+      chamaId,
+      {
+        channel: NotificationChannel.IN_APP,
+        priority: NotificationPriority.MEDIUM,
+        title: 'Member Role Changed',
+        message: `${member.full_name} is now a ${newRole}`,
+        activityLogId: activityId,
+      },
+      userId,
+    );
 
     return { message: 'Role updated successfully' };
   }
@@ -968,7 +1075,8 @@ export class ChamaService {
         cm.*,
         u.email,
         u.phone,
-        u.full_name,
+        u.full_name as name,
+        u.profile_photo_url as profile_picture,
         calculate_contribution_rate(cm.id) as contribution_rate
       FROM chama_members cm
       JOIN users u ON cm.user_id = u.id
@@ -1140,14 +1248,21 @@ export class ChamaService {
     }
 
     // Process contribution through ledger (includes 4.5% fee)
+    // Ensure amount is a proper number
+    const contributionAmount = Number(dto.amount);
+
+    // Generate idempotent external reference based on cycle and user
+    const externalReference = `CTB-${cycleId}-${userId}`;
+
     const transaction = await this.ledger.processContribution(
       userId,
       chamaId,
-      dto.amount,
+      contributionAmount,
       dto.notes || `Contribution for cycle ${cycle.rows[0].cycle_number}`,
+      externalReference,
     );
 
-    const feeAmount = (dto.amount * 4.5) / 100;
+    const feeAmount = (contributionAmount * 4.5) / 100;
 
     // Record contribution
     const contributionId = uuidv4();
@@ -1674,6 +1789,37 @@ export class ChamaService {
    */
   async createContribution(userId: string, dto: any) {
     return this.contributionService.createContribution(userId, dto);
+  }
+
+  /**
+   * Get upcoming contributions for user (wallet alerts)
+   */
+  async getUpcomingContributions(userId: string) {
+    const result = await this.db.query(
+      `
+      SELECT 
+        c.id as "chamaId",
+        c.name as "chamaName",
+        cc.id as "cycleId",
+        cc.expected_amount as amount,
+        cc.due_date as "dueDate",
+        cc.cycle_number as "cycleNumber"
+      FROM chamas c
+      INNER JOIN chama_members cm ON c.id = cm.chama_id
+      INNER JOIN contribution_cycles cc ON c.id = cc.chama_id
+      LEFT JOIN contributions contrib ON cc.id = contrib.cycle_id AND contrib.user_id = $1
+      WHERE cm.user_id = $1
+        AND cm.status = 'active'
+        AND cc.status = 'active'
+        AND contrib.id IS NULL
+        AND cc.due_date >= CURRENT_DATE
+      ORDER BY cc.due_date ASC
+      LIMIT 5
+      `,
+      [userId],
+    );
+
+    return result.rows;
   }
 
   /**
