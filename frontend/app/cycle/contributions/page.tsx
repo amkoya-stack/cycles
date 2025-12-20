@@ -23,6 +23,7 @@ interface ContributionPageProps {
   contributionType?: "fixed" | "flexible" | "income_based";
   minAmount?: number;
   maxAmount?: number;
+  isAdmin?: boolean;
 }
 
 export default function ContributionPage({
@@ -32,6 +33,7 @@ export default function ContributionPage({
   contributionType = "fixed",
   minAmount,
   maxAmount,
+  isAdmin = false,
 }: ContributionPageProps) {
   const [activeTab, setActiveTab] = useState("overview");
   const [contributeDialogOpen, setContributeDialogOpen] = useState(false);
@@ -99,6 +101,8 @@ export default function ContributionPage({
           <ContributionDashboard
             key={refreshKey}
             cycleId={cycleId}
+            chamaId={chamaId}
+            isAdmin={isAdmin}
             onContributeClick={() => setContributeDialogOpen(true)}
           />
 

@@ -48,20 +48,89 @@ interface Contribution {
 }
 
 export function ContributionHistory({
-  chamaId,
-  cycleId,
+  chamaId: propChamaId,
+  cycleId: propCycleId,
 }: ContributionHistoryProps) {
   const [contributions, setContributions] = useState<Contribution[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [selectedChamaId, setSelectedChamaId] = useState<string>(
+    propChamaId || "all"
+  );
+  const [selectedCycleId, setSelectedCycleId] = useState<string>(
+    propCycleId || "all"
+  );
+  const [chamas, setChamas] = useState<any[]>([]);
+  const [cycles, setCycles] = useState<any[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
+    if (!propChamaId) {
+      fetchUserChamas();
+    }
+  }, [propChamaId]);
+
+  useEffect(() => {
+    if (selectedChamaId && selectedChamaId !== "all") {
+      fetchChamaCycles(selectedChamaId);
+    } else {
+      setCycles([]);
+      setSelectedCycleId("all");
+    }
+  }, [selectedChamaId]);
+
+  useEffect(() => {
     loadContributions();
-  }, [chamaId, cycleId, statusFilter, page]);
+  }, [
+    propChamaId,
+    propCycleId,
+    selectedChamaId,
+    selectedCycleId,
+    statusFilter,
+    page,
+  ]);
+
+  const fetchUserChamas = async () => {
+    try {
+      const accessToken = localStorage.getItem("accessToken");
+      if (!accessToken) return;
+
+      const res = await fetch("http://localhost:3001/api/chama/user/chamas", {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setChamas(data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch chamas:", error);
+    }
+  };
+
+  const fetchChamaCycles = async (chamaId: string) => {
+    try {
+      const accessToken = localStorage.getItem("accessToken");
+      if (!accessToken) return;
+
+      const res = await fetch(
+        `http://localhost:3001/api/chama/${chamaId}/cycles`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
+      );
+
+      if (res.ok) {
+        const data = await res.json();
+        setCycles(data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch cycles:", error);
+    }
+  };
 
   const loadContributions = async () => {
     try {
@@ -78,8 +147,8 @@ export function ContributionHistory({
       }
 
       const query: ContributionHistoryQuery = {
-        chamaId,
-        cycleId,
+        chamaId: selectedChamaId === "all" ? undefined : selectedChamaId,
+        cycleId: selectedCycleId === "all" ? undefined : selectedCycleId,
         status: statusFilter === "all" ? undefined : statusFilter,
         page,
         limit: 10,
@@ -196,22 +265,60 @@ export function ContributionHistory({
   return (
     <Card>
       <CardHeader>
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <CardTitle className="text-xl text-[#083232]">
-            Contribution History
-          </CardTitle>
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1 sm:w-64">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input
-                placeholder="Search by reference or notes..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9"
-              />
-            </div>
+        <CardTitle className="text-xl text-[#083232] mb-4">
+          Contribution History
+        </CardTitle>
+        <div className="flex flex-col gap-3">
+          <div className="relative w-full">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input
+              placeholder="Search by reference or notes..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9 w-full"
+            />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {!propChamaId && (
+              <>
+                <Select
+                  value={selectedChamaId}
+                  onValueChange={setSelectedChamaId}
+                >
+                  <SelectTrigger className="w-full sm:w-[180px]">
+                    <SelectValue placeholder="All Chamas" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Chamas</SelectItem>
+                    {chamas.map((chama) => (
+                      <SelectItem key={chama.id} value={chama.id}>
+                        {chama.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedChamaId !== "all" && cycles.length > 0 && (
+                  <Select
+                    value={selectedCycleId}
+                    onValueChange={setSelectedCycleId}
+                  >
+                    <SelectTrigger className="w-full sm:w-[140px]">
+                      <SelectValue placeholder="All Cycles" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Cycles</SelectItem>
+                      {cycles.map((cycle) => (
+                        <SelectItem key={cycle.id} value={cycle.id}>
+                          Cycle #{cycle.cycle_number}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </>
+            )}
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="sm:w-40">
+              <SelectTrigger className="w-full sm:w-[130px]">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
@@ -225,7 +332,7 @@ export function ContributionHistory({
               variant="outline"
               onClick={handleExport}
               disabled={exporting || contributions.length === 0}
-              className="sm:w-auto"
+              className="w-full sm:w-auto"
             >
               <Download className="h-4 w-4 mr-2" />
               Export

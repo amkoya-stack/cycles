@@ -57,8 +57,15 @@ const apiClient = {
         window.location.href = "/auth/login";
         throw new Error("Session expired. Please login again.");
       }
+      const text = await response.text();
+      throw new Error(text || `Request failed with status ${response.status}`);
     }
-    return { data: null };
+
+    const contentType = response.headers.get("content-type");
+    if (contentType?.includes("application/json")) {
+      return { data: await response.json(), status: response.status };
+    }
+    return { data: null, status: response.status };
   },
 
   put: async (url: string, data: any) => {
@@ -120,12 +127,14 @@ export interface CycleSummary {
     collectedAmount: number;
     dueDate: string;
     status: string;
+    payout_executed_at?: string | null;
   };
   summary: {
     totalMembers: number;
     contributedMembers: number;
     pendingMembers: number;
     completionRate: number;
+    totalCollected: number;
   };
   members: Array<{
     memberId: string;
@@ -179,7 +188,10 @@ export const contributionApi = {
 
   // Get cycle summary
   async getCycleSummary(cycleId: string): Promise<CycleSummary> {
+    console.log("API: Calling GET /chama/cycles/${cycleId}/summary");
     const response = await apiClient.get(`/chama/cycles/${cycleId}/summary`);
+    console.log("API: Response status:", response.status);
+    console.log("API: Response data:", JSON.stringify(response.data, null, 2));
     return response.data;
   },
 

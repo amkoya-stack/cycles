@@ -120,10 +120,10 @@ export function HomeNavbar({
             <div className="relative" ref={cyclesDropdownRef}>
               <button
                 onClick={() => setShowCyclesDropdown(!showCyclesDropdown)}
-                className="flex items-center gap-1.5 flex-shrink-0 hover:opacity-80 transition-opacity cursor-pointer"
+                className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg transition-all duration-200 border border-white/20 cursor-pointer"
               >
                 <span className="text-xl font-bold">{title || "Cycles"}</span>
-                <ChevronsUpDown className="w-5 h-5 mt-0.5" />
+                <ChevronsUpDown className="w-5 h-5" />
               </button>
 
               {showCyclesDropdown && (

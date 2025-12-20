@@ -470,7 +470,7 @@ export class RotationService {
 
     // Get all positions
     const positionsResult = await this.db.query(
-      `SELECT rp.*, cm.user_id, u.full_name, u.phone
+      `SELECT rp.*, cm.user_id, u.full_name, u.phone, u.email
        FROM rotation_positions rp
        JOIN chama_members cm ON rp.member_id = cm.id
        JOIN users u ON cm.user_id = u.id
@@ -479,10 +479,23 @@ export class RotationService {
       [rotation.id],
     );
 
+    // Transform to camelCase for frontend
+    const positions = positionsResult.rows.map((pos) => ({
+      ...pos,
+      fullName: pos.full_name,
+      userId: pos.user_id,
+      memberId: pos.member_id,
+      rotationOrderId: pos.rotation_order_id,
+      meritScore: pos.merit_score,
+      assignedAt: pos.assigned_at,
+      completedAt: pos.completed_at,
+      skippedReason: pos.skipped_reason,
+    }));
+
     return {
       hasRotation: true,
       rotation,
-      positions: positionsResult.rows,
+      positions,
       progress: {
         current: rotation.current_position || 0,
         total: rotation.total_positions,

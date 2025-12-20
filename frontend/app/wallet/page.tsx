@@ -15,6 +15,11 @@ import { TransactionHistory } from "@/components/wallet/TransactionHistory";
 import { DepositModal } from "@/components/wallet/DepositModal";
 import { WithdrawModal } from "@/components/wallet/WithdrawModal";
 import { TransferModal } from "@/components/wallet/TransferModal";
+import { ContributionHistory } from "@/components/chama/contribution-history";
+import { AutoDebitForm } from "@/components/chama/auto-debit-form";
+import { PenaltyManagement } from "@/components/chama/penalty-management";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { History, Calendar, AlertCircle } from "lucide-react";
 
 interface Transaction {
   id: string;
@@ -603,6 +608,58 @@ export default function WalletPage() {
               setShowTransfer(true);
             }}
           />
+
+          {/* Contributions Section */}
+          <Card className="p-6 mb-6">
+            <h2 className="text-2xl font-bold text-[#083232] mb-4">
+              My Contributions
+            </h2>
+            <Tabs defaultValue="history" className="w-full">
+              <TabsList className="grid w-full grid-cols-3 mb-6">
+                <TabsTrigger
+                  value="history"
+                  className="data-[state=active]:bg-[#083232] data-[state=active]:text-white"
+                >
+                  <History className="h-4 w-4 mr-2" />
+                  History
+                </TabsTrigger>
+                <TabsTrigger
+                  value="auto-debit"
+                  className="data-[state=active]:bg-[#083232] data-[state=active]:text-white"
+                >
+                  <Calendar className="h-4 w-4 mr-2" />
+                  Auto-Debit
+                </TabsTrigger>
+                <TabsTrigger
+                  value="penalties"
+                  className="data-[state=active]:bg-[#083232] data-[state=active]:text-white"
+                >
+                  <AlertCircle className="h-4 w-4 mr-2" />
+                  Penalties
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="history">
+                <ContributionHistory />
+              </TabsContent>
+
+              <TabsContent value="auto-debit">
+                <div className="text-center py-8 text-gray-600">
+                  <p className="mb-4">
+                    Setup automatic contributions for your chamas
+                  </p>
+                  <p className="text-sm">
+                    Select a chama from your Quick Send section to configure
+                    auto-debit
+                  </p>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="penalties">
+                <PenaltyManagement />
+              </TabsContent>
+            </Tabs>
+          </Card>
 
           <TransactionHistory
             transactions={transactions}

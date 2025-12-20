@@ -639,108 +639,59 @@ export function GovernanceSection({
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-[#083232]">
-          Governance & Voting
-        </h2>
-        <Button
-          onClick={() => setShowCreateForm(true)}
-          className="bg-[#083232] hover:bg-[#2e856e]"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Create Proposal
-        </Button>
-      </div>
-
+    <div className="space-y-4">
       {/* Stats */}
       {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-blue-100 p-3 rounded-full">
-                <Vote className="w-5 h-5 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Total Proposals</p>
-                <p className="text-2xl font-bold">{stats.total_proposals}</p>
-              </div>
+        <div className="grid grid-cols-2 gap-2">
+          <Card className="p-3">
+            <div className="text-center">
+              <Vote className="w-4 h-4 text-blue-600 mx-auto mb-1" />
+              <p className="text-[10px] text-gray-600">Total</p>
+              <p className="text-lg font-bold">{stats.total_proposals}</p>
             </div>
           </Card>
-          <Card className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-green-100 p-3 rounded-full">
-                <CheckCircle className="w-5 h-5 text-green-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Passed</p>
-                <p className="text-2xl font-bold">{stats.passed_proposals}</p>
-              </div>
+          <Card className="p-3">
+            <div className="text-center">
+              <CheckCircle className="w-4 h-4 text-green-600 mx-auto mb-1" />
+              <p className="text-[10px] text-gray-600">Passed</p>
+              <p className="text-lg font-bold">{stats.passed_proposals}</p>
             </div>
           </Card>
-          <Card className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-red-100 p-3 rounded-full">
-                <XCircle className="w-5 h-5 text-red-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Failed</p>
-                <p className="text-2xl font-bold">{stats.failed_proposals}</p>
-              </div>
+          <Card className="p-3">
+            <div className="text-center">
+              <XCircle className="w-4 h-4 text-red-600 mx-auto mb-1" />
+              <p className="text-[10px] text-gray-600">Failed</p>
+              <p className="text-lg font-bold">{stats.failed_proposals}</p>
             </div>
           </Card>
-          <Card className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-purple-100 p-3 rounded-full">
-                <TrendingUp className="w-5 h-5 text-purple-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Success Rate</p>
-                <p className="text-2xl font-bold">{stats.success_rate || 0}%</p>
-              </div>
+          <Card className="p-3">
+            <div className="text-center">
+              <TrendingUp className="w-4 h-4 text-purple-600 mx-auto mb-1" />
+              <p className="text-[10px] text-gray-600">Success</p>
+              <p className="text-lg font-bold">{stats.success_rate || 0}%</p>
             </div>
           </Card>
         </div>
       )}
 
       {/* Filters */}
-      <div className="flex gap-2">
-        <Button
-          variant={filter === "all" ? "default" : "outline"}
-          onClick={() => setFilter("all")}
-          className={filter === "all" ? "bg-[#083232]" : ""}
+      <Select value={filter} onValueChange={setFilter}>
+        <SelectTrigger className="h-9 text-sm">
+          <SelectValue placeholder="Filter proposals" />
+        </SelectTrigger>
+        <SelectContent
+          position="popper"
+          side="bottom"
+          align="start"
+          sideOffset={5}
         >
-          All
-        </Button>
-        <Button
-          variant={filter === "active" ? "default" : "outline"}
-          onClick={() => setFilter("active")}
-          className={filter === "active" ? "bg-[#083232]" : ""}
-        >
-          Active
-        </Button>
-        <Button
-          variant={filter === "passed" ? "default" : "outline"}
-          onClick={() => setFilter("passed")}
-          className={filter === "passed" ? "bg-[#083232]" : ""}
-        >
-          Passed
-        </Button>
-        <Button
-          variant={filter === "executed" ? "default" : "outline"}
-          onClick={() => setFilter("executed")}
-          className={filter === "executed" ? "bg-[#083232]" : ""}
-        >
-          Executed
-        </Button>
-        <Button
-          variant={filter === "failed" ? "default" : "outline"}
-          onClick={() => setFilter("failed")}
-          className={filter === "failed" ? "bg-[#083232]" : ""}
-        >
-          Failed
-        </Button>
-      </div>
+          <SelectItem value="all">All</SelectItem>
+          <SelectItem value="active">Active</SelectItem>
+          <SelectItem value="passed">Passed</SelectItem>
+          <SelectItem value="executed">Executed</SelectItem>
+          <SelectItem value="failed">Failed</SelectItem>
+        </SelectContent>
+      </Select>
 
       {/* Proposals List */}
       {loading ? (

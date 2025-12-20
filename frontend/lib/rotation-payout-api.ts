@@ -36,9 +36,25 @@ const apiClient = {
       throw new Error("Not authenticated. Please login again.");
     }
 
-    const queryString = params
-      ? "?" + new URLSearchParams(params).toString()
-      : "";
+    let queryString = "";
+    if (params) {
+      const filteredParams: any = {};
+      // Only include defined, non-null, non-empty values
+      Object.keys(params).forEach((key) => {
+        const value = params[key];
+        if (value !== undefined && value !== null && value !== "") {
+          filteredParams[key] = value;
+        }
+      });
+      const searchParams = new URLSearchParams();
+      Object.entries(filteredParams).forEach(([key, value]) => {
+        searchParams.append(key, String(value));
+      });
+      queryString = searchParams.toString()
+        ? "?" + searchParams.toString()
+        : "";
+    }
+
     const response = await fetch(`${API_BASE_URL}${url}${queryString}`, {
       headers: {
         Authorization: `Bearer ${accessToken}`,

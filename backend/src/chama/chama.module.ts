@@ -16,9 +16,11 @@ import { PayoutService } from './payout.service';
 import { PayoutProcessorService } from './payout.processor.service';
 import { ChamaMetricsService } from './chama-metrics.service';
 import { ChamaReputationService } from './chama-reputation.service';
+import { CommunityService } from './community.service';
 import { RotationController } from './rotation.controller';
 import { PayoutController } from './payout.controller';
 import { ChamaMetricsController } from './chama-metrics.controller';
+import { CommunityController } from './community.controller';
 
 @Module({
   imports: [
@@ -35,6 +37,7 @@ import { ChamaMetricsController } from './chama-metrics.controller';
     RotationController,
     PayoutController,
     ChamaMetricsController,
+    CommunityController,
   ],
   providers: [
     ChamaService,
@@ -46,6 +49,7 @@ import { ChamaMetricsController } from './chama-metrics.controller';
     PayoutProcessorService,
     ChamaMetricsService,
     ChamaReputationService,
+    CommunityService,
   ],
   exports: [
     ChamaService,

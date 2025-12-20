@@ -6,19 +6,26 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
 import { Calendar, TrendingUp, Users, AlertCircle } from "lucide-react";
 
 interface ContributionDashboardProps {
   cycleId: string;
+  chamaId?: string;
+  isAdmin?: boolean;
   onContributeClick: () => void;
 }
 
 export function ContributionDashboard({
   cycleId,
+  chamaId,
+  isAdmin = false,
   onContributeClick,
 }: ContributionDashboardProps) {
+  const { toast } = useToast();
   const [summary, setSummary] = useState<CycleSummary | null>(null);
   const [loading, setLoading] = useState(true);
+  const [completing, setCompleting] = useState(false);
 
   useEffect(() => {
     loadCycleSummary();
@@ -27,12 +34,67 @@ export function ContributionDashboard({
   const loadCycleSummary = async () => {
     try {
       setLoading(true);
+      console.log("Loading cycle summary for cycleId:", cycleId);
       const data = await contributionApi.getCycleSummary(cycleId);
+      console.log("Cycle summary loaded:", data);
       setSummary(data);
     } catch (error) {
       console.error("Failed to load cycle summary:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleManualComplete = async () => {
+    if (!chamaId) {
+      toast({
+        title: "Error",
+        description: "Chama ID not provided",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setCompleting(true);
+      const API_URL =
+        process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+      const res = await fetch(
+        `${API_URL}/api/chama/${chamaId}/cycles/${cycleId}/complete`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "Failed to complete cycle");
+      }
+
+      const result = await res.json();
+
+      toast({
+        title: "Success",
+        description: result.payoutProcessed
+          ? `Cycle completed and payout of KSh ${result.amount} processed to ${result.recipientName}`
+          : "Cycle marked as completed",
+      });
+
+      // Refresh the cycle summary
+      await loadCycleSummary();
+    } catch (error: any) {
+      console.error("Error completing cycle:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to complete cycle",
+        variant: "destructive",
+      });
+    } finally {
+      setCompleting(false);
     }
   };
 
@@ -64,10 +126,19 @@ export function ContributionDashboard({
   const isOverdue = daysUntilDue < 0;
   const isDueSoon = daysUntilDue <= 3 && daysUntilDue >= 0;
 
+  console.log("ContributionDashboard - Debug:", {
+    isAdmin,
+    completionRate: stats.completionRate,
+    cycleStatus: cycle.status,
+    payoutExecutedAt: cycle.payout_executed_at,
+    shouldShowButton:
+      isAdmin && stats.completionRate === 1 && !cycle.payout_executed_at,
+  });
+
   return (
     <div className="space-y-4">
       {/* Cycle Header */}
-      <Card className="bg-gradient-to-r from-[#083232] to-[#2e856e] text-white">
+      <Card className="bg-[#083232] text-white border-2 border-[#2e856e]">
         <CardHeader>
           <CardTitle className="text-xl md:text-2xl">
             Cycle {cycle.cycleNumber}
@@ -213,6 +284,45 @@ export function ContributionDashboard({
           </div>
         </CardContent>
       </Card>
+
+      {/* Admin Manual Completion Button */}
+      {isAdmin && stats.completionRate === 1 && !cycle?.payout_executed_at && (
+        <Card className="border-amber-300 bg-amber-50">
+          <CardContent className="pt-6">
+            <div className="space-y-3">
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center mt-0.5">
+                  <span className="text-white text-xs font-bold">!</span>
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-amber-900 mb-1">
+                    {cycle?.status === "completed"
+                      ? "Payout pending - funds ready"
+                      : "All members have contributed"}
+                  </p>
+                  <p className="text-xs text-amber-700">
+                    {cycle?.status === "completed"
+                      ? `KES ${stats.totalCollected.toLocaleString()} is in the chama wallet, ready to be paid out to the designated recipient.`
+                      : "Click below to mark this cycle as completed and process the payout to the designated recipient."}
+                  </p>
+                </div>
+              </div>
+              <Button
+                onClick={handleManualComplete}
+                disabled={completing}
+                className="w-full bg-amber-600 hover:bg-amber-700 text-white"
+                size="lg"
+              >
+                {completing
+                  ? "Processing..."
+                  : cycle?.status === "completed"
+                  ? "Process Payout Now"
+                  : "Complete Cycle & Process Payout"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Contribute Button */}
       <Button

@@ -184,250 +184,169 @@ export function PayoutHistory({ chamaId }: PayoutHistoryProps) {
 
   return (
     <div className="w-full space-y-4">
-      <Card className="w-full">
-        <CardHeader>
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <CardTitle className="flex items-center gap-2">
-              <History className="h-5 w-5 text-[#083232]" />
-              Payout History
-            </CardTitle>
-            <div className="flex items-center gap-2">
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Filter by status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Statuses</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="failed">Failed</SelectItem>
-                  <SelectItem value="cancelled">Cancelled</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button
-                onClick={handleExportCSV}
-                variant="outline"
-                size="sm"
-                disabled={!history?.payouts.length}
-                className="border-[#083232] text-[#083232]"
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Export CSV
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {history?.payouts.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <History className="h-12 w-12 mx-auto mb-3 text-gray-400" />
-              <p>No payout history found</p>
-            </div>
-          ) : (
-            <>
-              {/* Desktop Table */}
-              <div className="hidden md:block overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Cycle</TableHead>
-                      <TableHead>Recipient</TableHead>
-                      <TableHead className="text-right">Amount</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {history?.payouts.map((payout) => (
-                      <TableRow key={payout.id}>
-                        <TableCell className="text-sm">
-                          {new Date(payout.scheduledAt).toLocaleDateString(
-                            "en-GB",
-                            {
-                              day: "2-digit",
-                              month: "short",
-                              year: "numeric",
-                            }
-                          )}
-                        </TableCell>
-                        <TableCell className="text-sm">
-                          Cycle {payout.cycleNumber}
-                        </TableCell>
-                        <TableCell>
-                          <div>
-                            <p className="font-medium text-sm">
-                              {payout.recipientName}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              {payout.recipientPhone}
-                            </p>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right font-semibold text-[#083232]">
-                          KES {payout.amount.toLocaleString()}
-                        </TableCell>
-                        <TableCell>{getStatusBadge(payout.status)}</TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            onClick={() => handleViewDetails(payout)}
-                            variant="ghost"
-                            size="sm"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+      {/* Filters */}
+      <div className="flex items-center justify-between gap-3">
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-48">
+            <SelectValue placeholder="Filter by status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Statuses</SelectItem>
+            <SelectItem value="completed">Completed</SelectItem>
+            <SelectItem value="pending">Pending</SelectItem>
+            <SelectItem value="failed">Failed</SelectItem>
+            <SelectItem value="cancelled">Cancelled</SelectItem>
+          </SelectContent>
+        </Select>
+        <Button
+          onClick={handleExportCSV}
+          variant="outline"
+          size="sm"
+          disabled={!history?.payouts.length}
+          className="border-[#083232] text-[#083232] hover:bg-[#083232] hover:text-white"
+        >
+          <Download className="h-4 w-4 mr-2" />
+          Export
+        </Button>
+      </div>
 
-              {/* Mobile Cards */}
-              <div className="md:hidden space-y-3">
-                {history?.payouts.map((payout) => (
-                  <Card key={payout.id} className="border-gray-200">
-                    <CardContent className="pt-4 space-y-3">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <p className="font-medium text-sm">
-                            {payout.recipientName}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            Cycle {payout.cycleNumber} •{" "}
-                            {new Date(payout.scheduledAt).toLocaleDateString()}
-                          </p>
-                        </div>
-                        {getStatusBadge(payout.status)}
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <p className="text-lg font-bold text-[#083232]">
-                          KES {payout.amount.toLocaleString()}
-                        </p>
-                        <Button
-                          onClick={() => handleViewDetails(payout)}
-                          variant="outline"
-                          size="sm"
-                        >
-                          <Eye className="h-4 w-4 mr-1" />
-                          Details
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-
-              {/* Pagination */}
-              {history && history.pagination.totalPages > 1 && (
-                <div className="flex items-center justify-between mt-4 pt-4 border-t">
-                  <p className="text-sm text-gray-600">
-                    Page {history.pagination.page} of{" "}
-                    {history.pagination.totalPages}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      onClick={() => setPage((p) => Math.max(1, p - 1))}
-                      disabled={page === 1}
-                      variant="outline"
-                      size="sm"
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      onClick={() =>
-                        setPage((p) =>
-                          Math.min(history.pagination.totalPages, p + 1)
-                        )
-                      }
-                      disabled={page === history.pagination.totalPages}
-                      variant="outline"
-                      size="sm"
-                    >
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
+      {/* History List */}
+      {history?.payouts.length === 0 ? (
+        <div className="text-center py-16 bg-gray-50 rounded-lg">
+          <History className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+          <p className="text-gray-500">No payout history found</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {history?.payouts.map((payout) => (
+            <div
+              key={payout.id}
+              className="bg-white border border-gray-200 rounded-lg p-5 hover:border-gray-300 transition-colors"
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-2">
+                    <h4 className="font-semibold text-lg text-gray-900">
+                      {payout.recipientName}
+                    </h4>
+                    {getStatusBadge(payout.status)}
                   </div>
+                  <div className="space-y-1 text-sm text-gray-600">
+                    <p>Cycle {payout.cycleNumber}</p>
+                    <p>
+                      {new Date(payout.scheduledAt).toLocaleDateString(
+                        "en-GB",
+                        {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                        }
+                      )}
+                    </p>
+                    {payout.transactionId && (
+                      <p className="text-xs text-gray-500">
+                        TX: {payout.transactionId}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-2xl font-bold text-[#083232]">
+                    KES {payout.amount.toLocaleString()}
+                  </p>
+                  <Button
+                    onClick={() => handleViewDetails(payout)}
+                    variant="ghost"
+                    size="sm"
+                    className="mt-2 text-[#2e856e] hover:text-[#083232]"
+                  >
+                    <Eye className="h-4 w-4 mr-1" />
+                    Details
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {history && history.pagination.totalPages > 1 && (
+        <div className="flex items-center justify-between pt-4 border-t">
+          <p className="text-sm text-gray-600">
+            Page {history.pagination.currentPage} of{" "}
+            {history.pagination.totalPages}
+          </p>
+          <div className="flex gap-2">
+            <Button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+              variant="outline"
+              size="sm"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Previous
+            </Button>
+            <Button
+              onClick={() => setPage((p) => p + 1)}
+              disabled={page >= history.pagination.totalPages}
+              variant="outline"
+              size="sm"
+            >
+              Next
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Details Dialog */}
+      {selectedPayout && (
+        <Dialog open={showDetailsDialog} onOpenChange={setShowDetailsDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Payout Details</DialogTitle>
+              <DialogDescription>
+                Cycle {selectedPayout.cycleNumber} Payout
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm text-gray-500">Recipient</p>
+                <p className="font-semibold">{selectedPayout.recipientName}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Amount</p>
+                <p className="text-2xl font-bold text-[#083232]">
+                  KES {selectedPayout.amount.toLocaleString()}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Status</p>
+                {getStatusBadge(selectedPayout.status)}
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Scheduled Date</p>
+                <p>{new Date(selectedPayout.scheduledAt).toLocaleString()}</p>
+              </div>
+              {selectedPayout.processedAt && (
+                <div>
+                  <p className="text-sm text-gray-500">Processed Date</p>
+                  <p>{new Date(selectedPayout.processedAt).toLocaleString()}</p>
                 </div>
               )}
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Payout Details Dialog */}
-      <Dialog open={showDetailsDialog} onOpenChange={setShowDetailsDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Payout Details</DialogTitle>
-            <DialogDescription>
-              Complete information about this payout transaction
-            </DialogDescription>
-          </DialogHeader>
-
-          {selectedPayout && (
-            <div className="space-y-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-xs text-gray-500">Recipient</p>
-                  <p className="text-sm font-medium">
-                    {selectedPayout.recipientName}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500">Status</p>
-                  {getStatusBadge(selectedPayout.status)}
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500">Amount</p>
-                  <p className="text-sm font-semibold text-[#083232]">
-                    KES {selectedPayout.amount.toLocaleString()}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500">Cycle</p>
-                  <p className="text-sm font-medium">
-                    Cycle {selectedPayout.cycleNumber}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500">Scheduled Date</p>
-                  <p className="text-sm">
-                    {new Date(selectedPayout.scheduledAt).toLocaleDateString()}
-                  </p>
-                </div>
-                {selectedPayout.executedAt && (
-                  <div>
-                    <p className="text-xs text-gray-500">Executed Date</p>
-                    <p className="text-sm">
-                      {new Date(selectedPayout.executedAt).toLocaleDateString()}
-                    </p>
-                  </div>
-                )}
-              </div>
-
               {selectedPayout.transactionId && (
                 <div>
-                  <p className="text-xs text-gray-500 mb-1">Transaction ID</p>
-                  <p className="text-xs font-mono bg-gray-100 p-2 rounded break-all">
+                  <p className="text-sm text-gray-500">Transaction ID</p>
+                  <p className="font-mono text-sm">
                     {selectedPayout.transactionId}
                   </p>
                 </div>
               )}
-
-              {selectedPayout.failedReason && (
-                <div className="bg-red-50 border border-red-200 rounded p-3">
-                  <p className="text-xs font-medium text-red-800 mb-1">
-                    Failure Reason:
-                  </p>
-                  <p className="text-xs text-red-700">
-                    {selectedPayout.failedReason}
-                  </p>
-                </div>
-              )}
             </div>
-          )}
-        </DialogContent>
-      </Dialog>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

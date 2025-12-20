@@ -182,7 +182,7 @@ export class ChamaService {
         u.phone as admin_phone,
         u.full_name as admin_name,
         COUNT(DISTINCT cm.id) FILTER (WHERE cm.status = 'active') as active_members,
-        COALESCE(SUM(cm.total_contributed), 0) as total_contributions,
+        get_chama_balance(c.id) as total_contributions,
         get_chama_balance(c.id) as current_balance
       FROM chamas c
       JOIN users u ON c.admin_user_id = u.id
@@ -236,7 +236,7 @@ export class ChamaService {
         u.phone as admin_phone,
         u.full_name as admin_name,
         COUNT(DISTINCT cm.id) FILTER (WHERE cm.status = 'active') as active_members,
-        COALESCE(SUM(cm.total_contributed), 0) as total_contributions,
+        get_chama_balance(c.id) as total_contributions,
         get_chama_balance(c.id) as current_balance
       FROM chamas c
       JOIN users u ON c.admin_user_id = u.id
@@ -279,7 +279,7 @@ export class ChamaService {
         u.phone as admin_phone,
         u.full_name as admin_name,
         COUNT(DISTINCT cm.id) FILTER (WHERE cm.status = 'active') as active_members,
-        COALESCE(SUM(cm.total_contributed), 0) as total_contributions,
+        get_chama_balance(c.id) as total_contributions,
         get_chama_balance(c.id) as current_balance
       FROM chamas c
       JOIN users u ON c.admin_user_id = u.id
@@ -1304,6 +1304,9 @@ export class ChamaService {
       );
     });
 
+    // Check if cycle is complete and trigger payout if configured
+    await this.checkCycleCompletion(cycleId);
+
     // Send notification to member
     const chama = await this.getChamaDetails(userId, chamaId);
     await this.notification.sendSMSReceipt({
@@ -1872,5 +1875,222 @@ export class ChamaService {
    */
   async votePenaltyWaiver(userId: string, dto: any) {
     return this.contributionService.votePenaltyWaiver(userId, dto);
+  }
+
+  /**
+   * Check if cycle is complete and trigger payout if auto-payout enabled
+   */
+  private async checkCycleCompletion(cycleId: string) {
+    const summary = await this.db.query(
+      'SELECT * FROM get_cycle_contribution_summary($1)',
+      [cycleId],
+    );
+
+    const { pending_members, total_members } = summary.rows[0];
+
+    if (pending_members === 0 && total_members > 0) {
+      // All members have contributed - mark cycle as complete
+      const cycle = await this.db.query(
+        `UPDATE contribution_cycles 
+         SET status = 'completed', completed_at = NOW()
+         WHERE id = $1 AND status = 'active'
+         RETURNING *`,
+        [cycleId],
+      );
+
+      if (cycle.rowCount === 0) {
+        return; // Already completed
+      }
+
+      // Check if auto-payout is enabled
+      const chamaSettings = await this.db.query(
+        'SELECT settings FROM chamas WHERE id = $1',
+        [cycle.rows[0].chama_id],
+      );
+
+      const settings = chamaSettings.rows[0].settings || {};
+      if (settings.auto_payout) {
+        await this.triggerAutoPayout(cycleId, cycle.rows[0]);
+      }
+
+      console.log(`Cycle ${cycleId} completed with all contributions received`);
+    }
+  }
+
+  /**
+   * Trigger automatic payout for completed cycle
+   */
+  private async triggerAutoPayout(cycleId: string, cycleData: any) {
+    if (cycleData.payout_executed_at) {
+      return; // Already paid out
+    }
+
+    // Get the payout recipient from the cycle
+    const recipientMember = await this.db.query(
+      'SELECT cm.*, u.id as user_id FROM chama_members cm JOIN users u ON cm.user_id = u.id WHERE cm.id = $1',
+      [cycleData.payout_recipient_id],
+    );
+
+    if (recipientMember.rowCount === 0) {
+      console.warn(`No payout recipient found for cycle ${cycleId}`);
+      return;
+    }
+
+    const recipient = recipientMember.rows[0];
+
+    // Process the payout through ledger
+    const payoutExternalRef = `payout-cycle-${cycleId}`;
+    const payoutAmount = parseFloat(cycleData.collected_amount) || 0;
+
+    if (payoutAmount <= 0) {
+      throw new BadRequestException(
+        'Cannot process payout: collected amount is zero',
+      );
+    }
+
+    await this.ledger.processPayout(
+      cycleData.chama_id,
+      recipient.user_id,
+      payoutAmount,
+      `Payout for cycle ${cycleData.cycle_number}`,
+      payoutExternalRef,
+    );
+
+    // Record payout (idempotent - only insert if not exists)
+    await this.db.query(
+      `INSERT INTO payouts (
+        chama_id, cycle_id, recipient_member_id, recipient_user_id,
+        amount, status, scheduled_at, executed_at
+      ) 
+      SELECT $1, $2, $3, $4, $5, 'completed', NOW(), NOW()
+      WHERE NOT EXISTS (
+        SELECT 1 FROM payouts WHERE cycle_id = $2
+      )`,
+      [
+        cycleData.chama_id,
+        cycleId,
+        recipient.id,
+        recipient.user_id,
+        cycleData.collected_amount,
+      ],
+    );
+
+    // Update cycle with payout info
+    await this.db.query(
+      `UPDATE contribution_cycles 
+       SET payout_amount = $1, payout_executed_at = NOW()
+       WHERE id = $2`,
+      [cycleData.collected_amount, cycleId],
+    );
+
+    console.log(`Auto-payout executed for cycle ${cycleId}`);
+  }
+
+  /**
+   * Manually trigger cycle completion and payout (admin only)
+   */
+  async manuallyCompleteCycle(
+    userId: string,
+    chamaId: string,
+    cycleId: string,
+  ) {
+    // Check if user is admin
+    const member = await this.getMemberRole(userId, chamaId);
+    if (member.role !== 'admin') {
+      throw new ForbiddenException('Only admin can manually complete cycles');
+    }
+
+    // Verify cycle belongs to this chama
+    const cycle = await this.db.query(
+      'SELECT * FROM contribution_cycles WHERE id = $1 AND chama_id = $2',
+      [cycleId, chamaId],
+    );
+
+    if (cycle.rowCount === 0) {
+      throw new NotFoundException('Cycle not found');
+    }
+
+    const cycleData = cycle.rows[0];
+
+    // Check if already completed
+    if (cycleData.status === 'completed' && cycleData.payout_executed_at) {
+      return {
+        message: 'Cycle already completed and payout already processed',
+        payoutProcessed: true,
+        cycle: cycleData,
+      };
+    }
+
+    // Check completion status
+    const summary = await this.db.query(
+      'SELECT * FROM get_cycle_contribution_summary($1)',
+      [cycleId],
+    );
+
+    const { pending_members, total_members, total_collected } = summary.rows[0];
+
+    if (pending_members > 0) {
+      throw new BadRequestException(
+        `Cannot complete cycle: ${pending_members} member(s) have not contributed yet`,
+      );
+    }
+
+    if (total_members === 0) {
+      throw new BadRequestException(
+        'Cannot complete cycle: No members in cycle',
+      );
+    }
+
+    // Mark cycle as complete and update collected amount
+    await this.db.query(
+      `UPDATE contribution_cycles 
+       SET status = 'completed', completed_at = NOW(), collected_amount = $2
+       WHERE id = $1 AND status = 'active'`,
+      [cycleId, total_collected],
+    );
+
+    // Force trigger payout (bypass auto_payout setting for manual completion)
+    const updatedCycle = await this.db.query(
+      'SELECT * FROM contribution_cycles WHERE id = $1',
+      [cycleId],
+    );
+
+    let payoutProcessed = false;
+    let recipientName: string | null = null;
+    let amount = 0;
+
+    if (!cycleData.payout_executed_at) {
+      try {
+        await this.triggerAutoPayout(cycleId, updatedCycle.rows[0]);
+
+        // Get recipient name
+        const recipient = await this.db.query(
+          `SELECT u.full_name 
+           FROM chama_members cm 
+           JOIN users u ON cm.user_id = u.id 
+           WHERE cm.id = $1`,
+          [cycleData.payout_recipient_id],
+        );
+
+        payoutProcessed = true;
+        recipientName = recipient.rows[0]
+          ? recipient.rows[0].full_name
+          : 'Unknown';
+        amount = total_collected;
+      } catch (error) {
+        console.error('Error processing payout:', error);
+        throw new BadRequestException(
+          `Cycle completed but payout failed: ${error.message}`,
+        );
+      }
+    }
+
+    return {
+      message: 'Cycle completed successfully',
+      payoutProcessed,
+      recipientName,
+      amount,
+      cycle: updatedCycle.rows[0],
+    };
   }
 }

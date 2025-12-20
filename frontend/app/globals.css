@@ -125,6 +125,11 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  /* Prevent layout shift when overlays open */
+  html {
+    overflow-y: scroll;
+  }
 }
 
 @layer utilities {

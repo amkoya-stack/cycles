@@ -359,11 +359,13 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS notification_queue_updated ON notification_queue;
 CREATE TRIGGER notification_queue_updated
   BEFORE UPDATE ON notification_queue
   FOR EACH ROW
   EXECUTE FUNCTION update_notification_timestamp();
 
+DROP TRIGGER IF EXISTS notification_preferences_updated ON notification_preferences;
 CREATE TRIGGER notification_preferences_updated
   BEFORE UPDATE ON notification_preferences
   FOR EACH ROW
@@ -380,6 +382,7 @@ ALTER TABLE notification_queue ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notification_preferences ENABLE ROW LEVEL SECURITY;
 
 -- Activity Logs: Users can see activities for chamas they're members of
+DROP POLICY IF EXISTS activity_logs_member_select ON activity_logs;
 CREATE POLICY activity_logs_member_select ON activity_logs
   FOR SELECT
   USING (
@@ -392,6 +395,7 @@ CREATE POLICY activity_logs_member_select ON activity_logs
   );
 
 -- Audit Trails: Same as activity logs
+DROP POLICY IF EXISTS audit_trails_member_select ON audit_trails;
 CREATE POLICY audit_trails_member_select ON audit_trails
   FOR SELECT
   USING (
@@ -405,24 +409,29 @@ CREATE POLICY audit_trails_member_select ON audit_trails
   );
 
 -- Notification Queue: Users can only see their own notifications
+DROP POLICY IF EXISTS notification_queue_user_select ON notification_queue;
 CREATE POLICY notification_queue_user_select ON notification_queue
   FOR SELECT
   USING (user_id = current_setting('app.current_user_id', true)::uuid);
 
 -- Notification Preferences: Users can only manage their own preferences
+DROP POLICY IF EXISTS notification_preferences_user_all ON notification_preferences;
 CREATE POLICY notification_preferences_user_all ON notification_preferences
   FOR ALL
   USING (user_id = current_setting('app.current_user_id', true)::uuid);
 
 -- System context bypass (for ledger service and system operations)
+DROP POLICY IF EXISTS activity_logs_system_all ON activity_logs;
 CREATE POLICY activity_logs_system_all ON activity_logs
   FOR ALL
   USING (current_setting('app.current_user_id', true) = 'system');
 
+DROP POLICY IF EXISTS audit_trails_system_all ON audit_trails;
 CREATE POLICY audit_trails_system_all ON audit_trails
   FOR ALL
   USING (current_setting('app.current_user_id', true) = 'system');
 
+DROP POLICY IF EXISTS notification_queue_system_all ON notification_queue;
 CREATE POLICY notification_queue_system_all ON notification_queue
   FOR ALL
   USING (current_setting('app.current_user_id', true) = 'system');

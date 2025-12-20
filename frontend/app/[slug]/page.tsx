@@ -11,12 +11,12 @@ import { Footer } from "@/components/footer";
 import { HomeNavbar } from "@/components/home/home-navbar";
 import { MemberDirectory } from "@/components/chama/member-directory";
 import { LeaveChamaComponent } from "@/components/chama/leave-chama";
+import { ChamaSettings } from "@/components/chama/chama-settings";
 import { RotationPayoutPage } from "@/components/chama/rotation-payout-page";
 import { ReputationPage } from "@/components/reputation/reputation-page";
 import { ActivityFeed } from "@/components/chama/activity-feed";
 import { GovernanceSection } from "@/components/governance/governance-section";
-import { ContributionDashboard } from "@/components/chama/contribution-dashboard";
-import { ContributionHistory } from "@/components/chama/contribution-history";
+import { CommunityPosts } from "@/components/chama/community-posts";
 import {
   Users,
   Calendar,
@@ -36,6 +36,9 @@ import {
   LogOut,
   Upload,
   Trophy,
+  History,
+  ArrowDownToLine,
+  Send,
 } from "lucide-react";
 
 interface ChamaDetails {
@@ -70,7 +73,6 @@ type TabType =
   | "classroom"
   | "meetings"
   | "members"
-  | "contributions"
   | "rotation"
   | "financials"
   | "activity"
@@ -412,7 +414,6 @@ export default function CycleBySlugPage() {
     { id: "members" as TabType, label: "Members", icon: Users },
     { id: "meetings" as TabType, label: "Meetings", icon: Video },
     { id: "classroom" as TabType, label: "Classroom", icon: GraduationCap },
-    { id: "contributions" as TabType, label: "Contributions", icon: HandCoins },
     { id: "rotation" as TabType, label: "Rotation", icon: Repeat },
     { id: "financials" as TabType, label: "Financials", icon: TrendingUp },
     { id: "activity" as TabType, label: "Activity", icon: Activity },
@@ -431,20 +432,46 @@ export default function CycleBySlugPage() {
     switch (activeTab) {
       case "community":
         return (
-          <GovernanceSection
-            chamaId={chama.id}
-            userId={(() => {
-              try {
-                const accessToken = localStorage.getItem("accessToken");
-                if (!accessToken) return "";
-                const payload = JSON.parse(atob(accessToken.split(".")[1]));
-                return payload.sub || payload.userId || "";
-              } catch {
-                return "";
-              }
-            })()}
-            userRole={userRole || "member"}
-          />
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            {/* Main Content - Posts & Threads */}
+            <div className="lg:col-span-3">
+              <CommunityPosts
+                chamaId={chama.id}
+                userId={(() => {
+                  try {
+                    const accessToken = localStorage.getItem("accessToken");
+                    if (!accessToken) return "";
+                    const payload = JSON.parse(atob(accessToken.split(".")[1]));
+                    return payload.sub || payload.userId || "";
+                  } catch {
+                    return "";
+                  }
+                })()}
+              />
+            </div>
+
+            {/* Right Sidebar - Governance */}
+            <div className="lg:col-span-1">
+              <div className="sticky top-20">
+                <GovernanceSection
+                  chamaId={chama.id}
+                  userId={(() => {
+                    try {
+                      const accessToken = localStorage.getItem("accessToken");
+                      if (!accessToken) return "";
+                      const payload = JSON.parse(
+                        atob(accessToken.split(".")[1])
+                      );
+                      return payload.sub || payload.userId || "";
+                    } catch {
+                      return "";
+                    }
+                  })()}
+                  userRole={userRole || "member"}
+                />
+              </div>
+            </div>
+          </div>
         );
 
       case "classroom":
@@ -534,9 +561,6 @@ export default function CycleBySlugPage() {
           />
         );
 
-      case "contributions":
-        return <ContributionHistory chamaId={chama.id} />;
-
       case "rotation":
         return (
           <RotationPayoutPage
@@ -565,51 +589,139 @@ export default function CycleBySlugPage() {
 
       case "financials":
         return (
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Card className="p-4">
+          <div className="space-y-6">
+            {/* Wallet Header */}
+            <div className="bg-[#083232] rounded-2xl p-8 text-white shadow-lg border-2 border-[#2e856e]">
+              <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
-                  <div className="bg-green-100 p-3 rounded-full">
-                    <Wallet className="w-6 h-6 text-green-600" />
+                  <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                    <Wallet className="w-6 h-6" />
                   </div>
                   <div>
-                    <p className="text-sm text-gray-600">Current Balance</p>
-                    <p className="text-2xl font-bold">
+                    <p className="text-sm opacity-90">Chama Wallet</p>
+                    <h2 className="text-3xl font-bold">
+                      KSh {formatAmount(chama.current_balance)}
+                    </h2>
+                  </div>
+                </div>
+                {userRole === "admin" && (
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={() =>
+                        alert("Deposit to chama wallet - Coming soon!")
+                      }
+                      className="bg-white/20 hover:bg-white/30 border border-white/30"
+                      size="sm"
+                    >
+                      <ArrowDownToLine className="w-4 h-4 mr-2" />
+                      Deposit
+                    </Button>
+                    <Button
+                      onClick={() =>
+                        alert("Transfer from chama wallet - Coming soon!")
+                      }
+                      className="bg-white/20 hover:bg-white/30 border border-white/30"
+                      size="sm"
+                    >
+                      <Send className="w-4 h-4 mr-2" />
+                      Transfer
+                    </Button>
+                  </div>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/20">
+                <div>
+                  <p className="text-xs opacity-75 mb-1">Total Contributions</p>
+                  <p className="text-xl font-semibold">
+                    KSh {formatAmount(chama.total_contributions)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs opacity-75 mb-1">Next Payout</p>
+                  <p className="text-xl font-semibold">TBD</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Stats Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Card className="p-5 hover:shadow-lg transition-shadow border-l-4 border-l-green-500">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">
+                      Available Balance
+                    </p>
+                    <p className="text-2xl font-bold text-[#083232]">
                       KSh {formatAmount(chama.current_balance)}
                     </p>
-                  </div>
-                </div>
-              </Card>
-              <Card className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className="bg-blue-100 p-3 rounded-full">
-                    <TrendingUp className="w-6 h-6 text-blue-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Total Contributions</p>
-                    <p className="text-2xl font-bold">
-                      KSh {formatAmount(chama.total_contributions)}
+                    <p className="text-xs text-gray-500 mt-1">
+                      Ready for payout
                     </p>
                   </div>
+                  <div className="bg-green-100 p-3 rounded-xl">
+                    <Wallet className="w-6 h-6 text-green-600" />
+                  </div>
                 </div>
               </Card>
-              <Card className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className="bg-purple-100 p-3 rounded-full">
-                    <Calendar className="w-6 h-6 text-purple-600" />
-                  </div>
+
+              <Card className="p-5 hover:shadow-lg transition-shadow border-l-4 border-l-blue-500">
+                <div className="flex items-start justify-between">
                   <div>
-                    <p className="text-sm text-gray-600">Next Payout</p>
-                    <p className="text-lg font-bold">TBD</p>
+                    <p className="text-sm text-gray-600 mb-1">
+                      Total Collected
+                    </p>
+                    <p className="text-2xl font-bold text-[#083232]">
+                      KSh {formatAmount(chama.total_contributions)}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      All-time contributions
+                    </p>
+                  </div>
+                  <div className="bg-blue-100 p-3 rounded-xl">
+                    <TrendingUp className="w-6 h-6 text-blue-600" />
+                  </div>
+                </div>
+              </Card>
+
+              <Card className="p-5 hover:shadow-lg transition-shadow border-l-4 border-l-purple-500">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Next Payout</p>
+                    <p className="text-2xl font-bold text-[#083232]">TBD</p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Scheduled recipient
+                    </p>
+                  </div>
+                  <div className="bg-purple-100 p-3 rounded-xl">
+                    <Calendar className="w-6 h-6 text-purple-600" />
                   </div>
                 </div>
               </Card>
             </div>
-            <Card className="p-6">
-              <h3 className="text-lg font-semibold mb-4">
-                Transaction History
-              </h3>
-              <p className="text-sm text-gray-500">No transactions yet.</p>
+
+            {/* Transaction History */}
+            <Card className="overflow-hidden">
+              <div className="bg-gray-50 px-6 py-4 border-b">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-[#083232] rounded-lg flex items-center justify-center">
+                      <History className="w-5 h-5 text-white" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      Transaction History
+                    </h3>
+                  </div>
+                  <Button variant="outline" size="sm">
+                    View All
+                  </Button>
+                </div>
+              </div>
+              <div className="p-6">
+                <p className="text-center text-gray-500 py-8">
+                  No transactions yet. Transactions will appear here once
+                  members start contributing.
+                </p>
+              </div>
             </Card>
           </div>
         );
@@ -650,14 +762,42 @@ export default function CycleBySlugPage() {
         }
 
         return (
-          <LeaveChamaComponent
-            chamaId={chama.id}
-            chamaName={chama.name}
-            userRole={userRole}
-            memberBalance={chama.current_balance || 0}
-            totalContributions={chama.total_contributions || 0}
-            pendingPayouts={0} // This would come from the API
-          />
+          <div className="space-y-6">
+            {userRole === "admin" && (
+              <ChamaSettings
+                chamaId={chama.id}
+                chamaName={chama.name}
+                currentSettings={chama.settings || {}}
+                isAdmin={true}
+                onSettingsUpdated={async () => {
+                  // Refetch chama data to get updated settings
+                  const accessToken = localStorage.getItem("accessToken");
+                  if (accessToken) {
+                    const response = await fetch(
+                      `http://localhost:3001/api/chama/${chama.id}`,
+                      {
+                        headers: {
+                          Authorization: `Bearer ${accessToken}`,
+                        },
+                      }
+                    );
+                    if (response.ok) {
+                      const updatedChama = await response.json();
+                      setChama(updatedChama);
+                    }
+                  }
+                }}
+              />
+            )}
+            <LeaveChamaComponent
+              chamaId={chama.id}
+              chamaName={chama.name}
+              userRole={userRole}
+              memberBalance={chama.current_balance || 0}
+              totalContributions={chama.total_contributions || 0}
+              pendingPayouts={0} // This would come from the API
+            />
+          </div>
         );
 
       case "about":

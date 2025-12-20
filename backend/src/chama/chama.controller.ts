@@ -82,6 +82,39 @@ export class ChamaController {
   }
 
   /**
+   * Update chama settings (admin only)
+   * PUT /api/chama/:id/settings
+   */
+  @Put(':id/settings')
+  @UseGuards(JwtAuthGuard)
+  async updateChamaSettings(
+    @Req() req: any,
+    @Param('id') chamaId: string,
+    @Body() dto: { settings: any },
+  ) {
+    console.log('PUT /api/chama/:id/settings - settings:', dto.settings);
+    return this.chamaService.updateChama(req.user.id, chamaId, dto);
+  }
+
+  /**
+   * Manually trigger cycle completion check and payout (admin only)
+   * POST /api/chama/:chamaId/cycles/:cycleId/complete
+   */
+  @Post(':chamaId/cycles/:cycleId/complete')
+  @UseGuards(JwtAuthGuard)
+  async completeCycle(
+    @Req() req: any,
+    @Param('chamaId') chamaId: string,
+    @Param('cycleId') cycleId: string,
+  ) {
+    return this.chamaService.manuallyCompleteCycle(
+      req.user.id,
+      chamaId,
+      cycleId,
+    );
+  }
+
+  /**
    * Update chama
    * PUT /api/chama/:id
    */

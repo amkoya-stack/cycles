@@ -2,6 +2,7 @@
 -- Democratic decision-making within chamas
 
 -- Create enums for proposal and voting types
+DROP TYPE IF EXISTS proposal_type CASCADE;
 CREATE TYPE proposal_type AS ENUM (
   'use_funds',              -- Withdraw/use chama funds
   'accept_member',          -- Accept new member request
@@ -16,6 +17,7 @@ CREATE TYPE proposal_type AS ENUM (
   'other'                   -- Custom proposal
 );
 
+DROP TYPE IF EXISTS voting_type CASCADE;
 CREATE TYPE voting_type AS ENUM (
   'simple_majority',            -- 50%+1
   'supermajority_66',          -- 66% required
@@ -25,12 +27,14 @@ CREATE TYPE voting_type AS ENUM (
   'weighted_by_contribution'   -- Based on contribution history
 );
 
+DROP TYPE IF EXISTS vote_choice CASCADE;
 CREATE TYPE vote_choice AS ENUM (
   'for',       -- Vote in favor
   'against',   -- Vote against
   'abstain'    -- Abstain from voting
 );
 
+DROP TYPE IF EXISTS proposal_status CASCADE;
 CREATE TYPE proposal_status AS ENUM (
   'draft',      -- Being created
   'active',     -- Open for voting
@@ -40,6 +44,7 @@ CREATE TYPE proposal_status AS ENUM (
   'cancelled'   -- Cancelled by creator/admin
 );
 
+DROP TYPE IF EXISTS voting_result CASCADE;
 CREATE TYPE voting_result AS ENUM (
   'passed',
   'failed',
@@ -47,6 +52,11 @@ CREATE TYPE voting_result AS ENUM (
 );
 
 -- Proposals table
+DROP TABLE IF EXISTS voting_results CASCADE;
+DROP TABLE IF EXISTS proposal_discussions CASCADE;
+DROP TABLE IF EXISTS votes CASCADE;
+DROP TABLE IF EXISTS proposals CASCADE;
+
 CREATE TABLE IF NOT EXISTS proposals (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   chama_id UUID NOT NULL REFERENCES chamas(id) ON DELETE CASCADE,
@@ -77,10 +87,15 @@ CREATE TABLE IF NOT EXISTS proposals (
   CONSTRAINT valid_percentage CHECK (required_percentage >= 0 AND required_percentage <= 100)
 );
 
+DROP INDEX IF EXISTS idx_proposals_chama;
 CREATE INDEX idx_proposals_chama ON proposals(chama_id);
+DROP INDEX IF EXISTS idx_proposals_status;
 CREATE INDEX idx_proposals_status ON proposals(status);
+DROP INDEX IF EXISTS idx_proposals_deadline;
 CREATE INDEX idx_proposals_deadline ON proposals(deadline);
+DROP INDEX IF EXISTS idx_proposals_type;
 CREATE INDEX idx_proposals_type ON proposals(proposal_type);
+DROP INDEX IF EXISTS idx_proposals_created_by;
 CREATE INDEX idx_proposals_created_by ON proposals(created_by);
 
 -- Votes table
@@ -103,8 +118,11 @@ CREATE TABLE IF NOT EXISTS votes (
   CONSTRAINT unique_vote_per_user UNIQUE (proposal_id, user_id)
 );
 
+DROP INDEX IF EXISTS idx_votes_proposal;
 CREATE INDEX idx_votes_proposal ON votes(proposal_id);
+DROP INDEX IF EXISTS idx_votes_user;
 CREATE INDEX idx_votes_user ON votes(user_id);
+DROP INDEX IF EXISTS idx_votes_delegate;
 CREATE INDEX idx_votes_delegate ON votes(delegate_id);
 
 -- Proposal discussions
@@ -122,8 +140,11 @@ CREATE TABLE IF NOT EXISTS proposal_discussions (
   updated_at TIMESTAMP DEFAULT NOW()
 );
 
+DROP INDEX IF EXISTS idx_proposal_discussions_proposal;
 CREATE INDEX idx_proposal_discussions_proposal ON proposal_discussions(proposal_id);
+DROP INDEX IF EXISTS idx_proposal_discussions_user;
 CREATE INDEX idx_proposal_discussions_user ON proposal_discussions(user_id);
+DROP INDEX IF EXISTS idx_proposal_discussions_parent;
 CREATE INDEX idx_proposal_discussions_parent ON proposal_discussions(parent_id);
 
 -- Voting results (calculated and stored when proposal closes)
@@ -157,7 +178,9 @@ CREATE TABLE IF NOT EXISTS voting_results (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
+DROP INDEX IF EXISTS idx_voting_results_proposal;
 CREATE INDEX idx_voting_results_proposal ON voting_results(proposal_id);
+DROP INDEX IF EXISTS idx_voting_results_result;
 CREATE INDEX idx_voting_results_result ON voting_results(result);
 
 -- Function to calculate vote weights based on voting type
@@ -368,6 +391,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trigger_update_proposal_timestamp ON proposals;
 CREATE TRIGGER trigger_update_proposal_timestamp
 BEFORE UPDATE ON proposals
 FOR EACH ROW
@@ -382,6 +406,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trigger_update_vote_timestamp ON votes;
 CREATE TRIGGER trigger_update_vote_timestamp
 BEFORE UPDATE ON votes
 FOR EACH ROW
@@ -396,6 +421,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trigger_update_discussion_timestamp ON proposal_discussions;
 CREATE TRIGGER trigger_update_discussion_timestamp
 BEFORE UPDATE ON proposal_discussions
 FOR EACH ROW
@@ -422,6 +448,7 @@ ALTER TABLE proposal_discussions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE voting_results ENABLE ROW LEVEL SECURITY;
 
 -- Proposals: Members can see proposals for their chamas
+DROP POLICY IF EXISTS proposals_member_access ON proposals;
 CREATE POLICY proposals_member_access ON proposals
 FOR SELECT
 USING (
@@ -433,11 +460,13 @@ USING (
 );
 
 -- Proposals: System context bypasses RLS
+DROP POLICY IF EXISTS proposals_system_access ON proposals;
 CREATE POLICY proposals_system_access ON proposals
 FOR ALL
 USING (current_setting('app.bypass_rls', true) = 'true');
 
 -- Votes: Users can see their own votes, or all votes if not anonymous
+DROP POLICY IF EXISTS votes_member_access ON votes;
 CREATE POLICY votes_member_access ON votes
 FOR SELECT
 USING (
@@ -454,11 +483,13 @@ USING (
   )
 );
 
+DROP POLICY IF EXISTS votes_system_access ON votes;
 CREATE POLICY votes_system_access ON votes
 FOR ALL
 USING (current_setting('app.bypass_rls', true) = 'true');
 
 -- Discussions: Members can see discussions for their chamas
+DROP POLICY IF EXISTS discussions_member_access ON proposal_discussions;
 CREATE POLICY discussions_member_access ON proposal_discussions
 FOR SELECT
 USING (
@@ -472,11 +503,13 @@ USING (
   )
 );
 
+DROP POLICY IF EXISTS discussions_system_access ON proposal_discussions;
 CREATE POLICY discussions_system_access ON proposal_discussions
 FOR ALL
 USING (current_setting('app.bypass_rls', true) = 'true');
 
 -- Results: Members can see results for their chamas
+DROP POLICY IF EXISTS results_member_access ON voting_results;
 CREATE POLICY results_member_access ON voting_results
 FOR SELECT
 USING (
@@ -490,6 +523,7 @@ USING (
   )
 );
 
+DROP POLICY IF EXISTS results_system_access ON voting_results;
 CREATE POLICY results_system_access ON voting_results
 FOR ALL
 USING (current_setting('app.bypass_rls', true) = 'true');

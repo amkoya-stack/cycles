@@ -339,6 +339,8 @@ export class ContributionService {
       throw new NotFoundException('Cycle not found or you do not have access');
     }
 
+    const cycleData = accessCheck.rows[0];
+
     // Use the database function to get summary
     const summary = await this.db.query(
       'SELECT * FROM get_cycle_contribution_summary($1)',
@@ -349,6 +351,7 @@ export class ContributionService {
     const memberStatuses = await this.db.query(
       `SELECT 
         cm.id as member_id,
+        u.id as user_id,
         u.full_name,
         u.phone,
         CASE WHEN c.id IS NOT NULL THEN true ELSE false END as has_contributed,
@@ -370,10 +373,43 @@ export class ContributionService {
       [cycleId],
     );
 
-    return {
-      summary: summary.rows[0],
-      members: memberStatuses.rows,
+    const summaryData = summary.rows[0];
+
+    const result = {
+      cycle: {
+        id: cycleData.id,
+        cycleNumber: cycleData.cycle_number,
+        expectedAmount:
+          parseFloat(cycleData.expected_amount) * summaryData.total_members, // Total expected
+        collectedAmount: parseFloat(summaryData.total_collected),
+        dueDate: cycleData.due_date,
+        status: cycleData.status,
+        payout_executed_at: cycleData.payout_executed_at,
+      },
+      summary: {
+        totalMembers: summaryData.total_members,
+        contributedMembers: summaryData.contributed_members,
+        pendingMembers: summaryData.pending_members,
+        completionRate: parseFloat(summaryData.completion_rate) / 100, // Convert percentage to decimal
+        totalCollected: parseFloat(summaryData.total_collected),
+      },
+      members: memberStatuses.rows.map((member) => ({
+        memberId: member.member_id,
+        userId: member.user_id,
+        fullName: member.full_name,
+        phone: member.phone,
+        hasContributed: member.has_contributed,
+        contributedAmount: member.contributed_amount,
+        contributedAt: member.contributed_at,
+        status: member.status,
+      })),
     };
+
+    console.log(
+      'getCycleContributionSummary returning:',
+      JSON.stringify(result, null, 2),
+    );
+    return result;
   }
 
   /**
