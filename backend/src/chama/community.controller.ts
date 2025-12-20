@@ -141,4 +141,16 @@ export class CommunityController {
     await this.communityService.deleteReply(chamaId, replyId, req.user.id);
     return { success: true };
   }
+
+  /**
+   * Pin/unpin a post
+   */
+  @Post('posts/:postId/pin')
+  async togglePin(
+    @Param('chamaId') chamaId: string,
+    @Param('postId') postId: string,
+    @Req() req: any,
+  ) {
+    return this.communityService.togglePin(chamaId, postId, req.user.id);
+  }
 }

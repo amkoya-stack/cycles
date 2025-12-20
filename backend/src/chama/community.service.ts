@@ -14,6 +14,8 @@ export interface Post {
   userId: string;
   content: string;
   edited: boolean;
+  pinned?: boolean;
+  pinnedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
   author: {
@@ -136,7 +138,7 @@ export class CommunityService {
     // Get posts with author info, likes count, and replies count
     const postsResult = await this.db.query(
       `SELECT 
-        p.id, p.chama_id, p.user_id, p.content, p.edited, p.created_at, p.updated_at,
+        p.id, p.chama_id, p.user_id, p.content, p.edited, p.pinned, p.pinned_at, p.created_at, p.updated_at,
         u.id as author_id, u.full_name as author_name, u.profile_photo_url as author_avatar,
         (SELECT COUNT(*) FROM community_likes WHERE post_id = p.id) as likes_count,
         (SELECT COUNT(*) FROM community_replies WHERE post_id = p.id) as replies_count,
@@ -144,7 +146,7 @@ export class CommunityService {
        FROM community_posts p
        JOIN users u ON p.user_id = u.id
        WHERE p.chama_id = $1
-       ORDER BY p.created_at DESC
+       ORDER BY p.pinned DESC NULLS LAST, p.created_at DESC
        LIMIT $3 OFFSET $4`,
       [chamaId, userId, limit, offset],
     );
@@ -161,6 +163,8 @@ export class CommunityService {
         userId: row.user_id,
         content: row.content,
         edited: row.edited,
+        pinned: row.pinned,
+        pinnedAt: row.pinned_at,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
         author: {
@@ -552,5 +556,56 @@ export class CommunityService {
     await this.db.query(`DELETE FROM community_replies WHERE id = $1`, [
       replyId,
     ]);
+  }
+
+  /**
+   * Toggle pin status of a post (admin only)
+   */
+  async togglePin(
+    chamaId: string,
+    postId: string,
+    userId: string,
+  ): Promise<{ pinned: boolean }> {
+    await this.verifyMembership(chamaId, userId);
+
+    // Check if user is admin
+    const memberResult = await this.db.query(
+      `SELECT role FROM chama_members WHERE chama_id = $1 AND user_id = $2`,
+      [chamaId, userId],
+    );
+
+    if (memberResult.rowCount === 0) {
+      throw new ForbiddenException('You are not a member of this chama');
+    }
+
+    const { role } = memberResult.rows[0];
+    const isAdmin = ['chairperson', 'secretary', 'treasurer'].includes(role);
+
+    if (!isAdmin) {
+      throw new ForbiddenException('Only admins can pin/unpin posts');
+    }
+
+    // Check if post exists
+    const postResult = await this.db.query(
+      `SELECT pinned FROM community_posts WHERE id = $1 AND chama_id = $2`,
+      [postId, chamaId],
+    );
+
+    if (postResult.rowCount === 0) {
+      throw new NotFoundException('Post not found');
+    }
+
+    const currentPinned = postResult.rows[0].pinned;
+    const newPinned = !currentPinned;
+
+    // Toggle pin status
+    await this.db.query(
+      `UPDATE community_posts 
+       SET pinned = $1, pinned_at = CASE WHEN $1 = TRUE THEN NOW() ELSE NULL END
+       WHERE id = $2`,
+      [newPinned, postId],
+    );
+
+    return { pinned: newPinned };
   }
 }
