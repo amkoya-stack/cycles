@@ -55,8 +55,15 @@ export function ChamaCard({ chama, onJoin, onView }: ChamaCardProps) {
           <span className="text-xl">{chama.icon || "🟢"}</span>
         </div>
 
-        {/* Chama Name */}
-        <h3 className="font-semibold text-sm text-[#083232] line-clamp-1 flex-shrink-0">
+        {/* Chama Name - Clickable */}
+        <h3 
+          className="font-semibold text-sm text-[#083232] line-clamp-1 flex-shrink-0 cursor-pointer hover:text-[#2e856e] transition-colors"
+          onClick={(e) => {
+            e.preventDefault();
+            const slug = chama.name.toLowerCase().replace(/\s+/g, "-");
+            window.location.href = `/${encodeURIComponent(slug)}`;
+          }}
+        >
           {chama.name}
         </h3>
 

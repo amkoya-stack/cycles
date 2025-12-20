@@ -159,19 +159,27 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
         // The response is an array directly, not wrapped in an object
         const proposals = Array.isArray(pollsData) ? pollsData : [];
         
-        // Filter for proposals that are polls
+        // Filter for proposals that are polls and created within the last week
+        const oneWeekAgo = new Date();
+        oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+        
         const pollPromises = proposals
           .filter((p: any) => {
             const isPoll = p.metadata?.isPoll === true;
+            const createdAt = new Date(p.created_at);
+            const isRecent = createdAt >= oneWeekAgo;
+            
             if (p.metadata) {
               console.log(`Proposal ${p.id}:`, {
                 title: p.title,
                 isPoll,
+                createdAt: p.created_at,
+                isRecent,
                 metadata: p.metadata,
                 status: p.status
               });
             }
-            return isPoll;
+            return isPoll && isRecent;
           })
           .map(async (p: any) => {
             console.log("✅ Processing poll proposal:", {

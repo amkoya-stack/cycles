@@ -17,6 +17,7 @@ import { ReputationPage } from "@/components/reputation/reputation-page";
 import { ActivityFeed } from "@/components/chama/activity-feed";
 import { GovernanceSection } from "@/components/governance/governance-section";
 import { CommunityPosts } from "@/components/chama/community-posts";
+import { ActivePollsSidebar } from "@/components/chama/active-polls-sidebar";
 import {
   Users,
   Calendar,
@@ -88,7 +89,15 @@ export default function CycleBySlugPage() {
   const [chama, setChama] = useState<ChamaDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [activeTab, setActiveTab] = useState<TabType>("about");
+  const [activeTab, setActiveTab] = useState<TabType>(() => {
+    // Initialize from URL query parameter if available
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const tabParam = urlParams.get('tab') as TabType;
+      if (tabParam) return tabParam;
+    }
+    return "about";
+  });
   const [userRole, setUserRole] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -450,25 +459,10 @@ export default function CycleBySlugPage() {
               />
             </div>
 
-            {/* Right Sidebar - Governance */}
+            {/* Right Sidebar - Active Polls */}
             <div className="lg:col-span-1">
               <div className="sticky top-20">
-                <GovernanceSection
-                  chamaId={chama.id}
-                  userId={(() => {
-                    try {
-                      const accessToken = localStorage.getItem("accessToken");
-                      if (!accessToken) return "";
-                      const payload = JSON.parse(
-                        atob(accessToken.split(".")[1])
-                      );
-                      return payload.sub || payload.userId || "";
-                    } catch {
-                      return "";
-                    }
-                  })()}
-                  userRole={userRole || "member"}
-                />
+                <ActivePollsSidebar chamaId={chama.id} />
               </div>
             </div>
           </div>
@@ -1040,7 +1034,13 @@ export default function CycleBySlugPage() {
                 <button
                   key={tab.id}
                   ref={(el) => (tabRefs.current[index] = el)}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => {
+                    setActiveTab(tab.id);
+                    // Update URL with tab parameter
+                    const currentUrl = new URL(window.location.href);
+                    currentUrl.searchParams.set('tab', tab.id);
+                    router.push(currentUrl.pathname + currentUrl.search, { scroll: false });
+                  }}
                   className={`
                     flex items-center gap-2 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors
                     border-b-2 min-h-12 flex-shrink-0 cursor-pointer
