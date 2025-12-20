@@ -7,6 +7,7 @@ import {
   Get,
   Post,
   Put,
+  Delete,
   Body,
   Param,
   Query,
@@ -145,5 +146,17 @@ export class GovernanceController {
   @Get('chama/:chamaId/stats')
   async getVotingStats(@Req() req: any, @Param('chamaId') chamaId: string) {
     return this.governanceService.getVotingStats(chamaId, req.user.id);
+  }
+
+  /**
+   * Cancel/delete a proposal
+   * DELETE /api/governance/proposals/:proposalId
+   */
+  @Delete('proposals/:proposalId')
+  async cancelProposal(
+    @Req() req: any,
+    @Param('proposalId') proposalId: string,
+  ) {
+    return this.governanceService.cancelProposal(proposalId, req.user.id);
   }
 }

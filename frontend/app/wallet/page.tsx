@@ -357,6 +357,19 @@ export default function WalletPage() {
     }
     if (!withdrawAmount) return;
 
+    // For withdrawals from personal wallet (not chama wallet), require governance approval
+    const shouldRequireApproval = parseFloat(withdrawAmount) > 5000; // Require approval for withdrawals > 5000 KES
+
+    if (!shouldRequireApproval) {
+      // Process small withdrawals directly
+      await processDirectWithdrawal();
+    } else {
+      // Create governance proposal for larger withdrawals
+      await createWithdrawalProposal();
+    }
+  };
+
+  const processDirectWithdrawal = async () => {
     setActionLoading(true);
     try {
       const accessToken = localStorage.getItem("accessToken");
@@ -388,6 +401,62 @@ export default function WalletPage() {
       }
     } catch (error) {
       alert("Withdrawal request failed");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const createWithdrawalProposal = async () => {
+    setActionLoading(true);
+    try {
+      const accessToken = localStorage.getItem("accessToken");
+      
+      // Get user's primary chama (or let them select one)
+      if (!chamas || chamas.length === 0) {
+        alert("You must be a member of a chama to request withdrawal approval. Join a chama first or contact support.");
+        setShowWithdraw(false);
+        return;
+      }
+
+      // Use first chama for now - in production, let user select which chama to request approval from
+      const chamaId = chamas[0].id;
+
+      const response = await fetch(
+        `http://localhost:3001/api/governance/proposals`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            chamaId,
+            title: `Withdrawal Request: KES ${withdrawAmount}`,
+            description: `Member requesting withdrawal of KES ${withdrawAmount} to M-Pesa ${userPhone}. This withdrawal requires majority approval from chama members.`,
+            votingType: "simple_majority",
+            deadline: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 days
+            metadata: {
+              isWithdrawal: true,
+              amount: parseFloat(withdrawAmount),
+              phoneNumber: userPhone,
+            },
+          }),
+        }
+      );
+
+      const data = await response.json();
+      if (response.ok) {
+        alert(
+          `Withdrawal proposal created successfully!\n\nYour chama members will vote on your withdrawal request. You'll be notified once it's approved.\n\nProposal ID: ${data.id}`
+        );
+        setShowWithdraw(false);
+        setWithdrawAmount("");
+      } else {
+        alert(`Failed to create withdrawal proposal: ${data.message || "Unknown error"}`);
+      }
+    } catch (error) {
+      console.error("Withdrawal proposal error:", error);
+      alert("Failed to create withdrawal proposal");
     } finally {
       setActionLoading(false);
     }

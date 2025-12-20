@@ -23,6 +23,9 @@ export function WithdrawModal({
 }: WithdrawModalProps) {
   if (!isOpen) return null;
 
+  const withdrawalAmount = parseFloat(amount) || 0;
+  const requiresApproval = withdrawalAmount > 5000;
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <Card className="max-w-md w-full p-6">
@@ -45,6 +48,13 @@ export function WithdrawModal({
               onChange={(e) => onAmountChange(e.target.value)}
             />
           </div>
+          {requiresApproval && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+              <p className="text-xs text-amber-800">
+                <strong>⚠️ Approval Required:</strong> Withdrawals over KES 5,000 require majority vote from your chama members for security. A proposal will be created for voting.
+              </p>
+            </div>
+          )}
           <div className="flex gap-3">
             <Button
               variant="outline"

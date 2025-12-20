@@ -33,6 +33,7 @@ export enum ActivityType {
   PROPOSAL_REJECTED = 'proposal_rejected',
   PROPOSAL_CLOSED = 'proposal_closed',
   PROPOSAL_EXECUTED = 'proposal_executed',
+  PROPOSAL_CANCELLED = 'proposal_cancelled',
   COMMENT_ADDED = 'comment_added',
   SETTINGS_CHANGED = 'settings_changed',
 

@@ -17,6 +17,8 @@ import {
   BarChart3,
   Trash2,
   Pin,
+  Circle,
+  CheckCircle2,
 } from "lucide-react";
 import {
   Tooltip,
@@ -103,6 +105,7 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
   const [pollQuestion, setPollQuestion] = useState("");
   const [pollOptions, setPollOptions] = useState(["Option 1", "Option 2"]);
   const [pollDescription, setPollDescription] = useState("");
+  const [pollDeadlineDays, setPollDeadlineDays] = useState(7);
   const [creatingPoll, setCreatingPoll] = useState(false);
 
   const getAuthToken = () => {
@@ -136,8 +139,9 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
       const regularPosts = postsData.posts || [];
 
       // Fetch active polls (governance proposals with isPoll metadata)
+      // Note: fetching both active and draft status since new polls might be in draft
       const pollsResponse = await fetch(
-        `${API_URL}/governance/chama/${chamaId}/proposals?status=active`,
+        `${API_URL}/governance/chama/${chamaId}/proposals`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -148,35 +152,105 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
       let polls: any[] = [];
       if (pollsResponse.ok) {
         const pollsData = await pollsResponse.json();
+        console.log("Raw governance proposals response:", pollsData);
+        console.log("Is array?", Array.isArray(pollsData));
+        console.log("Number of proposals:", Array.isArray(pollsData) ? pollsData.length : 0);
+        
+        // The response is an array directly, not wrapped in an object
+        const proposals = Array.isArray(pollsData) ? pollsData : [];
+        
         // Filter for proposals that are polls
-        polls = (pollsData.proposals || [])
-          .filter((p: any) => p.metadata?.isPoll)
-          .map((p: any) => ({
-            id: `poll-${p.id}`,
-            proposalId: p.id,
-            chamaId: p.chamaId,
-            userId: p.createdBy,
-            content: p.title,
-            isPoll: true,
-            pollOptions: p.metadata.options || [],
-            pollStatus: p.status,
-            pollDeadline: p.deadline,
-            votes: p.voteBreakdown || {},
-            userVote: p.userVote,
-            edited: false,
-            pinned: false,
-            createdAt: p.createdAt,
-            updatedAt: p.updatedAt,
-            author: {
-              id: p.createdBy,
-              fullName: p.creatorName || "Unknown",
-              avatar: p.creatorAvatar,
-            },
-            likesCount: 0,
-            repliesCount: 0,
-            likedByMe: false,
-            replies: [],
-          }));
+        const pollPromises = proposals
+          .filter((p: any) => {
+            const isPoll = p.metadata?.isPoll === true;
+            if (p.metadata) {
+              console.log(`Proposal ${p.id}:`, {
+                title: p.title,
+                isPoll,
+                metadata: p.metadata,
+                status: p.status
+              });
+            }
+            return isPoll;
+          })
+          .map(async (p: any) => {
+            console.log("✅ Processing poll proposal:", {
+              id: p.id,
+              title: p.title,
+              options: p.metadata?.options
+            });
+
+            // Fetch vote breakdown for this poll
+            let voteBreakdown: { [key: string]: number } = {};
+            let userVotedOption: string | null = null;
+            
+            try {
+              const votesResponse = await fetch(
+                `${API_URL}/governance/proposals/${p.id}`,
+                {
+                  headers: {
+                    Authorization: `Bearer ${token}`,
+                  },
+                }
+              );
+
+              if (votesResponse.ok) {
+                const proposalDetails = await votesResponse.json();
+                console.log("Proposal details:", proposalDetails);
+                
+                // Count votes by option (stored in vote reason)
+                if (proposalDetails.votes) {
+                  proposalDetails.votes.forEach((vote: any) => {
+                    if (vote.reason) {
+                      voteBreakdown[vote.reason] = (voteBreakdown[vote.reason] || 0) + 1;
+                    }
+                    // Check if current user voted
+                    if (vote.user_id === userId) {
+                      userVotedOption = vote.reason;
+                    }
+                  });
+                }
+                console.log("Vote breakdown:", voteBreakdown);
+                console.log("User voted for:", userVotedOption);
+              }
+            } catch (err) {
+              console.error("Failed to fetch vote breakdown:", err);
+            }
+
+            return {
+              id: `poll-${p.id}`,
+              proposalId: p.id,
+              chamaId: p.chama_id,
+              userId: p.created_by,
+              content: p.title,
+              isPoll: true,
+              pollOptions: p.metadata?.options || [],
+              pollStatus: p.status,
+              pollDeadline: p.deadline,
+              votes: voteBreakdown,
+              userVote: userVotedOption,
+              edited: false,
+              pinned: false,
+              createdAt: p.created_at,
+              updatedAt: p.updated_at,
+              author: {
+                id: p.created_by,
+                fullName: p.creator_name || "Unknown",
+                avatar: p.creator_avatar,
+              },
+              likesCount: 0,
+              repliesCount: 0,
+              likedByMe: false,
+              replies: [],
+            };
+          });
+
+        polls = await Promise.all(pollPromises);
+        
+        console.log("✅ Total polls found:", polls.length);
+        console.log("✅ Poll objects:", polls);
+      } else {
+        console.error("Failed to fetch polls:", pollsResponse.status, await pollsResponse.text());
       }
 
       // Merge posts and polls, sort by created date
@@ -442,6 +516,33 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
     }
   };
 
+  const handleDeletePoll = async (proposalId: string) => {
+    if (!confirm("Are you sure you want to delete this poll?")) return;
+
+    try {
+      const token = getAuthToken();
+
+      const response = await fetch(
+        `${API_URL}/governance/proposals/${proposalId}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to delete poll");
+      }
+
+      // Remove poll from feed
+      setPosts((prev) => prev.filter((post) => post.proposalId !== proposalId));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete poll");
+    }
+  };
+
   const handleDeleteReply = async (replyId: string) => {
     if (!confirm("Are you sure you want to delete this reply?")) return;
 
@@ -539,7 +640,7 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
           votingType: "simple_majority",
           anonymous: false,
           allowVoteChange: true,
-          deadlineHours: 168, // 7 days
+          deadlineHours: pollDeadlineDays * 24,
         }),
       });
 
@@ -551,6 +652,7 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
       setPollQuestion("");
       setPollDescription("");
       setPollOptions(["Option 1", "Option 2"]);
+      setPollDeadlineDays(7);
       setShowPollDialog(false);
       
       // Refresh posts to show poll
@@ -586,6 +688,19 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
     if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
     if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
     return date.toLocaleDateString();
+  };
+
+  const formatTimeUntil = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const seconds = Math.floor((date.getTime() - now.getTime()) / 1000);
+
+    if (seconds < 0) return "ended";
+    if (seconds < 60) return "in less than a minute";
+    if (seconds < 3600) return `in ${Math.floor(seconds / 60)}m`;
+    if (seconds < 86400) return `in ${Math.floor(seconds / 3600)}h`;
+    if (seconds < 604800) return `in ${Math.floor(seconds / 86400)}d`;
+    return `on ${date.toLocaleDateString()}`;
   };
 
   const getInitials = (name: string) => {
@@ -881,6 +996,20 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
                         />
                       </div>
                       <div>
+                        <label className="text-sm font-medium">Poll Duration</label>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Input
+                            type="number"
+                            min="1"
+                            max="30"
+                            value={pollDeadlineDays}
+                            onChange={(e) => setPollDeadlineDays(parseInt(e.target.value) || 7)}
+                            className="w-20"
+                          />
+                          <span className="text-sm text-gray-600">days</span>
+                        </div>
+                      </div>
+                      <div>
                         <label className="text-sm font-medium">Options</label>
                         {pollOptions.map((option, index) => (
                           <div key={index} className="flex gap-2 mt-2">
@@ -1001,44 +1130,88 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
                             const optionVotes = (post.votes?.[option] as number) || 0;
                             const percentage = totalVotes > 0 ? Math.round((optionVotes / totalVotes) * 100) : 0;
                             const isSelected = post.userVote === option;
+                            const hasVoted = !!post.userVote;
+                            const canVote = !hasVoted && post.pollStatus === 'active';
 
                             return (
-                              <button
+                              <div
                                 key={idx}
-                                onClick={() => !post.userVote && post.proposalId && handleVotePoll(post.proposalId, option)}
-                                disabled={!!post.userVote || post.pollStatus !== 'active'}
-                                className={`w-full text-left p-3 rounded-lg border-2 transition-all ${
+                                className={`p-3 rounded-lg border-2 transition-all ${
                                   isSelected
                                     ? 'border-[#083232] bg-[#083232]/5'
-                                    : 'border-gray-200 hover:border-[#2e856e]'
-                                } ${post.userVote || post.pollStatus !== 'active' ? 'cursor-default' : 'cursor-pointer'}`}
+                                    : hasVoted ? 'border-gray-200 bg-gray-50' : 'border-gray-200'
+                                }`}
                               >
-                                <div className="flex items-center justify-between mb-1">
-                                  <span className="text-sm font-medium">{option}</span>
-                                  {post.userVote && (
-                                    <span className="text-xs text-gray-600">
-                                      {percentage}% ({optionVotes} {optionVotes === 1 ? 'vote' : 'votes'})
-                                    </span>
-                                  )}
-                                </div>
-                                {post.userVote && (
-                                  <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-                                    <div
-                                      className="bg-[#083232] h-2 rounded-full transition-all"
-                                      style={{ width: `${percentage}%` }}
-                                    />
+                                <label className={`flex items-center gap-3 ${
+                                  canVote ? 'cursor-pointer' : 'cursor-default'
+                                }`}>
+                                  {/* Radio button */}
+                                  <div className="flex-shrink-0">
+                                    {canVote ? (
+                                      <input
+                                        type="radio"
+                                        name={`poll-${post.id}`}
+                                        value={option}
+                                        onChange={() => post.proposalId && handleVotePoll(post.proposalId, option)}
+                                        className="w-4 h-4 text-[#083232] border-gray-300 focus:ring-[#083232] cursor-pointer"
+                                      />
+                                    ) : isSelected ? (
+                                      <CheckCircle2 className="w-5 h-5 text-[#083232]" />
+                                    ) : (
+                                      <Circle className="w-5 h-5 text-gray-300" />
+                                    )}
                                   </div>
-                                )}
-                              </button>
+
+                                  {/* Option text and vote count */}
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center justify-between mb-1">
+                                      <span className="text-sm font-medium">{option}</span>
+                                      {hasVoted && (
+                                        <span className="text-xs text-gray-600">
+                                          {percentage}% ({optionVotes} {optionVotes === 1 ? 'vote' : 'votes'})
+                                        </span>
+                                      )}
+                                    </div>
+                                    {/* Progress bar after voting */}
+                                    {hasVoted && (
+                                      <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                                        <div
+                                          className="bg-[#083232] h-2 rounded-full transition-all"
+                                          style={{ width: `${percentage}%` }}
+                                        />
+                                      </div>
+                                    )}
+                                  </div>
+                                </label>
+                              </div>
                             );
                           })}
                         </div>
-                        {post.pollDeadline && (
-                          <p className="text-xs text-gray-500">
-                            {post.pollStatus === 'active' 
-                              ? `Ends ${formatTimeAgo(post.pollDeadline)}`
-                              : `Ended ${formatTimeAgo(post.pollDeadline)}`}
+                        <div className="flex items-center justify-between text-xs text-gray-500">
+                          <p>
+                            {post.pollStatus === 'active' && post.pollDeadline
+                              ? `Ends ${formatTimeUntil(post.pollDeadline)}`
+                              : post.pollDeadline
+                              ? `Ended ${formatTimeAgo(post.pollDeadline)}`
+                              : ''}
                           </p>
+                          {post.userVote && (
+                            <p>
+                              {Object.values(post.votes || {}).reduce((a: number, b: any) => a + (typeof b === 'number' ? b : 0), 0)} total {Object.values(post.votes || {}).reduce((a: number, b: any) => a + (typeof b === 'number' ? b : 0), 0) === 1 ? 'vote' : 'votes'}
+                            </p>
+                          )}
+                        </div>
+                        {/* Delete button for poll creator */}
+                        {post.author.id === userId && (
+                          <div className="flex justify-end mt-2">
+                            <button
+                              onClick={() => post.proposalId && handleDeletePoll(post.proposalId)}
+                              className="flex items-center gap-1 text-sm text-gray-600 hover:text-[#f64d52] transition-colors"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                              <span>Delete poll</span>
+                            </button>
+                          </div>
                         )}
                       </div>
                     ) : (

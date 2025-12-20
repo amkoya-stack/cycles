@@ -741,4 +741,74 @@ export class GovernanceService {
     await this.db.clearContext();
     return result.rows[0];
   }
+
+  /**
+   * Cancel a proposal (creator or admin only)
+   */
+  async cancelProposal(
+    proposalId: string,
+    userId: string,
+  ): Promise<{ success: boolean }> {
+    await this.db.setSystemContext();
+
+    // Get proposal details
+    const proposalResult = await this.db.query(
+      `SELECT p.*, m.role
+       FROM proposals p
+       JOIN chama_members m ON p.chama_id = m.chama_id AND m.user_id = $2
+       WHERE p.id = $1`,
+      [proposalId, userId],
+    );
+
+    if (proposalResult.rowCount === 0) {
+      await this.db.clearContext();
+      throw new BadRequestException('Proposal not found');
+    }
+
+    const proposal = proposalResult.rows[0];
+    const isCreator = proposal.created_by === userId;
+    const isAdmin = ['chairperson', 'secretary', 'treasurer'].includes(
+      proposal.role,
+    );
+
+    if (!isCreator && !isAdmin) {
+      await this.db.clearContext();
+      throw new BadRequestException(
+        'Only the creator or admins can cancel this proposal',
+      );
+    }
+
+    // Can only cancel active or draft proposals
+    if (!['active', 'draft'].includes(proposal.status)) {
+      await this.db.clearContext();
+      throw new BadRequestException(
+        'Can only cancel active or draft proposals',
+      );
+    }
+
+    // Update status to cancelled
+    await this.db.query(
+      `UPDATE proposals SET status = 'cancelled', updated_at = NOW() WHERE id = $1`,
+      [proposalId],
+    );
+
+    // Log activity
+    await this.activityService.createActivityLog({
+      chamaId: proposal.chama_id,
+      userId,
+      category: ActivityCategory.GOVERNANCE,
+      activityType: ActivityType.PROPOSAL_CANCELLED,
+      title: `Proposal Cancelled: ${proposal.title}`,
+      description: `${proposal.role} cancelled a ${proposal.proposal_type} proposal`,
+      metadata: {
+        proposalId,
+        proposalType: proposal.proposal_type,
+      },
+      entityType: 'proposal',
+      entityId: proposalId,
+    });
+
+    await this.db.clearContext();
+    return { success: true };
+  }
 }
