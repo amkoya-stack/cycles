@@ -91,9 +91,9 @@ export default function CycleBySlugPage() {
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState<TabType>(() => {
     // Initialize from URL query parameter if available
-    if (typeof window !== 'undefined') {
+    if (typeof window !== "undefined") {
       const urlParams = new URLSearchParams(window.location.search);
-      const tabParam = urlParams.get('tab') as TabType;
+      const tabParam = urlParams.get("tab") as TabType;
       if (tabParam) return tabParam;
     }
     return "about";
@@ -1038,8 +1038,10 @@ export default function CycleBySlugPage() {
                     setActiveTab(tab.id);
                     // Update URL with tab parameter
                     const currentUrl = new URL(window.location.href);
-                    currentUrl.searchParams.set('tab', tab.id);
-                    router.push(currentUrl.pathname + currentUrl.search, { scroll: false });
+                    currentUrl.searchParams.set("tab", tab.id);
+                    router.push(currentUrl.pathname + currentUrl.search, {
+                      scroll: false,
+                    });
                   }}
                   className={`
                     flex items-center gap-2 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors

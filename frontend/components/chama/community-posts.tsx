@@ -154,21 +154,24 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
         const pollsData = await pollsResponse.json();
         console.log("Raw governance proposals response:", pollsData);
         console.log("Is array?", Array.isArray(pollsData));
-        console.log("Number of proposals:", Array.isArray(pollsData) ? pollsData.length : 0);
-        
+        console.log(
+          "Number of proposals:",
+          Array.isArray(pollsData) ? pollsData.length : 0
+        );
+
         // The response is an array directly, not wrapped in an object
         const proposals = Array.isArray(pollsData) ? pollsData : [];
-        
+
         // Filter for proposals that are polls and created within the last week
         const oneWeekAgo = new Date();
         oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-        
+
         const pollPromises = proposals
           .filter((p: any) => {
             const isPoll = p.metadata?.isPoll === true;
             const createdAt = new Date(p.created_at);
             const isRecent = createdAt >= oneWeekAgo;
-            
+
             if (p.metadata) {
               console.log(`Proposal ${p.id}:`, {
                 title: p.title,
@@ -176,7 +179,7 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
                 createdAt: p.created_at,
                 isRecent,
                 metadata: p.metadata,
-                status: p.status
+                status: p.status,
               });
             }
             return isPoll && isRecent;
@@ -185,13 +188,13 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
             console.log("✅ Processing poll proposal:", {
               id: p.id,
               title: p.title,
-              options: p.metadata?.options
+              options: p.metadata?.options,
             });
 
             // Fetch vote breakdown for this poll
             let voteBreakdown: { [key: string]: number } = {};
             let userVotedOption: string | null = null;
-            
+
             try {
               const votesResponse = await fetch(
                 `${API_URL}/governance/proposals/${p.id}`,
@@ -205,12 +208,13 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
               if (votesResponse.ok) {
                 const proposalDetails = await votesResponse.json();
                 console.log("Proposal details:", proposalDetails);
-                
+
                 // Count votes by option (stored in vote reason)
                 if (proposalDetails.votes) {
                   proposalDetails.votes.forEach((vote: any) => {
                     if (vote.reason) {
-                      voteBreakdown[vote.reason] = (voteBreakdown[vote.reason] || 0) + 1;
+                      voteBreakdown[vote.reason] =
+                        (voteBreakdown[vote.reason] || 0) + 1;
                     }
                     // Check if current user voted
                     if (vote.user_id === userId) {
@@ -254,11 +258,15 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
           });
 
         polls = await Promise.all(pollPromises);
-        
+
         console.log("✅ Total polls found:", polls.length);
         console.log("✅ Poll objects:", polls);
       } else {
-        console.error("Failed to fetch polls:", pollsResponse.status, await pollsResponse.text());
+        console.error(
+          "Failed to fetch polls:",
+          pollsResponse.status,
+          await pollsResponse.text()
+        );
       }
 
       // Merge posts and polls, sort by created date
@@ -267,7 +275,9 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
         if (a.pinned && !b.pinned) return -1;
         if (!a.pinned && b.pinned) return 1;
         // Then by creation date
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        return (
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
       });
 
       setPosts(allItems);
@@ -485,7 +495,13 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
 
       setPosts((prev) =>
         prev.map((post) =>
-          post.id === postId ? { ...post, pinned, pinnedAt: pinned ? new Date().toISOString() : undefined } : post
+          post.id === postId
+            ? {
+                ...post,
+                pinned,
+                pinnedAt: pinned ? new Date().toISOString() : undefined,
+              }
+            : post
         )
       );
     } catch (err) {
@@ -592,12 +608,14 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
     if (files) {
       setSelectedMedia(Array.from(files));
       // TODO: Upload media to server and attach to post
-      alert(`Selected ${files.length} media file(s). Media upload coming soon!`);
+      alert(
+        `Selected ${files.length} media file(s). Media upload coming soon!`
+      );
     }
   };
 
   const insertEmoji = (emoji: string) => {
-    setNewPostContent(prev => prev + emoji);
+    setNewPostContent((prev) => prev + emoji);
     setShowEmojiPicker(false);
   };
 
@@ -619,8 +637,8 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
 
   const handleCreatePoll = async () => {
     if (!pollQuestion.trim() || creatingPoll) return;
-    
-    const validOptions = pollOptions.filter(opt => opt.trim());
+
+    const validOptions = pollOptions.filter((opt) => opt.trim());
     if (validOptions.length < 2) {
       alert("Please provide at least 2 options");
       return;
@@ -662,7 +680,7 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
       setPollOptions(["Option 1", "Option 2"]);
       setPollDeadlineDays(7);
       setShowPollDialog(false);
-      
+
       // Refresh posts to show poll
       await fetchPosts();
     } catch (err) {
@@ -672,7 +690,24 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
     }
   };
 
-  const commonEmojis = ['😊', '😂', '❤️', '👍', '🎉', '🔥', '💯', '🙏', '👏', '✨', '💪', '🤝', '👌', '🙌', '💰', '📈'];
+  const commonEmojis = [
+    "😊",
+    "😂",
+    "❤️",
+    "👍",
+    "🎉",
+    "🔥",
+    "💯",
+    "🙏",
+    "👏",
+    "✨",
+    "💪",
+    "🤝",
+    "👌",
+    "🙌",
+    "💰",
+    "📈",
+  ];
 
   const toggleExpanded = (postId: string) => {
     setExpandedPosts((prev) => {
@@ -995,7 +1030,9 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
                         />
                       </div>
                       <div>
-                        <label className="text-sm font-medium">Description (optional)</label>
+                        <label className="text-sm font-medium">
+                          Description (optional)
+                        </label>
                         <Textarea
                           value={pollDescription}
                           onChange={(e) => setPollDescription(e.target.value)}
@@ -1004,14 +1041,18 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
                         />
                       </div>
                       <div>
-                        <label className="text-sm font-medium">Poll Duration</label>
+                        <label className="text-sm font-medium">
+                          Poll Duration
+                        </label>
                         <div className="flex items-center gap-2 mt-1">
                           <Input
                             type="number"
                             min="1"
                             max="30"
                             value={pollDeadlineDays}
-                            onChange={(e) => setPollDeadlineDays(parseInt(e.target.value) || 7)}
+                            onChange={(e) =>
+                              setPollDeadlineDays(parseInt(e.target.value) || 7)
+                            }
                             className="w-20"
                           />
                           <span className="text-sm text-gray-600">days</span>
@@ -1023,7 +1064,9 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
                           <div key={index} className="flex gap-2 mt-2">
                             <Input
                               value={option}
-                              onChange={(e) => updatePollOption(index, e.target.value)}
+                              onChange={(e) =>
+                                updatePollOption(index, e.target.value)
+                              }
                               placeholder={`Option ${index + 1}`}
                             />
                             {pollOptions.length > 2 && (
@@ -1098,7 +1141,12 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
           const isReplyingToPost = replyingTo === post.id;
 
           return (
-            <Card key={post.id} className={`p-3 ${post.pinned ? 'border-2 border-[#083232]' : ''}`}>
+            <Card
+              key={post.id}
+              className={`p-3 ${
+                post.pinned ? "border-2 border-[#083232]" : ""
+              }`}
+            >
               {post.pinned && (
                 <div className="flex items-center gap-1 text-xs text-[#083232] font-medium mb-2">
                   <Pin className="w-3 h-3 fill-current" />
@@ -1131,81 +1179,126 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
                     </div>
                     {post.isPoll ? (
                       <div className="space-y-3">
-                        <p className="text-gray-900 font-medium">{post.content}</p>
+                        <p className="text-gray-900 font-medium">
+                          {post.content}
+                        </p>
                         <div className="space-y-2">
-                          {post.pollOptions?.map((option: string, idx: number) => {
-                            const totalVotes = Object.values(post.votes || {}).reduce((a: number, b: any) => a + (typeof b === 'number' ? b : 0), 0);
-                            const optionVotes = (post.votes?.[option] as number) || 0;
-                            const percentage = totalVotes > 0 ? Math.round((optionVotes / totalVotes) * 100) : 0;
-                            const isSelected = post.userVote === option;
-                            const hasVoted = !!post.userVote;
-                            const canVote = !hasVoted && post.pollStatus === 'active';
+                          {post.pollOptions?.map(
+                            (option: string, idx: number) => {
+                              const totalVotes = Object.values(
+                                post.votes || {}
+                              ).reduce(
+                                (a: number, b: any) =>
+                                  a + (typeof b === "number" ? b : 0),
+                                0
+                              );
+                              const optionVotes =
+                                (post.votes?.[option] as number) || 0;
+                              const percentage =
+                                totalVotes > 0
+                                  ? Math.round((optionVotes / totalVotes) * 100)
+                                  : 0;
+                              const isSelected = post.userVote === option;
+                              const hasVoted = !!post.userVote;
+                              const canVote =
+                                !hasVoted && post.pollStatus === "active";
 
-                            return (
-                              <div
-                                key={idx}
-                                className={`p-3 rounded-lg border-2 transition-all ${
-                                  isSelected
-                                    ? 'border-[#083232] bg-[#083232]/5'
-                                    : hasVoted ? 'border-gray-200 bg-gray-50' : 'border-gray-200'
-                                }`}
-                              >
-                                <label className={`flex items-center gap-3 ${
-                                  canVote ? 'cursor-pointer' : 'cursor-default'
-                                }`}>
-                                  {/* Radio button */}
-                                  <div className="flex-shrink-0">
-                                    {canVote ? (
-                                      <input
-                                        type="radio"
-                                        name={`poll-${post.id}`}
-                                        value={option}
-                                        onChange={() => post.proposalId && handleVotePoll(post.proposalId, option)}
-                                        className="w-4 h-4 text-[#083232] border-gray-300 focus:ring-[#083232] cursor-pointer"
-                                      />
-                                    ) : isSelected ? (
-                                      <CheckCircle2 className="w-5 h-5 text-[#083232]" />
-                                    ) : (
-                                      <Circle className="w-5 h-5 text-gray-300" />
-                                    )}
-                                  </div>
-
-                                  {/* Option text and vote count */}
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center justify-between mb-1">
-                                      <span className="text-sm font-medium">{option}</span>
-                                      {hasVoted && (
-                                        <span className="text-xs text-gray-600">
-                                          {percentage}% ({optionVotes} {optionVotes === 1 ? 'vote' : 'votes'})
-                                        </span>
+                              return (
+                                <div
+                                  key={idx}
+                                  className={`p-3 rounded-lg border-2 transition-all ${
+                                    isSelected
+                                      ? "border-[#083232] bg-[#083232]/5"
+                                      : hasVoted
+                                      ? "border-gray-200 bg-gray-50"
+                                      : "border-gray-200"
+                                  }`}
+                                >
+                                  <label
+                                    className={`flex items-center gap-3 ${
+                                      canVote
+                                        ? "cursor-pointer"
+                                        : "cursor-default"
+                                    }`}
+                                  >
+                                    {/* Radio button */}
+                                    <div className="flex-shrink-0">
+                                      {canVote ? (
+                                        <input
+                                          type="radio"
+                                          name={`poll-${post.id}`}
+                                          value={option}
+                                          onChange={() =>
+                                            post.proposalId &&
+                                            handleVotePoll(
+                                              post.proposalId,
+                                              option
+                                            )
+                                          }
+                                          className="w-4 h-4 text-[#083232] border-gray-300 focus:ring-[#083232] cursor-pointer"
+                                        />
+                                      ) : isSelected ? (
+                                        <CheckCircle2 className="w-5 h-5 text-[#083232]" />
+                                      ) : (
+                                        <Circle className="w-5 h-5 text-gray-300" />
                                       )}
                                     </div>
-                                    {/* Progress bar after voting */}
-                                    {hasVoted && (
-                                      <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-                                        <div
-                                          className="bg-[#083232] h-2 rounded-full transition-all"
-                                          style={{ width: `${percentage}%` }}
-                                        />
+
+                                    {/* Option text and vote count */}
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center justify-between mb-1">
+                                        <span className="text-sm font-medium">
+                                          {option}
+                                        </span>
+                                        {hasVoted && (
+                                          <span className="text-xs text-gray-600">
+                                            {percentage}% ({optionVotes}{" "}
+                                            {optionVotes === 1
+                                              ? "vote"
+                                              : "votes"}
+                                            )
+                                          </span>
+                                        )}
                                       </div>
-                                    )}
-                                  </div>
-                                </label>
-                              </div>
-                            );
-                          })}
+                                      {/* Progress bar after voting */}
+                                      {hasVoted && (
+                                        <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                                          <div
+                                            className="bg-[#083232] h-2 rounded-full transition-all"
+                                            style={{ width: `${percentage}%` }}
+                                          />
+                                        </div>
+                                      )}
+                                    </div>
+                                  </label>
+                                </div>
+                              );
+                            }
+                          )}
                         </div>
                         <div className="flex items-center justify-between text-xs text-gray-500">
                           <p>
-                            {post.pollStatus === 'active' && post.pollDeadline
+                            {post.pollStatus === "active" && post.pollDeadline
                               ? `Ends ${formatTimeUntil(post.pollDeadline)}`
                               : post.pollDeadline
                               ? `Ended ${formatTimeAgo(post.pollDeadline)}`
-                              : ''}
+                              : ""}
                           </p>
                           {post.userVote && (
                             <p>
-                              {Object.values(post.votes || {}).reduce((a: number, b: any) => a + (typeof b === 'number' ? b : 0), 0)} total {Object.values(post.votes || {}).reduce((a: number, b: any) => a + (typeof b === 'number' ? b : 0), 0) === 1 ? 'vote' : 'votes'}
+                              {Object.values(post.votes || {}).reduce(
+                                (a: number, b: any) =>
+                                  a + (typeof b === "number" ? b : 0),
+                                0
+                              )}{" "}
+                              total{" "}
+                              {Object.values(post.votes || {}).reduce(
+                                (a: number, b: any) =>
+                                  a + (typeof b === "number" ? b : 0),
+                                0
+                              ) === 1
+                                ? "vote"
+                                : "votes"}
                             </p>
                           )}
                         </div>
@@ -1213,7 +1306,10 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
                         {post.author.id === userId && (
                           <div className="flex justify-end mt-2">
                             <button
-                              onClick={() => post.proposalId && handleDeletePoll(post.proposalId)}
+                              onClick={() =>
+                                post.proposalId &&
+                                handleDeletePoll(post.proposalId)
+                              }
                               className="flex items-center gap-1 text-sm text-gray-600 hover:text-[#f64d52] transition-colors"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -1269,7 +1365,11 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
                                 post.pinned ? "text-[#083232]" : ""
                               }`}
                             >
-                              <Pin className={`w-4 h-4 ${post.pinned ? "fill-current" : ""}`} />
+                              <Pin
+                                className={`w-4 h-4 ${
+                                  post.pinned ? "fill-current" : ""
+                                }`}
+                              />
                             </button>
                           </TooltipTrigger>
                           <TooltipContent side="bottom">

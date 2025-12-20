@@ -45,11 +45,11 @@ export function ActivePollsSidebar({ chamaId }: ActivePollsSidebarProps) {
 
       if (response.ok) {
         const data = await response.json();
-        
+
         // Filter for polls created in the last week
         const oneWeekAgo = new Date();
         oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-        
+
         const recentPollsRaw = Array.isArray(data)
           ? data.filter((p: any) => {
               const isPoll = p.metadata?.isPoll === true;
@@ -58,7 +58,7 @@ export function ActivePollsSidebar({ chamaId }: ActivePollsSidebarProps) {
               return isPoll && isRecent;
             })
           : [];
-        
+
         // Fetch full details for each poll to get vote counts
         const pollsWithVotes = await Promise.all(
           recentPollsRaw.map(async (poll: any) => {
@@ -71,7 +71,7 @@ export function ActivePollsSidebar({ chamaId }: ActivePollsSidebarProps) {
                   },
                 }
               );
-              
+
               if (detailsResponse.ok) {
                 const details = await detailsResponse.json();
                 return {
@@ -80,16 +80,19 @@ export function ActivePollsSidebar({ chamaId }: ActivePollsSidebarProps) {
                 };
               }
             } catch (err) {
-              console.error(`Failed to fetch details for poll ${poll.id}:`, err);
+              console.error(
+                `Failed to fetch details for poll ${poll.id}:`,
+                err
+              );
             }
-            
+
             return {
               ...poll,
               total_votes: 0,
             };
           })
         );
-        
+
         setPolls(pollsWithVotes);
       }
     } catch (error) {
@@ -103,12 +106,12 @@ export function ActivePollsSidebar({ chamaId }: ActivePollsSidebarProps) {
     const now = new Date();
     const end = new Date(deadline);
     const diff = end.getTime() - now.getTime();
-    
+
     if (diff < 0) return "Ended";
-    
+
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
     const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    
+
     if (days > 0) return `${days}d left`;
     if (hours > 0) return `${hours}h left`;
     return "Ending soon";
@@ -134,7 +137,7 @@ export function ActivePollsSidebar({ chamaId }: ActivePollsSidebarProps) {
         <BarChart3 className="w-5 h-5 text-[#083232]" />
         <h3 className="font-semibold text-[#083232]">Active Polls</h3>
       </div>
-      
+
       {polls.length === 0 ? (
         <div className="text-center py-8">
           <BarChart3 className="w-8 h-8 text-gray-300 mx-auto mb-2" />
@@ -151,23 +154,20 @@ export function ActivePollsSidebar({ chamaId }: ActivePollsSidebarProps) {
               <h4 className="font-medium text-sm text-gray-900 line-clamp-2 mb-2">
                 {poll.title}
               </h4>
-              
+
               <div className="flex items-center justify-between text-xs">
                 <div className="flex items-center gap-1 text-gray-600">
                   <Users className="w-3 h-3" />
                   <span>{poll.total_votes || 0} votes</span>
                 </div>
-                
+
                 {poll.status === "active" ? (
                   <div className="flex items-center gap-1 text-orange-600">
                     <Clock className="w-3 h-3" />
                     <span>{formatTimeRemaining(poll.deadline)}</span>
                   </div>
                 ) : (
-                  <Badge 
-                    variant="outline" 
-                    className="text-xs h-5 px-2"
-                  >
+                  <Badge variant="outline" className="text-xs h-5 px-2">
                     {poll.status}
                   </Badge>
                 )}
@@ -176,7 +176,7 @@ export function ActivePollsSidebar({ chamaId }: ActivePollsSidebarProps) {
           ))}
         </div>
       )}
-      
+
       {polls.length > 0 && (
         <p className="text-xs text-gray-400 text-center mt-4">
           Showing polls from the last 7 days

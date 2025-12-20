@@ -410,10 +410,12 @@ export default function WalletPage() {
     setActionLoading(true);
     try {
       const accessToken = localStorage.getItem("accessToken");
-      
+
       // Get user's primary chama (or let them select one)
       if (!chamas || chamas.length === 0) {
-        alert("You must be a member of a chama to request withdrawal approval. Join a chama first or contact support.");
+        alert(
+          "You must be a member of a chama to request withdrawal approval. Join a chama first or contact support."
+        );
         setShowWithdraw(false);
         return;
       }
@@ -434,7 +436,9 @@ export default function WalletPage() {
             title: `Withdrawal Request: KES ${withdrawAmount}`,
             description: `Member requesting withdrawal of KES ${withdrawAmount} to M-Pesa ${userPhone}. This withdrawal requires majority approval from chama members.`,
             votingType: "simple_majority",
-            deadline: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 days
+            deadline: new Date(
+              Date.now() + 3 * 24 * 60 * 60 * 1000
+            ).toISOString(), // 3 days
             metadata: {
               isWithdrawal: true,
               amount: parseFloat(withdrawAmount),
@@ -452,7 +456,11 @@ export default function WalletPage() {
         setShowWithdraw(false);
         setWithdrawAmount("");
       } else {
-        alert(`Failed to create withdrawal proposal: ${data.message || "Unknown error"}`);
+        alert(
+          `Failed to create withdrawal proposal: ${
+            data.message || "Unknown error"
+          }`
+        );
       }
     } catch (error) {
       console.error("Withdrawal proposal error:", error);

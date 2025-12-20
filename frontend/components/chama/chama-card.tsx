@@ -56,7 +56,7 @@ export function ChamaCard({ chama, onJoin, onView }: ChamaCardProps) {
         </div>
 
         {/* Chama Name - Clickable */}
-        <h3 
+        <h3
           className="font-semibold text-sm text-[#083232] line-clamp-1 flex-shrink-0 cursor-pointer hover:text-[#2e856e] transition-colors"
           onClick={(e) => {
             e.preventDefault();

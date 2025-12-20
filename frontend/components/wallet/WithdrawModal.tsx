@@ -51,7 +51,9 @@ export function WithdrawModal({
           {requiresApproval && (
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
               <p className="text-xs text-amber-800">
-                <strong>⚠️ Approval Required:</strong> Withdrawals over KES 5,000 require majority vote from your chama members for security. A proposal will be created for voting.
+                <strong>⚠️ Approval Required:</strong> Withdrawals over KES
+                5,000 require majority vote from your chama members for
+                security. A proposal will be created for voting.
               </p>
             </div>
           )}
