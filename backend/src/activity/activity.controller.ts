@@ -217,4 +217,44 @@ export class ActivityController {
 
     return { activityId, message: 'Test activity created' };
   }
+
+  /**
+   * Mark notification as read
+   * POST /api/activity/notifications/:notificationId/mark-read
+   */
+  @Post('notifications/:notificationId/mark-read')
+  @UseGuards(JwtAuthGuard)
+  async markNotificationAsRead(
+    @Req() req: any,
+    @Param('notificationId') notificationId: string,
+  ) {
+    await this.notificationService.markAsRead(notificationId, req.user.id);
+    return { message: 'Notification marked as read' };
+  }
+
+  /**
+   * Mark all notifications as read
+   * POST /api/activity/notifications/mark-all-read
+   */
+  @Post('notifications/mark-all-read')
+  @UseGuards(JwtAuthGuard)
+  async markAllNotificationsAsRead(
+    @Req() req: any,
+    @Body() dto: { chamaId?: string },
+  ) {
+    await this.notificationService.markAllAsRead(req.user.id, dto.chamaId);
+    return { message: 'All notifications marked as read' };
+  }
+
+  /**
+   * Create test notification (development only)
+   * POST /api/activity/notifications/test
+   */
+  @Post('notifications/test')
+  @UseGuards(JwtAuthGuard)
+  async createTestNotification(@Req() req: any) {
+    const notificationId =
+      await this.notificationService.createTestNotification(req.user.id);
+    return { message: 'Test notification created', notificationId };
+  }
 }

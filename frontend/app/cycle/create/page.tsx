@@ -21,7 +21,7 @@ type ChamaType =
   | "rotating-buy";
 type Visibility = "public" | "private" | "invite-only";
 type ContributionType = "fixed" | "flexible" | "income-based";
-type Frequency = "daily" | "weekly" | "biweekly" | "monthly";
+type Frequency = "daily" | "weekly" | "monthly" | "custom";
 
 export default function CreateChamaPage() {
   const router = useRouter();
@@ -58,6 +58,7 @@ export default function CreateChamaPage() {
     contributionMax: "",
     incomePercentage: "",
     frequency: "monthly" as Frequency,
+    customIntervalDays: "7", // For custom frequency
 
     // Step 5: Membership Rules
     minMembers: "2",
@@ -156,6 +157,17 @@ export default function CreateChamaPage() {
 
       // Use frequency as-is
       let contributionFrequency = formData.frequency;
+      let intervalDays = parseInt(formData.customIntervalDays);
+
+      // Map frequency to interval days for backend
+      if (formData.frequency === "daily") {
+        intervalDays = 1;
+      } else if (formData.frequency === "weekly") {
+        intervalDays = 7;
+      } else if (formData.frequency === "monthly") {
+        intervalDays = 30;
+      }
+      // For custom, use the exact number entered
 
       // Generate unique externalReference for idempotency
       const externalReference = `chama-${Date.now()}-${Math.random()
@@ -177,6 +189,7 @@ export default function CreateChamaPage() {
         description: formData.description,
         contributionAmount,
         contributionFrequency,
+        contributionIntervalDays: intervalDays, // Add interval days for flexible scheduling
         maxMembers: parseInt(formData.maxMembers) || 50,
         coverImage: coverImageUrl,
         settings,
@@ -619,32 +632,77 @@ export default function CreateChamaPage() {
 
               <div>
                 <Label>
-                  Frequency <span className="text-[#f64d52]">*</span>
+                  Contribution Frequency{" "}
+                  <span className="text-[#f64d52]">*</span>
                 </Label>
-                <div className="grid grid-cols-4 gap-4 mt-2">
-                  {[
-                    { id: "daily", label: "Daily" },
-                    { id: "weekly", label: "Weekly" },
-                    { id: "biweekly", label: "Bi-weekly" },
-                    { id: "monthly", label: "Monthly" },
-                  ].map((freq) => (
-                    <button
-                      key={freq.id}
-                      onClick={() =>
-                        setFormData({
-                          ...formData,
-                          frequency: freq.id as Frequency,
-                        })
-                      }
-                      className={`p-3 rounded-lg border-2 text-sm font-medium transition-all ${
-                        formData.frequency === freq.id
-                          ? "border-[#083232] bg-[#083232]/5 text-[#083232]"
-                          : "border-gray-200 hover:border-[#083232]/50"
-                      }`}
-                    >
-                      {freq.label}
-                    </button>
-                  ))}
+                <div className="space-y-4 mt-2">
+                  {/* Quick preset options */}
+                  <div className="grid grid-cols-4 gap-3">
+                    {[
+                      { id: "daily", label: "Daily", days: 1 },
+                      { id: "weekly", label: "Weekly", days: 7 },
+                      { id: "monthly", label: "Monthly", days: 30 },
+                      { id: "custom", label: "Custom", days: null },
+                    ].map((freq) => (
+                      <button
+                        key={freq.id}
+                        type="button"
+                        onClick={() => {
+                          setFormData({
+                            ...formData,
+                            frequency: freq.id as Frequency,
+                            customIntervalDays: freq.days
+                              ? freq.days.toString()
+                              : formData.customIntervalDays,
+                          });
+                        }}
+                        className={`p-3 rounded-lg border-2 text-sm font-medium transition-all ${
+                          formData.frequency === freq.id
+                            ? "border-[#083232] bg-[#083232]/5 text-[#083232]"
+                            : "border-gray-200 hover:border-[#083232]/50"
+                        }`}
+                      >
+                        {freq.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Custom interval input */}
+                  <div className="space-y-2">
+                    <Label className="text-sm text-gray-600">
+                      Or specify exact interval (days between contributions)
+                    </Label>
+                    <div className="flex items-center space-x-3">
+                      <span className="text-sm text-gray-500">Every</span>
+                      <Input
+                        type="number"
+                        min="1"
+                        max="365"
+                        value={formData.customIntervalDays}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            customIntervalDays: e.target.value,
+                            frequency:
+                              parseInt(e.target.value) === 1
+                                ? "daily"
+                                : parseInt(e.target.value) === 7
+                                ? "weekly"
+                                : parseInt(e.target.value) === 30
+                                ? "monthly"
+                                : "custom",
+                          })
+                        }
+                        className="w-20 text-center"
+                        placeholder="7"
+                      />
+                      <span className="text-sm text-gray-500">days</span>
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      Examples: 1 = Daily, 3 = Every 3 days, 7 = Weekly, 14 =
+                      Bi-weekly, 30 = Monthly
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>

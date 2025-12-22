@@ -2,6 +2,7 @@
 "use client";
 
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -30,6 +31,8 @@ interface ChamaCardProps {
 }
 
 export function ChamaCard({ chama, onJoin, onView }: ChamaCardProps) {
+  const router = useRouter();
+
   return (
     <Card className="w-[337px] h-[382px] hover:shadow-lg transition-shadow flex flex-col p-0">
       {/* Cover Image */}
@@ -61,7 +64,7 @@ export function ChamaCard({ chama, onJoin, onView }: ChamaCardProps) {
           onClick={(e) => {
             e.preventDefault();
             const slug = chama.name.toLowerCase().replace(/\s+/g, "-");
-            window.location.href = `/${encodeURIComponent(slug)}`;
+            router.push(`/${encodeURIComponent(slug)}`);
           }}
         >
           {chama.name}
@@ -96,7 +99,7 @@ export function ChamaCard({ chama, onJoin, onView }: ChamaCardProps) {
             e.preventDefault();
             // Navigate to cycle page using slug
             const slug = chama.name.toLowerCase().replace(/\s+/g, "-");
-            window.location.href = `/${encodeURIComponent(slug)}`;
+            router.push(`/${encodeURIComponent(slug)}`);
           }}
         >
           {chama.role ? "View Cycle" : "Join this Cycle"}

@@ -9,6 +9,7 @@ import {
   UseGuards,
   Req,
   Query,
+  NotFoundException,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { ChamaService } from './chama.service';
@@ -179,16 +180,6 @@ export class ChamaController {
   }
 
   /**
-   * Request to join private chama
-   * POST /api/chama/:id/invite/request
-   */
-  @Post(':id/invite/request')
-  @UseGuards(JwtAuthGuard)
-  async requestToJoin(@Req() req: any, @Param('id') chamaId: string) {
-    return this.chamaService.requestToJoin(req.user.id, chamaId);
-  }
-
-  /**
    * List pending join requests (admin only)
    * GET /api/chama/:id/invite/requests
    */
@@ -196,24 +187,6 @@ export class ChamaController {
   @UseGuards(JwtAuthGuard)
   async listJoinRequests(@Req() req: any, @Param('id') chamaId: string) {
     return this.chamaService.listJoinRequests(req.user.id, chamaId);
-  }
-
-  /**
-   * Respond to join request (admin only)
-   * POST /api/chama/invite/:inviteId/respond
-   */
-  @Post('invite/:inviteId/respond')
-  @UseGuards(JwtAuthGuard)
-  async respondToJoinRequest(
-    @Req() req: any,
-    @Param('inviteId') inviteId: string,
-    @Body() dto: { action: 'accept' | 'reject' },
-  ) {
-    return this.chamaService.respondToJoinRequest(
-      req.user.id,
-      inviteId,
-      dto.action,
-    );
   }
 
   /**
@@ -418,13 +391,15 @@ export class ChamaController {
   }
 
   /**
-   * Get contribution history
+   * Get contribution history - REMOVED: Feature integrated into transaction history
    * GET /api/chama/contributions
    */
   @Get('contributions')
   @UseGuards(JwtAuthGuard)
   async getContributionHistory(@Req() req: any, @Query() query: any) {
-    return this.chamaService.getContributionHistory(req.user.id, query);
+    throw new NotFoundException(
+      'This endpoint has been removed. View contributions in your transaction history.',
+    );
   }
 
   /**
@@ -537,5 +512,111 @@ export class ChamaController {
         : undefined,
       limit: limit ? parseInt(limit, 10) : undefined,
     });
+  }
+
+  /**
+   * Assign role to member (chairperson only)
+   * POST /api/chama/:chamaId/members/:userId/assign-role
+   */
+  @Post(':chamaId/members/:userId/assign-role')
+  @UseGuards(JwtAuthGuard)
+  async assignRole(
+    @Req() req: any,
+    @Param('chamaId') chamaId: string,
+    @Param('userId') userId: string,
+    @Body()
+    dto: {
+      role: 'chairperson' | 'treasurer' | 'secretary' | 'member';
+      reason?: string;
+    },
+  ) {
+    return this.chamaService.assignRole(
+      req.user.id,
+      chamaId,
+      userId,
+      dto.role,
+      dto.reason,
+    );
+  }
+
+  /**
+   * Request to join chama
+   * POST /api/chama/:chamaId/join-request
+   */
+  @Post(':chamaId/join-request')
+  @UseGuards(JwtAuthGuard)
+  async requestToJoin(
+    @Req() req: any,
+    @Param('chamaId') chamaId: string,
+    @Body() dto: { message?: string },
+  ) {
+    return this.chamaService.requestToJoin(req.user.id, chamaId, dto.message);
+  }
+
+  /**
+   * Respond to join request (chairperson only)
+   * POST /api/chama/:chamaId/join-requests/:requestId/respond
+   */
+  @Post(':chamaId/join-requests/:requestId/respond')
+  @UseGuards(JwtAuthGuard)
+  async respondToJoinRequest(
+    @Req() req: any,
+    @Param('chamaId') chamaId: string,
+    @Param('requestId') requestId: string,
+    @Body() dto: { action: 'approve' | 'reject'; response?: string },
+  ) {
+    return this.chamaService.respondToJoinRequest(
+      req.user.id,
+      chamaId,
+      requestId,
+      dto.action,
+      dto.response,
+    );
+  }
+
+  /**
+   * Expel member from chama (chairperson only)
+   * POST /api/chama/:chamaId/members/:userId/expel
+   */
+  @Post(':chamaId/members/:userId/expel')
+  @UseGuards(JwtAuthGuard)
+  async expelMember(
+    @Req() req: any,
+    @Param('chamaId') chamaId: string,
+    @Param('userId') userId: string,
+    @Body() dto: { reason: string },
+  ) {
+    return this.chamaService.expelMember(
+      req.user.id,
+      chamaId,
+      userId,
+      dto.reason,
+    );
+  }
+
+  /**
+   * Get member directory with role information
+   * GET /api/chama/:chamaId/members/directory
+   */
+  @Get(':chamaId/members/directory')
+  @UseGuards(JwtAuthGuard)
+  async getMemberDirectory(
+    @Req() req: any,
+    @Param('chamaId') chamaId: string,
+    @Query('role') role?: string,
+    @Query('status') status?: string,
+  ) {
+    const members = await this.chamaService.listMembers(req.user.id, chamaId);
+
+    // Apply filters if provided
+    let filteredMembers = members;
+    if (role) {
+      filteredMembers = filteredMembers.filter((m: any) => m.role === role);
+    }
+    if (status) {
+      filteredMembers = filteredMembers.filter((m: any) => m.status === status);
+    }
+
+    return filteredMembers;
   }
 }

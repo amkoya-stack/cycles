@@ -12,6 +12,7 @@ import { Footer } from "@/components/footer";
 import { useAuth } from "@/hooks/use-auth";
 import { ReputationCard } from "@/components/reputation/reputation-card";
 import { BadgeGrid } from "@/components/reputation/badge";
+import { chatApi, type Conversation, type Message } from "@/lib/chat-api";
 import {
   User,
   Mail,
@@ -22,6 +23,7 @@ import {
   Info,
   FileText,
   MessageSquare,
+  MessageCircle,
   Trophy,
   Globe,
   Facebook,
@@ -29,6 +31,9 @@ import {
   Linkedin,
   AlignLeft,
   Settings,
+  Camera,
+  Trash2,
+  Pencil,
 } from "lucide-react";
 
 interface UserProfile {
@@ -48,6 +53,7 @@ type TabType =
   | "personal"
   | "security"
   | "settings"
+  | "messages"
   | "posts"
   | "comments"
   | "stories";
@@ -63,6 +69,16 @@ export default function ProfilePage() {
   const [allReputations, setAllReputations] = useState<any[]>([]);
   const [allBadges, setAllBadges] = useState<any[]>([]);
   const [userChamas, setUserChamas] = useState<any[]>([]);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [messagesLoading, setMessagesLoading] = useState(false);
+  const [selectedConversation, setSelectedConversation] =
+    useState<Conversation | null>(null);
+  const [conversationMessages, setConversationMessages] = useState<Message[]>(
+    []
+  );
+  const [messageThreadLoading, setMessageThreadLoading] = useState(false);
+  const [messageInput, setMessageInput] = useState("");
+  const [sendingMessage, setSendingMessage] = useState(false);
 
   // Form state
   const [fullName, setFullName] = useState("");
@@ -73,12 +89,21 @@ export default function ProfilePage() {
   const [facebook, setFacebook] = useState("");
   const [twitter, setTwitter] = useState("");
   const [linkedin, setLinkedin] = useState("");
+  const [profilePhotoUrl, setProfilePhotoUrl] = useState("");
+  const [profilePhotoFile, setProfilePhotoFile] = useState<File | null>(null);
+  const [profilePhotoPreview, setProfilePhotoPreview] = useState("");
 
   useEffect(() => {
     validateToken();
     fetchProfile();
     fetchUserChamas();
   }, [validateToken]);
+
+  useEffect(() => {
+    if (activeTab === "messages") {
+      fetchConversations();
+    }
+  }, [activeTab]);
 
   const fetchProfile = async () => {
     try {
@@ -101,13 +126,18 @@ export default function ProfilePage() {
       const data = await response.json();
       setProfile(data);
       setFullName(data.full_name || "");
-      setDateOfBirth(data.date_of_birth || "");
+      // Convert ISO date to YYYY-MM-DD for date input
+      setDateOfBirth(
+        data.date_of_birth ? data.date_of_birth.split("T")[0] : ""
+      );
       setIdNumber(data.id_number || "");
       setBio(data.bio || "");
       setWebsite(data.website || "");
       setFacebook(data.facebook || "");
       setTwitter(data.twitter || "");
       setLinkedin(data.linkedin || "");
+      setProfilePhotoUrl(data.profile_photo_url || "");
+      setProfilePhotoPreview(data.profile_photo_url || "");
     } catch (error) {
       console.error("Error fetching profile:", error);
     } finally {
@@ -190,10 +220,129 @@ export default function ProfilePage() {
     setAllBadges(badges);
   };
 
+  const fetchConversations = async () => {
+    try {
+      setMessagesLoading(true);
+      const data = await chatApi.getConversations();
+      setConversations(data);
+      if (data.length === 0) {
+        setSelectedConversation(null);
+        setConversationMessages([]);
+        return;
+      }
+      if (data.length > 0 && !selectedConversation) {
+        await fetchConversationMessages(data[0]);
+      }
+    } catch (err) {
+      console.error("Failed to fetch conversations", err);
+    } finally {
+      setMessagesLoading(false);
+    }
+  };
+
+  const fetchConversationMessages = async (conversation: Conversation) => {
+    try {
+      setMessageThreadLoading(true);
+      setConversationMessages([]);
+      setSelectedConversation(conversation);
+      const msgs = await chatApi.getMessages(conversation.conversation_id);
+      setConversationMessages(msgs);
+    } catch (err) {
+      console.error("Failed to fetch messages", err);
+    } finally {
+      setMessageThreadLoading(false);
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (!selectedConversation || !messageInput.trim()) return;
+    try {
+      setSendingMessage(true);
+      const result = await chatApi.sendMessage({
+        recipientId: selectedConversation.other_user_id,
+        chamaId: selectedConversation.chama_id,
+        content: messageInput.trim(),
+      });
+      setMessageInput("");
+      setConversationMessages((prev) => [...prev, result.message]);
+      fetchConversations();
+    } catch (err) {
+      console.error("Failed to send message", err);
+    } finally {
+      setSendingMessage(false);
+    }
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setProfilePhotoFile(file);
+      // Create preview URL
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setProfilePhotoPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemovePhoto = async () => {
+    try {
+      // Optimistically update UI
+      setProfilePhotoFile(null);
+      setProfilePhotoPreview("");
+
+      const accessToken = localStorage.getItem("accessToken");
+      await fetch("http://localhost:3001/api/auth/remove-profile-photo", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      await fetchProfile();
+    } catch (err) {
+      console.error("Failed to remove profile photo", err);
+    }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
       const accessToken = localStorage.getItem("accessToken");
+
+      // If there's a new image, upload it first
+      let photoUrl = profilePhotoUrl;
+      if (profilePhotoFile) {
+        const formData = new FormData();
+        formData.append("file", profilePhotoFile);
+
+        const uploadResponse = await fetch(
+          "http://localhost:3001/api/auth/upload-profile-photo",
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+            body: formData,
+          }
+        );
+
+        if (!uploadResponse.ok) {
+          const errorData = await uploadResponse.json().catch(() => null);
+          throw new Error(
+            errorData?.message || "Failed to upload profile photo"
+          );
+        }
+
+        const uploadData = await uploadResponse.json();
+        photoUrl = uploadData.profile_photo_url;
+      }
+
+      // Convert date to ISO 8601 format if provided
+      let isoDateOfBirth = dateOfBirth;
+      if (dateOfBirth && !dateOfBirth.includes("T")) {
+        // If it's just YYYY-MM-DD, convert to ISO 8601
+        isoDateOfBirth = new Date(dateOfBirth + "T00:00:00.000Z").toISOString();
+      }
+
       const response = await fetch("http://localhost:3001/api/auth/profile", {
         method: "POST",
         headers: {
@@ -202,7 +351,7 @@ export default function ProfilePage() {
         },
         body: JSON.stringify({
           full_name: fullName,
-          date_of_birth: dateOfBirth,
+          date_of_birth: isoDateOfBirth || undefined,
           id_number: idNumber,
           bio: bio,
           website: website,
@@ -220,6 +369,7 @@ export default function ProfilePage() {
 
       await fetchProfile();
       setEditing(false);
+      setProfilePhotoFile(null);
     } catch (error) {
       console.error("Error updating profile:", error);
       alert(
@@ -238,6 +388,37 @@ export default function ProfilePage() {
       day: "numeric",
     });
   };
+
+  const formatConversationTime = (timestamp?: string | null) => {
+    if (!timestamp) return "";
+    const date = new Date(timestamp);
+    const now = new Date();
+    const isSameDay = date.toDateString() === now.toDateString();
+    if (isSameDay) {
+      return date.toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+      });
+    }
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: date.getFullYear() === now.getFullYear() ? undefined : "numeric",
+    });
+  };
+
+  const formatMessageTime = (timestamp?: string | null) => {
+    if (!timestamp) return "";
+    return new Date(timestamp).toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  };
+
+  const unreadTotal = conversations.reduce(
+    (sum, c) => sum + (Number(c.unread_count) || 0),
+    0
+  );
 
   if (loading) {
     return (
@@ -291,15 +472,54 @@ export default function ProfilePage() {
           {/* Profile Header */}
           <Card className="p-6 mb-6">
             <div className="flex items-center gap-6">
-              <div className="w-24 h-24 rounded-full bg-[#083232] flex items-center justify-center text-white text-3xl font-bold">
-                {profile.full_name
-                  ? profile.full_name
+              <div className="relative group">
+                <div className="w-24 h-24 rounded-full bg-[#083232] flex items-center justify-center text-white text-3xl font-bold overflow-hidden">
+                  {profilePhotoPreview ? (
+                    <img
+                      src={profilePhotoPreview}
+                      alt="Profile"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : profile.full_name ? (
+                    profile.full_name
                       .split(" ")
                       .map((n) => n[0])
                       .join("")
                       .toUpperCase()
                       .slice(0, 2)
-                  : profile.email[0].toUpperCase()}
+                  ) : (
+                    profile.email[0].toUpperCase()
+                  )}
+                </div>
+                <div className="absolute inset-0 rounded-full bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                  <div className="flex items-center gap-3">
+                    <label
+                      className="h-9 w-9 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center cursor-pointer"
+                      title="Change photo"
+                    >
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageChange}
+                        className="hidden"
+                      />
+                      <Pencil className="text-white w-5 h-5" />
+                    </label>
+                    {(profilePhotoPreview || profilePhotoUrl) && (
+                      <button
+                        className="h-9 w-9 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center cursor-pointer"
+                        title="Remove photo"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleRemovePhoto();
+                        }}
+                      >
+                        <Trash2 className="text-white w-5 h-5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
               <div>
                 <h1 className="text-3xl font-bold text-gray-900">
@@ -328,8 +548,15 @@ export default function ProfilePage() {
                   onClick={() => {
                     setEditing(false);
                     setFullName(profile.full_name || "");
-                    setDateOfBirth(profile.date_of_birth || "");
+                    // Convert ISO date to YYYY-MM-DD for date input
+                    setDateOfBirth(
+                      profile.date_of_birth
+                        ? profile.date_of_birth.split("T")[0]
+                        : ""
+                    );
                     setIdNumber(profile.id_number || "");
+                    setProfilePhotoFile(null);
+                    setProfilePhotoPreview(profile.profile_photo_url || "");
                   }}
                   className="bg-white hover:bg-gray-50 text-gray-900 border border-gray-300"
                   style={{ width: "273.2px", height: "46.75px" }}
@@ -355,7 +582,7 @@ export default function ProfilePage() {
               <nav className="space-y-1">
                 <button
                   onClick={() => setActiveTab("personal")}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors cursor-pointer ${
                     activeTab === "personal"
                       ? "text-blue-600"
                       : "text-gray-700 hover:bg-gray-100"
@@ -366,7 +593,7 @@ export default function ProfilePage() {
                 </button>
                 <button
                   onClick={() => setActiveTab("security")}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors cursor-pointer ${
                     activeTab === "security"
                       ? "text-blue-600"
                       : "text-gray-700 hover:bg-gray-100"
@@ -377,7 +604,7 @@ export default function ProfilePage() {
                 </button>
                 <button
                   onClick={() => setActiveTab("settings")}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors cursor-pointer ${
                     activeTab === "settings"
                       ? "text-blue-600"
                       : "text-gray-700 hover:bg-gray-100"
@@ -387,8 +614,26 @@ export default function ProfilePage() {
                   <span>Settings</span>
                 </button>
                 <button
+                  onClick={() => setActiveTab("messages")}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors cursor-pointer ${
+                    activeTab === "messages"
+                      ? "text-blue-600"
+                      : "text-gray-700 hover:bg-gray-100"
+                  }`}
+                >
+                  <MessageCircle className="w-5 h-5" />
+                  <span className="flex-1 text-left">Messages</span>
+                  {(unreadTotal > 0 || conversations.length > 0) && (
+                    <span className="text-xs px-2 py-1 rounded-full bg-gray-200 text-gray-700">
+                      {unreadTotal > 0
+                        ? `${unreadTotal} new`
+                        : conversations.length}
+                    </span>
+                  )}
+                </button>
+                <button
                   onClick={() => setActiveTab("posts")}
-                  className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-colors ${
+                  className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-colors cursor-pointer ${
                     activeTab === "posts"
                       ? "text-blue-600"
                       : "text-gray-700 hover:bg-gray-100"
@@ -402,7 +647,7 @@ export default function ProfilePage() {
                 </button>
                 <button
                   onClick={() => setActiveTab("comments")}
-                  className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-colors ${
+                  className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-colors cursor-pointer ${
                     activeTab === "comments"
                       ? "text-blue-600"
                       : "text-gray-700 hover:bg-gray-100"
@@ -416,7 +661,7 @@ export default function ProfilePage() {
                 </button>
                 <button
                   onClick={() => setActiveTab("stories")}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors cursor-pointer ${
                     activeTab === "stories"
                       ? "text-blue-600"
                       : "text-gray-700 hover:bg-gray-100"
@@ -911,6 +1156,185 @@ export default function ProfilePage() {
                       </div>
                     </div>
                   </div>
+                </Card>
+              )}
+
+              {activeTab === "messages" && (
+                <Card className="p-6">
+                  <h2 className="text-xl font-bold text-gray-900 mb-4 pb-3 border-b border-gray-200">
+                    Messages
+                  </h2>
+                  {messagesLoading ? (
+                    <div className="text-center py-12">
+                      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#083232] mx-auto"></div>
+                      <p className="text-gray-500 mt-4">
+                        Loading conversations...
+                      </p>
+                    </div>
+                  ) : conversations.length === 0 ? (
+                    <div className="text-center py-12">
+                      <MessageCircle className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                      <p className="text-gray-500">Your messages appear here</p>
+                      <p className="text-sm text-gray-400 mt-2">
+                        Click the chat icon at the bottom right to start a
+                        conversation
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="lg:flex lg:gap-6">
+                      <div className="lg:w-1/3 space-y-2 mb-6 lg:mb-0">
+                        {conversations.map((conversation) => {
+                          const isActive =
+                            selectedConversation?.conversation_id ===
+                            conversation.conversation_id;
+                          return (
+                            <button
+                              type="button"
+                              key={conversation.conversation_id}
+                              onClick={() =>
+                                fetchConversationMessages(conversation)
+                              }
+                              className={`w-full text-left p-4 rounded-2xl border transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#083232] ${
+                                isActive
+                                  ? "border-[#083232] bg-[#083232]/5"
+                                  : "border-gray-200"
+                              }`}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-medium text-sm text-gray-900 truncate">
+                                    {conversation.other_user_name}
+                                  </p>
+                                  <p className="text-xs text-gray-600 truncate mt-0.5">
+                                    {conversation.is_sent_by_me ? "You: " : ""}
+                                    {conversation.last_message ||
+                                      "No messages yet"}
+                                  </p>
+                                  <p className="text-[11px] text-gray-400 mt-1">
+                                    {conversation.chama_name}
+                                  </p>
+                                </div>
+                                <div className="flex flex-col items-end gap-1">
+                                  <span className="text-[11px] text-gray-400">
+                                    {formatConversationTime(
+                                      conversation.last_message_at ||
+                                        conversation.updated_at
+                                    )}
+                                  </span>
+                                  {Number(conversation.unread_count) > 0 && (
+                                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-[#f64d52] text-white">
+                                      {conversation.unread_count}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <div className="flex-1">
+                        {!selectedConversation ? (
+                          <div className="border border-dashed border-gray-300 rounded-2xl p-10 text-center text-sm text-gray-500">
+                            Select a conversation to see messages
+                          </div>
+                        ) : (
+                          <div className="border rounded-2xl bg-gray-50 p-4 flex flex-col h-full min-h-[380px]">
+                            <div className="pb-4 mb-4 border-b border-gray-200 flex items-center justify-between">
+                              <div>
+                                <p className="font-semibold text-gray-900">
+                                  {selectedConversation.other_user_name}
+                                </p>
+                                <p className="text-xs text-gray-500 mt-0.5">
+                                  {selectedConversation.chama_name}
+                                </p>
+                              </div>
+                              <span className="text-xs text-gray-400">
+                                {formatConversationTime(
+                                  selectedConversation.last_message_at ||
+                                    selectedConversation.updated_at
+                                )}
+                              </span>
+                            </div>
+                            <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+                              {messageThreadLoading ? (
+                                <div className="flex items-center justify-center py-10">
+                                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#083232]"></div>
+                                </div>
+                              ) : conversationMessages.length === 0 ? (
+                                <div className="text-center text-sm text-gray-500 py-10">
+                                  No messages yet. Say hello!
+                                </div>
+                              ) : (
+                                conversationMessages.map((message) => (
+                                  <div
+                                    key={message.id}
+                                    className={`flex ${
+                                      message.is_sent_by_me
+                                        ? "justify-end"
+                                        : "justify-start"
+                                    }`}
+                                  >
+                                    <div
+                                      className={`max-w-[80%] rounded-2xl px-4 py-2 text-sm shadow-sm ${
+                                        message.is_sent_by_me
+                                          ? "bg-[#083232] text-white"
+                                          : "bg-white text-gray-900"
+                                      }`}
+                                    >
+                                      {!message.is_sent_by_me && (
+                                        <p className="text-xs font-semibold text-gray-500 mb-0.5">
+                                          {message.sender_name}
+                                        </p>
+                                      )}
+                                      <p className="whitespace-pre-line break-words">
+                                        {message.content}
+                                      </p>
+                                      <p
+                                        className={`text-[11px] mt-1 text-right ${
+                                          message.is_sent_by_me
+                                            ? "text-white/80"
+                                            : "text-gray-400"
+                                        }`}
+                                      >
+                                        {formatMessageTime(message.created_at)}
+                                      </p>
+                                    </div>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                            <div className="mt-4 flex gap-3">
+                              <Input
+                                placeholder="Type a message"
+                                value={messageInput}
+                                onChange={(e) =>
+                                  setMessageInput(e.target.value)
+                                }
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" && !e.shiftKey) {
+                                    e.preventDefault();
+                                    handleSendMessage();
+                                  }
+                                }}
+                                disabled={
+                                  !selectedConversation || sendingMessage
+                                }
+                              />
+                              <Button
+                                onClick={handleSendMessage}
+                                disabled={
+                                  !messageInput.trim() || sendingMessage
+                                }
+                                className="min-w-[96px] bg-[#083232] hover:bg-[#2e856e]"
+                              >
+                                {sendingMessage ? "Sending..." : "Send"}
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </Card>
               )}
 

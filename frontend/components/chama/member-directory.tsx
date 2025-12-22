@@ -1,9 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useToast } from "@/hooks/use-toast";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Badge as ReputationBadge } from "@/components/reputation/badge";
 import {
@@ -105,7 +108,7 @@ const ROLE_CONFIG = {
     label: "Admin",
     icon: Crown,
     color: "bg-purple-100 text-purple-800 border-purple-200",
-    description: "Full control over chama operations",
+    description: "Full control over chama operations (legacy)",
   },
   chairperson: {
     label: "Chairperson",
@@ -138,6 +141,8 @@ export function MemberDirectory({
   userRole,
   currentUserId,
 }: MemberDirectoryProps) {
+  const router = useRouter();
+  const { toast } = useToast();
   const [members, setMembers] = useState<Member[]>([]);
   const [joinRequests, setJoinRequests] = useState<JoinRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -149,6 +154,7 @@ export function MemberDirectory({
   const [showRoleDialog, setShowRoleDialog] = useState(false);
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [newRole, setNewRole] = useState<string>("");
+  const [roleChangeReason, setRoleChangeReason] = useState("");
   const [showRemoveDialog, setShowRemoveDialog] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [calculating, setCalculating] = useState(false);
@@ -158,7 +164,7 @@ export function MemberDirectory({
 
   useEffect(() => {
     fetchMembers();
-    if (userRole === "admin") {
+    if (userRole === "admin" || userRole === "chairperson") {
       fetchJoinRequests();
     }
   }, [chamaId, userRole]);
@@ -254,8 +260,12 @@ export function MemberDirectory({
     try {
       setRequestsLoading(true);
       const accessToken = localStorage.getItem("accessToken");
-      if (!accessToken) return;
+      if (!accessToken) {
+        console.log("No access token available for fetching join requests");
+        return;
+      }
 
+      console.log("Fetching join requests for chama:", chamaId);
       const response = await fetch(
         `http://localhost:3001/api/chama/${chamaId}/invite/requests`,
         {
@@ -266,13 +276,40 @@ export function MemberDirectory({
       );
 
       if (!response.ok) {
-        throw new Error("Failed to fetch join requests");
+        const errorData = await response.json().catch(() => ({}));
+        console.error("Join requests fetch failed:", {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData,
+        });
+
+        // If it's a 403 (forbidden), the user might not have permission - that's expected
+        if (response.status === 403) {
+          console.log(
+            "User doesn't have permission to view join requests - this is expected for non-admin/non-chairperson roles"
+          );
+          setJoinRequests([]);
+          return;
+        }
+
+        throw new Error(
+          `Failed to fetch join requests: ${response.status} ${response.statusText}`
+        );
       }
 
       const data = await response.json();
+      console.log("Successfully fetched join requests:", data);
       setJoinRequests(data);
     } catch (error) {
       console.error("Error fetching join requests:", error);
+      // Don't show error to user for permission issues
+      if (error instanceof Error && !error.message.includes("403")) {
+        toast({
+          title: "Error",
+          description: "Failed to load join requests",
+          variant: "destructive",
+        });
+      }
     } finally {
       setRequestsLoading(false);
     }
@@ -307,9 +344,16 @@ export function MemberDirectory({
       await fetchJoinRequests();
       await fetchMembers();
 
-      alert(`Request ${action}ed successfully!`);
+      toast({
+        title: "Success",
+        description: `Request ${action}ed successfully!`,
+      });
     } catch (error: any) {
-      alert(error.message || `Failed to ${action} request`);
+      toast({
+        title: "Error",
+        description: error.message || `Failed to ${action} request`,
+        variant: "destructive",
+      });
     }
   };
 
@@ -322,14 +366,17 @@ export function MemberDirectory({
       if (!accessToken) return;
 
       const response = await fetch(
-        `http://localhost:3001/api/chama/${chamaId}/members/${selectedMember.user_id}/role`,
+        `http://localhost:3001/api/chama/${chamaId}/members/${selectedMember.user_id}/assign-role`,
         {
-          method: "PUT",
+          method: "POST",
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${accessToken}`,
           },
-          body: JSON.stringify({ role: newRole }),
+          body: JSON.stringify({
+            role: newRole,
+            reason: roleChangeReason.trim() || undefined,
+          }),
         }
       );
 
@@ -343,8 +390,18 @@ export function MemberDirectory({
       setShowRoleDialog(false);
       setSelectedMember(null);
       setNewRole("");
+      setRoleChangeReason("");
+
+      toast({
+        title: "Role Updated",
+        description: `Successfully updated ${selectedMember?.name}'s role to ${newRole}`,
+      });
     } catch (error: any) {
-      alert(error.message || "Failed to update member role");
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update member role",
+        variant: "destructive",
+      });
     } finally {
       setIsUpdating(false);
     }
@@ -377,8 +434,17 @@ export function MemberDirectory({
       await fetchMembers();
       setShowRemoveDialog(false);
       setSelectedMember(null);
+
+      toast({
+        title: "Member Removed",
+        description: `Successfully removed ${selectedMember?.name} from the chama`,
+      });
     } catch (error: any) {
-      alert(error.message || "Failed to remove member");
+      toast({
+        title: "Error",
+        description: error.message || "Failed to remove member",
+        variant: "destructive",
+      });
     } finally {
       setIsUpdating(false);
     }
@@ -433,7 +499,7 @@ export function MemberDirectory({
     });
 
   const canManageMembers = userRole === "chairperson" || userRole === "admin";
-  const canAssignRoles = userRole === "chairperson";
+  const canAssignRoles = userRole === "chairperson" || userRole === "admin";
 
   if (loading) {
     return (
@@ -449,64 +515,69 @@ export function MemberDirectory({
 
   return (
     <div className="space-y-6">
-      {/* Pending Join Requests - Admin Only */}
-      {userRole === "admin" && joinRequests.length > 0 && (
-        <Card className="p-6 border-[#f64d52] border-2">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Clock className="w-5 h-5 text-[#f64d52]" />
-              <h3 className="text-lg font-semibold text-gray-900">
-                Pending Join Requests ({joinRequests.length})
-              </h3>
-            </div>
-          </div>
-          <div className="space-y-3">
-            {joinRequests.map((request) => (
-              <div
-                key={request.id}
-                className="flex items-center justify-between p-4 bg-gray-50 rounded-lg"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="bg-[#083232] text-white rounded-full w-12 h-12 flex items-center justify-center font-semibold">
-                    {request.user_name?.charAt(0) || "?"}
-                  </div>
-                  <div>
-                    <p className="font-medium text-gray-900">
-                      {request.user_name}
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      {request.user_email}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      Requested{" "}
-                      {new Date(request.requested_at).toLocaleDateString()}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    className="bg-green-600 hover:bg-green-700 cursor-pointer"
-                    onClick={() => handleRespondToRequest(request.id, "accept")}
-                  >
-                    <UserCheck className="w-4 h-4 mr-1" />
-                    Accept
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="border-red-600 text-red-600 hover:bg-red-50 cursor-pointer"
-                    onClick={() => handleRespondToRequest(request.id, "reject")}
-                  >
-                    <UserX className="w-4 h-4 mr-1" />
-                    Reject
-                  </Button>
-                </div>
+      {/* Pending Join Requests - Admin/Chairperson Only */}
+      {(userRole === "admin" || userRole === "chairperson") &&
+        joinRequests.length > 0 && (
+          <Card className="p-6 border-[#f64d52] border-2">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Clock className="w-5 h-5 text-[#f64d52]" />
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Pending Join Requests ({joinRequests.length})
+                </h3>
               </div>
-            ))}
-          </div>
-        </Card>
-      )}
+            </div>
+            <div className="space-y-3">
+              {joinRequests.map((request) => (
+                <div
+                  key={request.id}
+                  className="flex items-center justify-between p-4 bg-gray-50 rounded-lg"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="bg-[#083232] text-white rounded-full w-12 h-12 flex items-center justify-center font-semibold">
+                      {request.user_name?.charAt(0) || "?"}
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-900">
+                        {request.user_name}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        {request.user_email}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Requested{" "}
+                        {new Date(request.requested_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      className="bg-green-600 hover:bg-green-700 cursor-pointer"
+                      onClick={() =>
+                        handleRespondToRequest(request.id, "accept")
+                      }
+                    >
+                      <UserCheck className="w-4 h-4 mr-1" />
+                      Accept
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-red-600 text-red-600 hover:bg-red-50 cursor-pointer"
+                      onClick={() =>
+                        handleRespondToRequest(request.id, "reject")
+                      }
+                    >
+                      <UserX className="w-4 h-4 mr-1" />
+                      Reject
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
 
       {/* Main layout with sidebar */}
       <div className="flex gap-6">
@@ -602,7 +673,14 @@ export function MemberDirectory({
                       {/* Member details */}
                       <div className="flex-1 min-w-0 pt-1">
                         <h3 className="font-semibold text-gray-900 truncate mb-1">
-                          {member.name}
+                          <button
+                            onClick={() =>
+                              router.push(`/profile/${member.user_id}`)
+                            }
+                            className="hover:text-[#2e856e] transition-colors cursor-pointer"
+                          >
+                            {member.name}
+                          </button>
                           {member.user_id === currentUserId && (
                             <span className="text-sm text-gray-500 font-normal ml-1">
                               (You)
@@ -700,6 +778,7 @@ export function MemberDirectory({
                             {canAssignRoles && (
                               <DropdownMenuItem
                                 onClick={() => openRoleDialog(member)}
+                                className="cursor-pointer"
                               >
                                 <Settings className="mr-2 h-4 w-4" />
                                 Change Role
@@ -707,7 +786,7 @@ export function MemberDirectory({
                             )}
                             <DropdownMenuItem
                               onClick={() => openRemoveDialog(member)}
-                              className="text-red-600"
+                              className="text-red-600 cursor-pointer"
                             >
                               <UserMinus className="mr-2 h-4 w-4" />
                               Remove Member
@@ -893,7 +972,14 @@ export function MemberDirectory({
                         )}
                       </div>
                       <span className="text-sm font-medium text-gray-900 truncate">
-                        {member.name}
+                        <button
+                          onClick={() =>
+                            router.push(`/profile/${member.user_id}`)
+                          }
+                          className="hover:text-[#2e856e] transition-colors cursor-pointer"
+                        >
+                          {member.name}
+                        </button>
                       </span>
                     </div>
                     <div className="flex items-center gap-1 text-[#f64d52] font-bold">
@@ -921,41 +1007,89 @@ export function MemberDirectory({
           <AlertDialogHeader>
             <AlertDialogTitle>Change Member Role</AlertDialogTitle>
             <AlertDialogDescription>
-              Change the role for {selectedMember?.name}. This will update their
-              permissions within the chama.
+              Change the role for <strong>{selectedMember?.name}</strong> from{" "}
+              <span className="font-medium">
+                {
+                  ROLE_CONFIG[selectedMember?.role as keyof typeof ROLE_CONFIG]
+                    ?.label
+                }
+              </span>{" "}
+              to a new role. This will update their permissions within the
+              chama.
             </AlertDialogDescription>
           </AlertDialogHeader>
 
           <div className="space-y-4 py-4">
-            <Select value={newRole} onValueChange={setNewRole}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select new role" />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(ROLE_CONFIG).map(([role, config]) => (
-                  <SelectItem key={role} value={role}>
-                    <div className="flex items-center gap-2">
-                      <config.icon className="w-4 h-4" />
-                      <div>
-                        <p className="font-medium">{config.label}</p>
-                        <p className="text-xs text-gray-600">
-                          {config.description}
-                        </p>
-                      </div>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="space-y-2">
+              <Label htmlFor="role-select">New Role</Label>
+              <Select value={newRole} onValueChange={setNewRole}>
+                <SelectTrigger id="role-select">
+                  <SelectValue placeholder="Select new role">
+                    {newRole &&
+                      ROLE_CONFIG[newRole as keyof typeof ROLE_CONFIG]?.label}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent className="w-80">
+                  {Object.entries(ROLE_CONFIG)
+                    .filter(([role]) => role !== "admin") // Hide admin from selection
+                    .map(([role, config]) => (
+                      <SelectItem key={role} value={role} className="p-3">
+                        <div className="flex items-start gap-3 w-full">
+                          <div className="flex-shrink-0 mt-0.5">
+                            <config.icon className="w-5 h-5 text-[#083232]" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-sm text-gray-900">
+                              {config.label}
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1 leading-relaxed">
+                              {config.description}
+                            </div>
+                          </div>
+                        </div>
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+              {selectedMember?.role === newRole && (
+                <p className="text-sm text-gray-500">
+                  This member is already a{" "}
+                  {ROLE_CONFIG[newRole as keyof typeof ROLE_CONFIG]?.label}
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="reason">Reason (Optional)</Label>
+              <Input
+                id="reason"
+                placeholder="Enter reason for role change..."
+                value={roleChangeReason}
+                onChange={(e) => setRoleChangeReason(e.target.value)}
+                maxLength={200}
+              />
+              <p className="text-xs text-gray-500">
+                {roleChangeReason.length}/200 characters
+              </p>
+            </div>
           </div>
 
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isUpdating}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleRoleChange}
-              disabled={isUpdating || newRole === selectedMember?.role}
+              disabled={
+                isUpdating || newRole === selectedMember?.role || !newRole
+              }
+              className="bg-[#083232] hover:bg-[#2e856e]"
             >
-              {isUpdating ? "Updating..." : "Update Role"}
+              {isUpdating ? (
+                <div className="flex items-center gap-2">
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  Updating Role...
+                </div>
+              ) : (
+                "Update Role"
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

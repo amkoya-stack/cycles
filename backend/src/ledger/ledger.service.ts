@@ -223,6 +223,84 @@ export class LedgerService {
   }
 
   /**
+   * Get chama balance by chama ID (convenience method)
+   */
+  async getChamaBalance(chamaId: string): Promise<number> {
+    const chamaAccount = await this.getChamaAccount(chamaId);
+    return await this.getAccountBalance(chamaAccount.id);
+  }
+
+  /**
+   * Get chama transaction history
+   * Returns all transactions involving the chama wallet (contributions, payouts, transfers, deposits)
+   */
+  async getChamaTransactionHistory(
+    chamaId: string,
+    limit: number = 50,
+    offset: number = 0,
+  ): Promise<any> {
+    // Get chama account
+    const chamaAccount = await this.getChamaAccount(chamaId);
+
+    // Query transactions involving the chama account
+    const result = await this.db.query(
+      `SELECT 
+        t.id,
+        t.reference,
+        t.description,
+        t.status,
+        t.created_at,
+        t.completed_at,
+        t.metadata,
+        tc.code as transaction_type,
+        tc.name as transaction_name,
+        e.amount,
+        e.direction,
+        e.balance_before,
+        e.balance_after,
+        -- Get member name for contributions/payouts
+        COALESCE(
+          (SELECT u.full_name FROM users u 
+           JOIN accounts a2 ON a2.user_id = u.id
+           JOIN entries e2 ON e2.account_id = a2.id
+           WHERE e2.transaction_id = t.id AND a2.id != $1
+           LIMIT 1),
+          t.metadata->>'recipientName',
+          'System'
+        ) as counterparty_name,
+        -- Get counterparty account type
+        (SELECT at.code FROM accounts a2 
+         JOIN account_types at ON a2.account_type_id = at.id
+         JOIN entries e2 ON e2.account_id = a2.id
+         WHERE e2.transaction_id = t.id AND a2.id != $1
+         LIMIT 1) as counterparty_type
+      FROM transactions t
+      JOIN transaction_codes tc ON t.transaction_code_id = tc.id
+      JOIN entries e ON t.id = e.transaction_id
+      WHERE e.account_id = $1
+      ORDER BY t.created_at DESC
+      LIMIT $2 OFFSET $3`,
+      [chamaAccount.id, limit, offset],
+    );
+
+    // Get total count for pagination
+    const countResult = await this.db.query(
+      `SELECT COUNT(DISTINCT t.id) as total
+       FROM transactions t
+       JOIN entries e ON t.id = e.transaction_id
+       WHERE e.account_id = $1`,
+      [chamaAccount.id],
+    );
+
+    return {
+      transactions: result.rows,
+      total: parseInt(countResult.rows[0]?.total || '0'),
+      limit,
+      offset,
+    };
+  }
+
+  /**
    * Get system account by code
    */
   async getSystemAccount(accountCode: string): Promise<any> {
@@ -891,5 +969,406 @@ export class LedgerService {
       ...transactionResult.rows[0],
       entries: entriesResult.rows,
     };
+  }
+
+  // ==========================================
+  // CHAMA WALLET OPERATIONS
+  // ==========================================
+
+  /**
+   * Process a deposit directly to a chama wallet
+   * External deposit (M-Pesa, Bank, Cash) into chama account
+   *
+   * Accounting:
+   * DR: Cash (Platform receives money)
+   * CR: Chama Wallet (Chama's balance increases)
+   */
+  async processChamaDeposit(
+    chamaId: string,
+    amount: number,
+    depositedBy: string,
+    sourceType: 'mpesa' | 'bank' | 'cash' | 'other',
+    externalReference: string,
+    description: string,
+    sourceDetails?: Record<string, any>,
+  ): Promise<any> {
+    // Idempotency check
+    if (externalReference) {
+      const existing = await this.db.query(
+        `SELECT t.*
+         FROM transactions t
+         JOIN transaction_codes tc ON t.transaction_code_id = tc.id
+         WHERE tc.code = 'CHAMA_DEPOSIT' AND t.external_reference = $1 AND t.status = 'completed'
+         LIMIT 1`,
+        [externalReference],
+      );
+      if (existing.rows.length > 0) {
+        return existing.rows[0];
+      }
+    }
+
+    // Get accounts
+    const cashAccount = await this.getSystemAccount('CASH');
+    const chamaAccount = await this.getChamaAccount(chamaId);
+
+    // Validate amount
+    if (amount <= 0) {
+      throw new BadRequestException('Deposit amount must be greater than zero');
+    }
+
+    // Create entries
+    const entries: TransactionEntry[] = [
+      {
+        accountId: cashAccount.id,
+        direction: EntryDirection.DEBIT,
+        amount: amount,
+        description: `Platform receives ${sourceType} deposit`,
+      },
+      {
+        accountId: chamaAccount.id,
+        direction: EntryDirection.CREDIT,
+        amount: amount,
+        description: 'Chama wallet credited',
+      },
+    ];
+
+    // Execute transaction
+    const transaction = await this.executeTransaction(
+      {
+        transactionCode: 'CHAMA_DEPOSIT',
+        amount: amount,
+        description: description,
+        initiatedBy: depositedBy,
+        externalReference: externalReference,
+        metadata: {
+          chamaId,
+          depositedBy,
+          sourceType,
+          sourceDetails: sourceDetails || {},
+        },
+      },
+      entries,
+    );
+
+    // Record the deposit in chama_deposits table
+    await this.db.query(
+      `INSERT INTO chama_deposits (
+        chama_id, transaction_id, amount, source_type, source_reference, 
+        source_details, deposited_by, notes, status
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'completed')`,
+      [
+        chamaId,
+        transaction.id,
+        amount,
+        sourceType,
+        externalReference,
+        JSON.stringify(sourceDetails || {}),
+        depositedBy,
+        description,
+      ],
+    );
+
+    return transaction;
+  }
+
+  // Transfer destination types
+  static readonly TRANSFER_DESTINATION_TYPES = {
+    CHAMA: 'chama',
+    USER: 'user',
+    MPESA: 'mpesa',
+    BANK: 'bank',
+  } as const;
+
+  /**
+   * Process a transfer from chama to various destinations
+   * Supports: chama-to-chama, chama-to-user, chama-to-mpesa, chama-to-bank
+   *
+   * Accounting varies by destination type:
+   * - chama: DR Source Chama → CR Destination Chama (internal)
+   * - user: DR Source Chama → CR User Wallet (internal)
+   * - mpesa/bank: DR Source Chama → CR Cash (external payout pending)
+   */
+  async processChamaTransfer(params: {
+    sourceChamaId: string;
+    destinationType: 'chama' | 'user' | 'mpesa' | 'bank';
+    // For chama transfers
+    destinationChamaId?: string;
+    // For user transfers
+    destinationUserId?: string;
+    // For M-Pesa transfers
+    destinationPhone?: string;
+    // For bank transfers
+    destinationBankName?: string;
+    destinationAccountNumber?: string;
+    destinationAccountName?: string;
+    // Common fields
+    recipientName?: string;
+    amount: number;
+    initiatedBy: string;
+    reason: string;
+    externalReference?: string;
+  }): Promise<any> {
+    const {
+      sourceChamaId,
+      destinationType,
+      destinationChamaId,
+      destinationUserId,
+      destinationPhone,
+      destinationBankName,
+      destinationAccountNumber,
+      destinationAccountName,
+      recipientName,
+      amount: transferAmount,
+      initiatedBy: initiator,
+      reason: transferReason,
+      externalReference: extRef,
+    } = params;
+
+    // Idempotency check
+    if (extRef) {
+      const existing = await this.db.query(
+        `SELECT t.*
+         FROM transactions t
+         JOIN transaction_codes tc ON t.transaction_code_id = tc.id
+         WHERE tc.code = 'CHAMA_TRANSFER' AND t.external_reference = $1 AND t.status = 'completed'
+         LIMIT 1`,
+        [extRef],
+      );
+      if (existing.rows.length > 0) {
+        return existing.rows[0];
+      }
+    }
+
+    // Validate amount
+    if (transferAmount <= 0) {
+      throw new BadRequestException(
+        'Transfer amount must be greater than zero',
+      );
+    }
+
+    // Get source account
+    const sourceAccount = await this.getChamaAccount(sourceChamaId);
+
+    // Check source balance
+    const sourceBalance = await this.getAccountBalance(sourceAccount.id);
+    if (sourceBalance < transferAmount) {
+      throw new BadRequestException(
+        'Insufficient balance in source chama wallet',
+      );
+    }
+
+    const reference = extRef || `CTF-${uuidv4()}`;
+    let entries: TransactionEntry[] = [];
+    let transactionCode = 'CHAMA_TRANSFER';
+    let description = transferReason;
+    const metadata: Record<string, any> = {
+      sourceChamaId,
+      destinationType,
+      initiatedBy: initiator,
+      reason: transferReason,
+      recipientName,
+    };
+
+    // Build entries based on destination type
+    switch (destinationType) {
+      case 'chama': {
+        if (!destinationChamaId) {
+          throw new BadRequestException(
+            'Destination chama ID is required for chama transfers',
+          );
+        }
+        if (sourceChamaId === destinationChamaId) {
+          throw new BadRequestException('Cannot transfer to the same chama');
+        }
+
+        const destinationAccount =
+          await this.getChamaAccount(destinationChamaId);
+        entries = [
+          {
+            accountId: sourceAccount.id,
+            direction: EntryDirection.DEBIT,
+            amount: transferAmount,
+            description: `Transfer out to ${recipientName || 'another chama'}`,
+          },
+          {
+            accountId: destinationAccount.id,
+            direction: EntryDirection.CREDIT,
+            amount: transferAmount,
+            description: 'Transfer in from another chama',
+          },
+        ];
+        metadata.destinationChamaId = destinationChamaId;
+        break;
+      }
+
+      case 'user': {
+        if (!destinationUserId) {
+          throw new BadRequestException(
+            'Destination user ID is required for user transfers',
+          );
+        }
+
+        const destinationAccount = await this.getUserAccount(destinationUserId);
+        entries = [
+          {
+            accountId: sourceAccount.id,
+            direction: EntryDirection.DEBIT,
+            amount: transferAmount,
+            description: `Transfer out to ${recipientName || 'user wallet'}`,
+          },
+          {
+            accountId: destinationAccount.id,
+            direction: EntryDirection.CREDIT,
+            amount: transferAmount,
+            description: 'Transfer in from chama',
+          },
+        ];
+        metadata.destinationUserId = destinationUserId;
+        transactionCode = 'CHAMA_TRANSFER'; // Same code, different metadata
+        break;
+      }
+
+      case 'mpesa': {
+        if (!destinationPhone) {
+          throw new BadRequestException(
+            'Destination phone number is required for M-Pesa transfers',
+          );
+        }
+
+        // For external payouts, we debit chama and credit Cash (platform sends money out)
+        const cashAccount = await this.getSystemAccount('CASH');
+        entries = [
+          {
+            accountId: sourceAccount.id,
+            direction: EntryDirection.DEBIT,
+            amount: transferAmount,
+            description: `M-Pesa transfer to ${recipientName || destinationPhone}`,
+          },
+          {
+            accountId: cashAccount.id,
+            direction: EntryDirection.CREDIT,
+            amount: transferAmount,
+            description: 'External M-Pesa payout',
+          },
+        ];
+        metadata.destinationPhone = destinationPhone;
+        transactionCode = 'CHAMA_TRANSFER'; // Could create a new CHAMA_EXTERNAL_PAYOUT code
+        break;
+      }
+
+      case 'bank': {
+        if (!destinationBankName || !destinationAccountNumber) {
+          throw new BadRequestException(
+            'Bank name and account number are required for bank transfers',
+          );
+        }
+
+        // For external payouts, we debit chama and credit Cash (platform sends money out)
+        const cashAccount = await this.getSystemAccount('CASH');
+        entries = [
+          {
+            accountId: sourceAccount.id,
+            direction: EntryDirection.DEBIT,
+            amount: transferAmount,
+            description: `Bank transfer to ${recipientName || destinationAccountNumber}`,
+          },
+          {
+            accountId: cashAccount.id,
+            direction: EntryDirection.CREDIT,
+            amount: transferAmount,
+            description: 'External bank payout',
+          },
+        ];
+        metadata.destinationBankName = destinationBankName;
+        metadata.destinationAccountNumber = destinationAccountNumber;
+        metadata.destinationAccountName = destinationAccountName;
+        transactionCode = 'CHAMA_TRANSFER'; // Could create a new CHAMA_EXTERNAL_PAYOUT code
+        break;
+      }
+
+      default:
+        throw new BadRequestException(
+          `Invalid destination type: ${destinationType}`,
+        );
+    }
+
+    // Execute transaction
+    const transaction = await this.executeTransaction(
+      {
+        transactionCode,
+        amount: transferAmount,
+        description,
+        initiatedBy: initiator,
+        externalReference: reference,
+        metadata,
+      },
+      entries,
+    );
+
+    // Record the transfer in chama_transfers table with extended fields
+    await this.db.query(
+      `INSERT INTO chama_transfers (
+        source_chama_id, destination_type, destination_chama_id, destination_user_id,
+        destination_phone, destination_bank_name, destination_account_number,
+        destination_account_name, recipient_name, transaction_id, amount,
+        reason, initiated_by, status
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'completed')`,
+      [
+        sourceChamaId,
+        destinationType,
+        destinationChamaId || null,
+        destinationUserId || null,
+        destinationPhone || null,
+        destinationBankName || null,
+        destinationAccountNumber || null,
+        destinationAccountName || null,
+        recipientName || null,
+        transaction.id,
+        transferAmount,
+        transferReason,
+        initiator,
+      ],
+    );
+
+    return transaction;
+  }
+
+  /**
+   * Get chama deposit history
+   */
+  async getChamaDeposits(chamaId: string): Promise<any[]> {
+    const result = await this.db.query(
+      `SELECT cd.*, u.full_name as deposited_by_name, t.reference
+       FROM chama_deposits cd
+       JOIN users u ON cd.deposited_by = u.id
+       LEFT JOIN transactions t ON cd.transaction_id = t.id
+       WHERE cd.chama_id = $1
+       ORDER BY cd.created_at DESC`,
+      [chamaId],
+    );
+    return result.rows;
+  }
+
+  /**
+   * Get chama transfer history (both sent and received)
+   */
+  async getChamaTransfers(chamaId: string): Promise<any[]> {
+    const result = await this.db.query(
+      `SELECT ct.*, 
+        sc.name as source_chama_name,
+        dc.name as destination_chama_name,
+        u.full_name as initiated_by_name,
+        t.reference,
+        CASE WHEN ct.source_chama_id = $1 THEN 'outgoing' ELSE 'incoming' END as direction
+       FROM chama_transfers ct
+       JOIN chamas sc ON ct.source_chama_id = sc.id
+       JOIN chamas dc ON ct.destination_chama_id = dc.id
+       JOIN users u ON ct.initiated_by = u.id
+       LEFT JOIN transactions t ON ct.transaction_id = t.id
+       WHERE ct.source_chama_id = $1 OR ct.destination_chama_id = $1
+       ORDER BY ct.created_at DESC`,
+      [chamaId],
+    );
+    return result.rows;
   }
 }

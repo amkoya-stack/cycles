@@ -30,7 +30,8 @@ export interface CreateChamaDto {
   name: string;
   description?: string;
   contributionAmount: number;
-  contributionFrequency: 'weekly' | 'biweekly' | 'monthly' | 'custom';
+  contributionFrequency: 'weekly' | 'biweekly' | 'monthly' | 'custom' | 'daily';
+  contributionIntervalDays?: number; // Custom interval for flexible frequencies
   targetAmount?: number;
   maxMembers?: number;
   settings?: any;
@@ -126,8 +127,8 @@ export class ChamaService {
         const chamaResult = await client.query(
           `INSERT INTO chamas (
           id, name, description, admin_user_id, contribution_amount, 
-          contribution_frequency, target_amount, max_members, settings, status, cover_image
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'active', $10)
+          contribution_frequency, interval_days, target_amount, max_members, settings, status, cover_image
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'active', $11)
         RETURNING *`,
           [
             chamaId,
@@ -136,6 +137,7 @@ export class ChamaService {
             adminUserId,
             dto.contributionAmount,
             dto.contributionFrequency,
+            dto.contributionIntervalDays || 7, // Default to 7 days if not specified
             dto.targetAmount || 0,
             dto.maxMembers || 50,
             JSON.stringify({
@@ -147,11 +149,11 @@ export class ChamaService {
           ],
         );
 
-        // Add admin as first member
+        // Add chairperson as first member
         await client.query(
           `INSERT INTO chama_members (
           chama_id, user_id, role, status, payout_position
-        ) VALUES ($1, $2, 'admin', 'active', 1)`,
+        ) VALUES ($1, $2, 'chairperson', 'active', 1)`,
           [chamaId, adminUserId],
         );
 
@@ -320,10 +322,10 @@ export class ChamaService {
     chamaId: string,
     dto: UpdateChamaDto,
   ): Promise<any> {
-    // Check if user is admin
+    // Check if user is chairperson
     const member = await this.getMemberRole(userId, chamaId);
-    if (member.role !== 'admin') {
-      throw new ForbiddenException('Only admin can update chama details');
+    if (member.role !== 'chairperson') {
+      throw new ForbiddenException('Only chairperson can update chama details');
     }
 
     const updates: string[] = [];
@@ -394,8 +396,8 @@ export class ChamaService {
    */
   async deleteChama(userId: string, chamaId: string): Promise<any> {
     const member = await this.getMemberRole(userId, chamaId);
-    if (member.role !== 'admin') {
-      throw new ForbiddenException('Only admin can delete chama');
+    if (member.role !== 'chairperson') {
+      throw new ForbiddenException('Only chairperson can delete chama');
     }
 
     // Check if chama has balance
@@ -569,11 +571,11 @@ export class ChamaService {
     chamaId: string,
     dto: InviteMemberDto,
   ): Promise<any> {
-    // Check if user is admin or treasurer
+    // Check if user is chairperson or treasurer
     const member = await this.getMemberRole(userId, chamaId);
-    if (member.role !== 'admin' && member.role !== 'treasurer') {
+    if (member.role !== 'chairperson' && member.role !== 'treasurer') {
       throw new ForbiddenException(
-        'Only admin or treasurer can invite members',
+        'Only chairperson or treasurer can invite members',
       );
     }
 
@@ -741,188 +743,37 @@ export class ChamaService {
   }
 
   /**
-   * Request to join private chama
-   */
-  async requestToJoin(userId: string, chamaId: string): Promise<any> {
-    // Check if chama exists
-    const chama = await this.db.query('SELECT * FROM chamas WHERE id = $1', [
-      chamaId,
-    ]);
-
-    if (chama.rows.length === 0) {
-      throw new NotFoundException('Chama not found');
-    }
-
-    const chamaData = chama.rows[0];
-
-    // Check if already a member
-    const existing = await this.db.query(
-      'SELECT id FROM chama_members WHERE chama_id = $1 AND user_id = $2',
-      [chamaId, userId],
-    );
-
-    if (existing.rows.length > 0) {
-      throw new BadRequestException('You are already a member of this chama');
-    }
-
-    // Check if there's already a pending request
-    const pendingRequest = await this.db.query(
-      `SELECT id FROM chama_invites 
-       WHERE chama_id = $1 AND invitee_user_id = $2 AND status = 'pending'`,
-      [chamaId, userId],
-    );
-
-    if (pendingRequest.rows.length > 0) {
-      throw new BadRequestException(
-        'You already have a pending request for this chama',
-      );
-    }
-
-    // Get user details for the request
-    const user = await this.db.query(
-      'SELECT email, phone, full_name FROM users WHERE id = $1',
-      [userId],
-    );
-
-    if (user.rows.length === 0) {
-      throw new NotFoundException('User not found');
-    }
-
-    const userData = user.rows[0];
-
-    // Create join request (using the user as both requester and invitee)
-    await this.db.query(
-      `INSERT INTO chama_invites (
-        chama_id, invited_by, invitee_user_id, invitee_email, invitee_phone, status
-      ) VALUES ($1, $2, $2, $3, $4, 'pending')`,
-      [chamaId, userId, userData.email, userData.phone],
-    );
-
-    return {
-      message: 'Join request sent successfully. The admin will be notified.',
-      chamaName: chamaData.name,
-    };
-  }
-
-  /**
    * List pending join requests (admin only)
    */
   async listJoinRequests(userId: string, chamaId: string): Promise<any> {
-    // Check if user is admin of this chama
+    // Check if user is chairperson or admin of this chama
     const member = await this.getMemberRole(userId, chamaId);
-    if (member.role !== 'admin') {
-      throw new ForbiddenException('Only admin can view join requests');
+    if (member.role !== 'chairperson' && member.role !== 'admin') {
+      throw new ForbiddenException(
+        'Only chairperson or admin can view join requests',
+      );
     }
 
     // Get pending join requests
     const requests = await this.db.query(
       `SELECT 
-        ci.id,
-        ci.invited_at,
+        mr.id,
+        mr.created_at as requested_at,
         u.id as user_id,
-        u.full_name,
-        u.email,
-        u.phone
-      FROM chama_invites ci
-      JOIN users u ON ci.invitee_user_id = u.id
-      WHERE ci.chama_id = $1 
-        AND ci.status = 'pending'
-        AND ci.invited_by = ci.invitee_user_id -- Join requests where user invited themselves
-      ORDER BY ci.invited_at DESC`,
+        u.full_name as user_name,
+        u.email as user_email,
+        u.phone as user_phone,
+        'pending' as status
+      FROM membership_requests mr
+      JOIN users u ON mr.requester_id = u.id
+      WHERE mr.chama_id = $1 
+        AND mr.status = 'pending'
+        AND mr.expires_at > NOW() -- Only active requests
+      ORDER BY mr.created_at DESC`,
       [chamaId],
     );
 
     return requests.rows;
-  }
-
-  /**
-   * Respond to join request (admin only)
-   */
-  async respondToJoinRequest(
-    adminId: string,
-    inviteId: string,
-    action: 'accept' | 'reject',
-  ): Promise<any> {
-    // Get the join request
-    const invite = await this.db.query(
-      `SELECT ci.*, c.id as chama_id, c.name as chama_name, c.max_members
-       FROM chama_invites ci
-       JOIN chamas c ON ci.chama_id = c.id
-       WHERE ci.id = $1 AND ci.status = 'pending'`,
-      [inviteId],
-    );
-
-    if (invite.rows.length === 0) {
-      throw new NotFoundException(
-        'Join request not found or already processed',
-      );
-    }
-
-    const requestData = invite.rows[0];
-    const chamaId = requestData.chama_id;
-    const userId = requestData.invitee_user_id;
-
-    // Check if admin has permission for this chama
-    const member = await this.getMemberRole(adminId, chamaId);
-    if (member.role !== 'admin') {
-      throw new ForbiddenException('Only admin can respond to join requests');
-    }
-
-    if (action === 'accept') {
-      // Check if chama has space
-      const memberCount = await this.db.query(
-        "SELECT COUNT(*) as count FROM chama_members WHERE chama_id = $1 AND status = 'active'",
-        [chamaId],
-      );
-
-      if (parseInt(memberCount.rows[0].count) >= requestData.max_members) {
-        throw new BadRequestException('Chama has reached maximum members');
-      }
-
-      // Get next payout position
-      const positionResult = await this.db.query(
-        `SELECT COALESCE(MAX(payout_position), 0) + 1 as next_position
-         FROM chama_members WHERE chama_id = $1`,
-        [chamaId],
-      );
-      const nextPosition = positionResult.rows[0].next_position;
-
-      await this.db.transactionAsSystem(async (client) => {
-        // Add as member
-        await client.query(
-          `INSERT INTO chama_members (
-            chama_id, user_id, role, status, payout_position
-          ) VALUES ($1, $2, 'member', 'active', $3)`,
-          [chamaId, userId, nextPosition],
-        );
-
-        // Update invite status
-        await client.query(
-          `UPDATE chama_invites 
-           SET status = 'accepted', responded_at = NOW()
-           WHERE id = $1`,
-          [inviteId],
-        );
-      });
-
-      return {
-        message: 'Join request accepted successfully',
-        action: 'accepted',
-      };
-    } else {
-      // Reject the request
-      await this.db.query(
-        `UPDATE chama_invites 
-         SET status = 'rejected', responded_at = NOW()
-         WHERE id = $1`,
-        [inviteId],
-      );
-
-      return {
-        message: 'Join request rejected',
-        action: 'rejected',
-      };
-    }
   }
 
   /**
@@ -947,9 +798,9 @@ export class ChamaService {
       throw new NotFoundException('Member not found');
     }
 
-    // Cannot remove admin
-    if (member.rows[0].role === 'admin') {
-      throw new BadRequestException('Cannot remove chama admin');
+    // Cannot remove chairperson
+    if (member.rows[0].role === 'chairperson') {
+      throw new BadRequestException('Cannot remove chama chairperson');
     }
 
     const memberData = member.rows[0];
@@ -1001,11 +852,13 @@ export class ChamaService {
     newRole: string,
   ): Promise<any> {
     const requester = await this.getMemberRole(userId, chamaId);
-    if (requester.role !== 'admin') {
-      throw new ForbiddenException('Only admin can update roles');
+    if (requester.role !== 'chairperson') {
+      throw new ForbiddenException('Only chairperson can update roles');
     }
 
-    if (!['admin', 'treasurer', 'member'].includes(newRole)) {
+    if (
+      !['chairperson', 'treasurer', 'secretary', 'member'].includes(newRole)
+    ) {
       throw new BadRequestException('Invalid role');
     }
 
@@ -1059,6 +912,411 @@ export class ChamaService {
     );
 
     return { message: 'Role updated successfully' };
+  }
+
+  /**
+   * Assign role to member with permission validation
+   */
+  async assignRole(
+    chairpersonId: string,
+    chamaId: string,
+    memberUserId: string,
+    newRole: 'chairperson' | 'treasurer' | 'secretary' | 'member',
+    reason?: string,
+  ): Promise<any> {
+    // Only chairperson can assign roles
+    const requester = await this.getMemberRole(chairpersonId, chamaId);
+    if (requester.role !== 'chairperson') {
+      throw new ForbiddenException('Only chairperson can assign roles');
+    }
+
+    // Get member details
+    const memberResult = await this.db.query(
+      'SELECT cm.id, cm.role, u.full_name FROM chama_members cm JOIN users u ON cm.user_id = u.id WHERE cm.chama_id = $1 AND cm.user_id = $2 AND cm.status = $3',
+      [chamaId, memberUserId, 'active'],
+    );
+
+    if (memberResult.rowCount === 0) {
+      throw new NotFoundException('Member not found in this chama');
+    }
+
+    const member = memberResult.rows[0];
+    const oldRole = member.role;
+
+    if (oldRole === newRole) {
+      throw new BadRequestException('Member already has this role');
+    }
+
+    // Check role limits from chama settings
+    if (newRole === 'chairperson') {
+      const existingChairpersons = await this.db.query(
+        "SELECT COUNT(*) as count FROM chama_members WHERE chama_id = $1 AND role = 'chairperson' AND status = 'active'",
+        [chamaId],
+      );
+      if (
+        parseInt(existingChairpersons.rows[0].count) >= 1 &&
+        oldRole !== 'chairperson'
+      ) {
+        throw new BadRequestException('Only one chairperson allowed per chama');
+      }
+    }
+
+    await this.db.transaction(async (client) => {
+      // Update member role
+      await client.query(
+        'UPDATE chama_members SET role = $1, assigned_by = $2, role_assigned_at = NOW() WHERE chama_id = $3 AND user_id = $4',
+        [newRole, chairpersonId, chamaId, memberUserId],
+      );
+    });
+
+    // Log activity
+    const activityId = await this.activityService.createActivityLog({
+      chamaId,
+      userId: chairpersonId,
+      category: ActivityCategory.MEMBERSHIP,
+      activityType: ActivityType.ROLE_CHANGED,
+      title: `${member.full_name} assigned as ${newRole}`,
+      description: `Role changed from ${oldRole} to ${newRole}${reason ? `: ${reason}` : ''}`,
+      metadata: {
+        memberId: member.id,
+        memberName: member.full_name,
+        oldRole,
+        newRole,
+        reason,
+      },
+      entityType: 'member',
+      entityId: member.id,
+    });
+
+    // Notify the member and all chama members
+    await this.activityNotification.notifyChamaMembers(
+      chamaId,
+      {
+        channel: NotificationChannel.IN_APP,
+        priority: NotificationPriority.HIGH,
+        title: 'Role Assignment',
+        message: `${member.full_name} has been assigned the role of ${newRole}`,
+        activityLogId: activityId,
+      },
+      chairpersonId,
+    );
+
+    return { message: 'Role assigned successfully', oldRole, newRole };
+  }
+
+  /**
+   * Request to join a chama
+   */
+  async requestToJoin(
+    userId: string,
+    chamaId: string,
+    message?: string,
+  ): Promise<any> {
+    // Check if chama exists and is active
+    const chamaResult = await this.db.query(
+      'SELECT id, name, is_public FROM chamas WHERE id = $1 AND status = $2',
+      [chamaId, 'active'],
+    );
+
+    if (chamaResult.rowCount === 0) {
+      throw new NotFoundException('Chama not found');
+    }
+
+    const chama = chamaResult.rows[0];
+
+    // Check if user is already a member
+    const existingMember = await this.db.query(
+      'SELECT status FROM chama_members WHERE chama_id = $1 AND user_id = $2',
+      [chamaId, userId],
+    );
+
+    if (existingMember.rowCount > 0) {
+      throw new BadRequestException('Already a member of this chama');
+    }
+
+    // Check if there's already a pending request
+    const existingRequest = await this.db.query(
+      "SELECT id FROM membership_requests WHERE chama_id = $1 AND requester_id = $2 AND status = 'pending'",
+      [chamaId, userId],
+    );
+
+    if (existingRequest.rowCount > 0) {
+      throw new BadRequestException(
+        'You already have a pending request for this chama',
+      );
+    }
+
+    // For public chamas, auto-approve
+    if (chama.is_public) {
+      return this.joinPublicChama(userId, chamaId);
+    }
+
+    // Create membership request for private chamas
+    const requestResult = await this.db.query(
+      `INSERT INTO membership_requests (chama_id, requester_id, message, expires_at) 
+       VALUES ($1, $2, $3, NOW() + INTERVAL '7 days') RETURNING id`,
+      [chamaId, userId, message],
+    );
+
+    const requestId = requestResult.rows[0].id;
+
+    // Log activity
+    const user = await this.db.query(
+      'SELECT full_name FROM users WHERE id = $1',
+      [userId],
+    );
+
+    const activityId = await this.activityService.createActivityLog({
+      chamaId,
+      userId,
+      category: ActivityCategory.MEMBERSHIP,
+      activityType: ActivityType.JOIN_REQUESTED,
+      title: `${user.rows[0].full_name} requested to join`,
+      description: message || 'New membership request',
+      metadata: { requestId, requestMessage: message },
+      entityType: 'membership_request',
+      entityId: requestId,
+    });
+
+    // Notify chairperson
+    await this.activityNotification.notifyChamaMembers(
+      chamaId,
+      {
+        channel: NotificationChannel.IN_APP,
+        priority: NotificationPriority.MEDIUM,
+        title: 'New Join Request',
+        message: `${user.rows[0].full_name} wants to join ${chama.name}`,
+        activityLogId: activityId,
+      },
+      userId, // Don't notify the requester
+    );
+
+    return { message: 'Join request submitted successfully', requestId };
+  }
+
+  /**
+   * Respond to join request (approve/reject)
+   */
+  async respondToJoinRequest(
+    chairpersonId: string,
+    chamaId: string,
+    requestId: string,
+    action: 'approve' | 'reject',
+    response?: string,
+  ): Promise<any> {
+    // Only chairperson can respond to join requests
+    const requester = await this.getMemberRole(chairpersonId, chamaId);
+    if (requester.role !== 'chairperson') {
+      throw new ForbiddenException(
+        'Only chairperson can respond to join requests',
+      );
+    }
+
+    // Get the join request
+    const requestResult = await this.db.query(
+      `SELECT mr.*, u.full_name as requester_name 
+       FROM membership_requests mr 
+       JOIN users u ON mr.requester_id = u.id 
+       WHERE mr.id = $1 AND mr.chama_id = $2 AND mr.status = 'pending'`,
+      [requestId, chamaId],
+    );
+
+    if (requestResult.rowCount === 0) {
+      throw new NotFoundException(
+        'Join request not found or already processed',
+      );
+    }
+
+    const request = requestResult.rows[0];
+
+    await this.db.transaction(async (client) => {
+      // Update request status
+      await client.query(
+        'UPDATE membership_requests SET status = $1, admin_response = $2, responded_at = NOW(), responded_by = $3 WHERE id = $4',
+        [
+          action === 'approve' ? 'approved' : 'rejected',
+          response,
+          chairpersonId,
+          requestId,
+        ],
+      );
+
+      // If approved, add as member
+      if (action === 'approve') {
+        // Get next payout position
+        const positionResult = await client.query(
+          'SELECT COALESCE(MAX(payout_position), 0) + 1 as next_position FROM chama_members WHERE chama_id = $1',
+          [chamaId],
+        );
+        const nextPosition = positionResult.rows[0].next_position;
+
+        await client.query(
+          `INSERT INTO chama_members (chama_id, user_id, role, status, payout_position, joined_at) 
+           VALUES ($1, $2, 'member', 'active', $3, NOW())`,
+          [chamaId, request.requester_id, nextPosition],
+        );
+      }
+    });
+
+    // Log activity
+    const activityId = await this.activityService.createActivityLog({
+      chamaId,
+      userId: chairpersonId,
+      category: ActivityCategory.MEMBERSHIP,
+      activityType:
+        action === 'approve'
+          ? ActivityType.MEMBER_ADDED
+          : ActivityType.JOIN_REJECTED,
+      title: `Join request ${action}d`,
+      description: `${request.requester_name}'s join request was ${action}d${response ? `: ${response}` : ''}`,
+      metadata: {
+        requestId,
+        requesterName: request.requester_name,
+        action,
+        response,
+      },
+      entityType: 'membership_request',
+      entityId: requestId,
+    });
+
+    // Notify the requester
+    await this.activityNotification.queueNotification({
+      userId: request.requester_id,
+      chamaId,
+      channel: NotificationChannel.IN_APP,
+      priority: NotificationPriority.HIGH,
+      title:
+        action === 'approve' ? 'Welcome to the Chama!' : 'Join Request Update',
+      message:
+        action === 'approve'
+          ? 'Your request to join has been approved!'
+          : 'Your join request was not approved this time.',
+      activityLogId: activityId,
+    });
+
+    // If approved, notify all members
+    if (action === 'approve') {
+      await this.activityNotification.notifyChamaMembers(
+        chamaId,
+        {
+          channel: NotificationChannel.IN_APP,
+          priority: NotificationPriority.MEDIUM,
+          title: 'New Member Joined',
+          message: `Welcome ${request.requester_name} to the chama!`,
+          activityLogId: activityId,
+        },
+        chairpersonId,
+      );
+    }
+
+    return {
+      message: `Join request ${action}d successfully`,
+      action,
+      requesterName: request.requester_name,
+    };
+  }
+
+  /**
+   * Expel member from chama (chairperson only)
+   */
+  async expelMember(
+    chairpersonId: string,
+    chamaId: string,
+    memberUserId: string,
+    reason: string,
+  ): Promise<any> {
+    // Only chairperson can expel members
+    const requester = await this.getMemberRole(chairpersonId, chamaId);
+    if (requester.role !== 'chairperson') {
+      throw new ForbiddenException('Only chairperson can expel members');
+    }
+
+    // Cannot expel self
+    if (chairpersonId === memberUserId) {
+      throw new BadRequestException('Chairperson cannot expel themselves');
+    }
+
+    // Get member details
+    const memberResult = await this.db.query(
+      'SELECT cm.id, cm.role, u.full_name FROM chama_members cm JOIN users u ON cm.user_id = u.id WHERE cm.chama_id = $1 AND cm.user_id = $2 AND cm.status = $3',
+      [chamaId, memberUserId, 'active'],
+    );
+
+    if (memberResult.rowCount === 0) {
+      throw new NotFoundException('Member not found in this chama');
+    }
+
+    const member = memberResult.rows[0];
+
+    // Handle balance settlement (if any)
+    const memberAccount = await this.db.query(
+      'SELECT id, balance FROM accounts WHERE chama_id = $1 AND user_id = $2 AND status = $3',
+      [chamaId, memberUserId, 'active'],
+    );
+
+    let memberBalance = 0;
+    if (memberAccount.rowCount > 0) {
+      memberBalance = parseFloat(memberAccount.rows[0].balance) || 0;
+    }
+
+    await this.db.transaction(async (client) => {
+      // Mark member as expelled
+      await client.query(
+        "UPDATE chama_members SET status = 'expelled', left_at = NOW() WHERE chama_id = $1 AND user_id = $2",
+        [chamaId, memberUserId],
+      );
+
+      // TODO: Handle balance settlement if member has positive balance
+      // This might require transferring funds back to their wallet
+    });
+
+    // Log activity
+    const activityId = await this.activityService.createActivityLog({
+      chamaId,
+      userId: chairpersonId,
+      category: ActivityCategory.MEMBERSHIP,
+      activityType: ActivityType.MEMBER_EXPELLED,
+      title: `${member.full_name} expelled from chama`,
+      description: `Member expelled by chairperson. Reason: ${reason}`,
+      metadata: {
+        memberId: member.id,
+        memberName: member.full_name,
+        reason,
+        memberBalance,
+      },
+      entityType: 'member',
+      entityId: member.id,
+    });
+
+    // Notify expelled member
+    await this.activityNotification.queueNotification({
+      userId: memberUserId,
+      chamaId,
+      channel: NotificationChannel.IN_APP,
+      priority: NotificationPriority.HIGH,
+      title: 'Membership Terminated',
+      message: `You have been removed from the chama. Reason: ${reason}`,
+      activityLogId: activityId,
+    });
+
+    // Notify all other members
+    await this.activityNotification.notifyChamaMembers(
+      chamaId,
+      {
+        channel: NotificationChannel.IN_APP,
+        priority: NotificationPriority.MEDIUM,
+        title: 'Member Removed',
+        message: `${member.full_name} has been removed from the chama`,
+        activityLogId: activityId,
+      },
+      chairpersonId,
+    );
+
+    return {
+      message: 'Member expelled successfully',
+      memberName: member.full_name,
+      balance: memberBalance,
+    };
   }
 
   /**
@@ -1826,10 +2084,12 @@ export class ChamaService {
   }
 
   /**
-   * Get contribution history with filters
+   * Get contribution history - REMOVED
    */
   async getContributionHistory(userId: string, query: any) {
-    return this.contributionService.getContributionHistory(userId, query);
+    throw new Error(
+      'Contribution history has been integrated into transaction history',
+    );
   }
 
   /**

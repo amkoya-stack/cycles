@@ -11,6 +11,7 @@ import {
   Clock,
   CheckCircle2,
   XCircle,
+  Coins,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -36,6 +37,7 @@ export function TransactionHistory({
 }: TransactionHistoryProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState("all");
+  const [showAll, setShowAll] = useState(false);
 
   const formatAmount = (amount: number) => {
     return new Intl.NumberFormat("en-KE", {
@@ -49,6 +51,8 @@ export function TransactionHistory({
       return <TrendingUp className="w-5 h-5 text-green-600" />;
     } else if (type.toLowerCase().includes("withdrawal")) {
       return <TrendingDown className="w-5 h-5 text-red-600" />;
+    } else if (type.toLowerCase().includes("contribution")) {
+      return <Coins className="w-5 h-5 text-blue-600" />;
     }
     return <ArrowRight className="w-5 h-5 text-gray-600" />;
   };
@@ -73,10 +77,26 @@ export function TransactionHistory({
     return matchesSearch && matchesType;
   });
 
+  // Show only 5 transactions unless "View All" is clicked
+  const displayedTransactions = showAll
+    ? filteredTransactions
+    : filteredTransactions.slice(0, 5);
+
   return (
     <Card className="p-6">
       <div className="flex items-center justify-between mb-6">
-        <h3 className="text-xl font-bold">Transaction History</h3>
+        <div>
+          <h3 className="text-xl font-bold">Transaction History</h3>
+          {filteredTransactions.length > 0 && (
+            <p className="text-xs text-gray-500 mt-1">
+              {showAll
+                ? `Showing all ${filteredTransactions.length} transactions`
+                : `Showing ${Math.min(5, filteredTransactions.length)} of ${
+                    filteredTransactions.length
+                  }`}
+            </p>
+          )}
+        </div>
         <div className="flex gap-2">
           <Button
             variant="outline"
@@ -113,6 +133,7 @@ export function TransactionHistory({
           <option value="deposit">Deposits</option>
           <option value="withdrawal">Withdrawals</option>
           <option value="transfer">Transfers</option>
+          <option value="contribution">Contributions</option>
         </select>
       </div>
 
@@ -123,7 +144,7 @@ export function TransactionHistory({
             No transactions found
           </div>
         ) : (
-          filteredTransactions.map((tx) => (
+          displayedTransactions.map((tx) => (
             <div
               key={tx.id}
               className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50"
@@ -157,6 +178,22 @@ export function TransactionHistory({
           ))
         )}
       </div>
+
+      {/* View All / Show Less Button */}
+      {filteredTransactions.length > 5 && (
+        <div className="mt-4 text-center">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowAll(!showAll)}
+            className="text-[#083232] hover:text-[#2e856e] cursor-pointer"
+          >
+            {showAll
+              ? "Show Less"
+              : `View All ${filteredTransactions.length} Transactions`}
+          </Button>
+        </div>
+      )}
     </Card>
   );
 }

@@ -41,10 +41,16 @@ export enum ActivityType {
   MEMBER_JOINED = 'member_joined',
   MEMBER_LEFT = 'member_left',
   MEMBER_REMOVED = 'member_removed',
+  MEMBER_EXPELLED = 'member_expelled',
+  MEMBER_ADDED = 'member_added',
   ROLE_CHANGED = 'role_changed',
+  ROLE_ASSIGNED = 'role_assigned',
   MEMBER_INVITED = 'member_invited',
   INVITE_ACCEPTED = 'invite_accepted',
   INVITE_REJECTED = 'invite_rejected',
+  JOIN_REQUESTED = 'join_requested',
+  JOIN_APPROVED = 'join_approved',
+  JOIN_REJECTED = 'join_rejected',
 
   // Document
   DOCUMENT_UPLOADED = 'document_uploaded',

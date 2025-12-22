@@ -353,7 +353,7 @@ export class AuthService {
   async getUserProfile(userId: string) {
     const result = await this.db.query(
       `SELECT id, email, phone, full_name, dob as date_of_birth, id_number, bio,
-              website, facebook, twitter, linkedin,
+              website, facebook, twitter, linkedin, profile_photo_url,
               email_verified, phone_verified, two_factor_enabled, created_at 
        FROM users WHERE id = $1`,
       [userId],
@@ -368,7 +368,7 @@ export class AuthService {
 
   async getProfile(userId: string) {
     const result = await this.db.query(
-      'SELECT id, email, phone, full_name, email_verified, phone_verified, two_factor_enabled FROM users WHERE id = $1',
+      'SELECT id, email, phone, full_name, email_verified, phone_verified, two_factor_enabled, profile_photo_url FROM users WHERE id = $1',
       [userId],
     );
 
@@ -377,6 +377,44 @@ export class AuthService {
     }
 
     return result.rows[0];
+  }
+
+  async uploadProfilePhoto(userId: string, file: Express.Multer.File) {
+    if (!file) {
+      throw new BadRequestException('No file uploaded');
+    }
+
+    // Validate file type
+    const allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedMimes.includes(file.mimetype)) {
+      throw new BadRequestException(
+        'Invalid file type. Only images are allowed.',
+      );
+    }
+
+    // Convert file to base64 for storage or use a file storage service
+    // For now, we'll use a simple approach and store as base64 data URL
+    const base64 = file.buffer.toString('base64');
+    const dataUrl = `data:${file.mimetype};base64,${base64}`;
+
+    // Update user profile with the image
+    await this.db.query(
+      'UPDATE users SET profile_photo_url = $1 WHERE id = $2',
+      [dataUrl, userId],
+    );
+
+    return {
+      profile_photo_url: dataUrl,
+      message: 'Profile photo uploaded successfully',
+    };
+  }
+
+  async removeProfilePhoto(userId: string) {
+    await this.db.query(
+      'UPDATE users SET profile_photo_url = NULL WHERE id = $1',
+      [userId],
+    );
+    return { message: 'Profile photo removed' };
   }
 
   private async issueTokens(userId: string | null) {

@@ -140,6 +140,17 @@ export class GovernanceController {
   }
 
   /**
+   * Check and execute all proposals that have reached majority
+   * POST /api/governance/check-and-execute-majority
+   */
+  @Post('check-and-execute-majority')
+  async checkAndExecuteMajorityProposals(@Req() req: any) {
+    return this.governanceService.checkAndExecuteAllMajorityProposals(
+      req.user.id,
+    );
+  }
+
+  /**
    * Get voting statistics
    * GET /api/governance/chama/:chamaId/stats
    */

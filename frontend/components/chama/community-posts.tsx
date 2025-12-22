@@ -80,6 +80,17 @@ interface Post {
   userVote?: string;
   pollStatus?: string;
   pollDeadline?: string;
+  // Governance proposal specific
+  isGovernanceProposal?: boolean;
+  proposalType?: string;
+  description?: string;
+  metadata?: {
+    amount?: number;
+    recipientName?: string;
+    destinationType?: string;
+    reason?: string;
+    [key: string]: unknown;
+  };
 }
 
 interface CommunityPostsProps {
@@ -105,8 +116,17 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
   const [pollQuestion, setPollQuestion] = useState("");
   const [pollOptions, setPollOptions] = useState(["Option 1", "Option 2"]);
   const [pollDescription, setPollDescription] = useState("");
-  const [pollDeadlineDays, setPollDeadlineDays] = useState(7);
+  const [pollDeadlineHours, setPollDeadlineHours] = useState(24); // Default 24 hours
   const [creatingPoll, setCreatingPoll] = useState(false);
+
+  // Poll duration presets in hours
+  const pollDurationPresets = [
+    { label: "2h", hours: 2 },
+    { label: "12h", hours: 12 },
+    { label: "24h", hours: 24 },
+    { label: "3d", hours: 72 },
+    { label: "7d", hours: 168 },
+  ];
 
   const getAuthToken = () => {
     if (typeof window !== "undefined") {
@@ -162,38 +182,61 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
         // The response is an array directly, not wrapped in an object
         const proposals = Array.isArray(pollsData) ? pollsData : [];
 
-        // Filter for proposals that are polls and created within the last week
+        // Filter for proposals that are polls OR governance proposals requiring votes
+        // and created within the last week
         const oneWeekAgo = new Date();
         oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+
+        // Governance proposal types that should show in community feed for voting
+        const votableProposalTypes = [
+          "transfer_funds",
+          "accept_member",
+          "reject_member",
+          "remove_member",
+          "change_settings",
+          "emergency_action",
+          "custom",
+        ];
 
         const pollPromises = proposals
           .filter((p: any) => {
             const isPoll = p.metadata?.isPoll === true;
+            const isVotableProposal = votableProposalTypes.includes(
+              p.proposal_type?.toLowerCase()
+            );
             const createdAt = new Date(p.created_at);
             const isRecent = createdAt >= oneWeekAgo;
+            const isActive = p.status === "active" || p.status === "draft";
 
-            if (p.metadata) {
-              console.log(`Proposal ${p.id}:`, {
-                title: p.title,
-                isPoll,
-                createdAt: p.created_at,
-                isRecent,
-                metadata: p.metadata,
-                status: p.status,
-              });
-            }
-            return isPoll && isRecent;
+            console.log(`Proposal ${p.id}:`, {
+              title: p.title,
+              type: p.proposal_type,
+              isPoll,
+              isVotableProposal,
+              createdAt: p.created_at,
+              isRecent,
+              isActive,
+              status: p.status,
+            });
+
+            // Show if it's a poll OR a votable governance proposal that's still active
+            return (isPoll || (isVotableProposal && isActive)) && isRecent;
           })
           .map(async (p: any) => {
-            console.log("✅ Processing poll proposal:", {
+            const isPoll = p.metadata?.isPoll === true;
+            console.log("✅ Processing proposal:", {
               id: p.id,
               title: p.title,
+              type: p.proposal_type,
+              isPoll,
               options: p.metadata?.options,
             });
 
-            // Fetch vote breakdown for this poll
+            // Fetch vote breakdown for this poll/proposal
             let voteBreakdown: { [key: string]: number } = {};
             let userVotedOption: string | null = null;
+            let votesFor = 0;
+            let votesAgainst = 0;
 
             try {
               const votesResponse = await fetch(
@@ -209,24 +252,84 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
                 const proposalDetails = await votesResponse.json();
                 console.log("Proposal details:", proposalDetails);
 
-                // Count votes by option (stored in vote reason)
-                if (proposalDetails.votes) {
+                // For governance proposals, count for/against votes from voting_results
+                votesFor = proposalDetails.votes_for || 0;
+                votesAgainst = proposalDetails.votes_against || 0;
+
+                // Count votes from the votes array (for active proposals)
+                if (proposalDetails.votes && proposalDetails.votes.length > 0) {
                   proposalDetails.votes.forEach((vote: any) => {
-                    if (vote.reason) {
+                    if (isPoll && vote.reason) {
+                      // For polls, the option is stored in reason
                       voteBreakdown[vote.reason] =
                         (voteBreakdown[vote.reason] || 0) + 1;
+                    } else if (!isPoll) {
+                      // For governance proposals, count for/against from votes array
+                      if (vote.vote === "for") {
+                        votesFor++;
+                      } else if (vote.vote === "against") {
+                        votesAgainst++;
+                      }
                     }
                     // Check if current user voted
                     if (vote.user_id === userId) {
-                      userVotedOption = vote.reason;
+                      userVotedOption = isPoll ? vote.reason : vote.vote;
                     }
                   });
+
+                  // Reset votesFor/votesAgainst if we counted from votes array
+                  // (to avoid double counting with voting_results)
+                  if (!isPoll && proposalDetails.votes.length > 0) {
+                    // We already counted above, reset the initial values
+                    const forCount = proposalDetails.votes.filter(
+                      (v: any) => v.vote === "for"
+                    ).length;
+                    const againstCount = proposalDetails.votes.filter(
+                      (v: any) => v.vote === "against"
+                    ).length;
+                    votesFor = forCount;
+                    votesAgainst = againstCount;
+                  }
                 }
+
+                // Check user_vote from proposal details (it's an object with vote, reason, etc)
+                if (proposalDetails.user_vote) {
+                  if (isPoll) {
+                    // For polls, the selected option is in reason field
+                    userVotedOption =
+                      proposalDetails.user_vote.reason ||
+                      proposalDetails.user_vote;
+                  } else {
+                    // For governance proposals, it's for/against in vote field
+                    userVotedOption =
+                      proposalDetails.user_vote.vote ||
+                      proposalDetails.user_vote;
+                  }
+                }
+
                 console.log("Vote breakdown:", voteBreakdown);
+                console.log("Votes for:", votesFor, "against:", votesAgainst);
                 console.log("User voted for:", userVotedOption);
               }
             } catch (err) {
               console.error("Failed to fetch vote breakdown:", err);
+            }
+
+            // For governance proposals (not polls), use "Approve"/"Reject" as options
+            const pollOptions = isPoll
+              ? p.metadata?.options || []
+              : ["Approve", "Reject"];
+
+            // For governance proposals, set up vote breakdown for Approve/Reject
+            if (!isPoll) {
+              voteBreakdown = {
+                Approve: votesFor,
+                Reject: votesAgainst,
+              };
+              // Map user vote to option name
+              if (userVotedOption === "for") userVotedOption = "Approve";
+              else if (userVotedOption === "against")
+                userVotedOption = "Reject";
             }
 
             return {
@@ -235,16 +338,20 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
               chamaId: p.chama_id,
               userId: p.created_by,
               content: p.title,
-              isPoll: true,
-              pollOptions: p.metadata?.options || [],
+              description: p.description,
+              proposalType: p.proposal_type,
+              isPoll: true, // Treat all as polls for UI rendering
+              isGovernanceProposal: !isPoll, // Flag to differentiate
+              pollOptions: pollOptions,
               pollStatus: p.status,
-              pollDeadline: p.deadline,
+              pollDeadline: p.deadline || p.voting_deadline,
               votes: voteBreakdown,
               userVote: userVotedOption,
               edited: false,
               pinned: false,
               createdAt: p.created_at,
               updatedAt: p.updated_at,
+              metadata: p.metadata,
               author: {
                 id: p.created_by,
                 fullName: p.creator_name || "Unknown",
@@ -510,9 +617,28 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
     }
   };
 
-  const handleVotePoll = async (proposalId: string, option: string) => {
+  const handleVotePoll = async (
+    proposalId: string,
+    option: string,
+    isGovernanceProposal: boolean = false
+  ) => {
     try {
       const token = getAuthToken();
+
+      // For governance proposals, map Approve/Reject to for/against
+      // For regular polls, always vote "for" with the option in reason
+      let voteValue = "for";
+      let reason = option;
+
+      if (isGovernanceProposal) {
+        if (option === "Approve") {
+          voteValue = "for";
+          reason = "Approved the proposal";
+        } else if (option === "Reject") {
+          voteValue = "against";
+          reason = "Rejected the proposal";
+        }
+      }
 
       const response = await fetch(
         `${API_URL}/governance/proposals/${proposalId}/vote`,
@@ -523,8 +649,8 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
-            vote: "for",
-            reason: option, // Store selected option in reason field
+            vote: voteValue,
+            reason: reason,
           }),
         }
       );
@@ -557,7 +683,10 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
       );
 
       if (!response.ok) {
-        throw new Error("Failed to delete poll");
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage =
+          errorData.message || `Failed to delete poll (${response.status})`;
+        throw new Error(errorMessage);
       }
 
       // Remove poll from feed
@@ -666,7 +795,7 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
           votingType: "simple_majority",
           anonymous: false,
           allowVoteChange: true,
-          deadlineHours: pollDeadlineDays * 24,
+          deadlineHours: pollDeadlineHours,
         }),
       });
 
@@ -678,7 +807,7 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
       setPollQuestion("");
       setPollDescription("");
       setPollOptions(["Option 1", "Option 2"]);
-      setPollDeadlineDays(7);
+      setPollDeadlineHours(24);
       setShowPollDialog(false);
 
       // Refresh posts to show poll
@@ -1015,89 +1144,89 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
                       <p>Create a poll</p>
                     </TooltipContent>
                   </Tooltip>
-                  <DialogContent>
+                  <DialogContent className="max-w-sm">
                     <DialogHeader>
-                      <DialogTitle>Create a Poll</DialogTitle>
+                      <DialogTitle className="text-base">
+                        Create Poll
+                      </DialogTitle>
                     </DialogHeader>
-                    <div className="space-y-4 py-4">
+                    <div className="space-y-3 py-2">
                       <div>
-                        <label className="text-sm font-medium">Question</label>
+                        <label className="text-xs font-medium text-gray-500">
+                          Question
+                        </label>
                         <Input
                           value={pollQuestion}
                           onChange={(e) => setPollQuestion(e.target.value)}
                           placeholder="What would you like to ask?"
-                          className="mt-1"
+                          className="mt-1 h-9 text-sm"
                         />
                       </div>
                       <div>
-                        <label className="text-sm font-medium">
-                          Description (optional)
+                        <label className="text-xs font-medium text-gray-500">
+                          Duration
                         </label>
-                        <Textarea
-                          value={pollDescription}
-                          onChange={(e) => setPollDescription(e.target.value)}
-                          placeholder="Add more context..."
-                          className="mt-1 min-h-[60px]"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium">
-                          Poll Duration
-                        </label>
-                        <div className="flex items-center gap-2 mt-1">
-                          <Input
-                            type="number"
-                            min="1"
-                            max="30"
-                            value={pollDeadlineDays}
-                            onChange={(e) =>
-                              setPollDeadlineDays(parseInt(e.target.value) || 7)
-                            }
-                            className="w-20"
-                          />
-                          <span className="text-sm text-gray-600">days</span>
+                        <div className="flex gap-1.5 mt-1">
+                          {pollDurationPresets.map((preset) => (
+                            <button
+                              key={preset.hours}
+                              onClick={() => setPollDeadlineHours(preset.hours)}
+                              className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-all ${
+                                pollDeadlineHours === preset.hours
+                                  ? "border-[#083232] bg-[#083232] text-white"
+                                  : "border-gray-200 hover:border-gray-300"
+                              }`}
+                            >
+                              {preset.label}
+                            </button>
+                          ))}
                         </div>
                       </div>
                       <div>
-                        <label className="text-sm font-medium">Options</label>
-                        {pollOptions.map((option, index) => (
-                          <div key={index} className="flex gap-2 mt-2">
-                            <Input
-                              value={option}
-                              onChange={(e) =>
-                                updatePollOption(index, e.target.value)
-                              }
-                              placeholder={`Option ${index + 1}`}
-                            />
-                            {pollOptions.length > 2 && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => removePollOption(index)}
-                                className="px-3"
-                              >
-                                ✕
-                              </Button>
-                            )}
-                          </div>
-                        ))}
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="mt-2"
-                          onClick={addPollOption}
-                        >
-                          + Add Option
-                        </Button>
+                        <label className="text-xs font-medium text-gray-500">
+                          Options
+                        </label>
+                        <div className="space-y-1.5 mt-1">
+                          {pollOptions.map((option, index) => (
+                            <div key={index} className="flex gap-1.5">
+                              <Input
+                                value={option}
+                                onChange={(e) =>
+                                  updatePollOption(index, e.target.value)
+                                }
+                                placeholder={`Option ${index + 1}`}
+                                className="h-8 text-sm"
+                              />
+                              {pollOptions.length > 2 && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => removePollOption(index)}
+                                  className="h-8 w-8 p-0 text-gray-400 hover:text-red-500"
+                                >
+                                  ✕
+                                </Button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                        {pollOptions.length < 5 && (
+                          <button
+                            className="text-xs text-[#083232] hover:underline mt-1.5"
+                            onClick={addPollOption}
+                          >
+                            + Add option
+                          </button>
+                        )}
                       </div>
                       <Button
-                        className="w-full bg-[#083232] hover:bg-[#2e856e]"
+                        className="w-full bg-[#083232] hover:bg-[#2e856e] h-9 text-sm"
                         onClick={handleCreatePoll}
                         disabled={!pollQuestion.trim() || creatingPoll}
                       >
                         {creatingPoll ? (
                           <>
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            <Loader2 className="w-3 h-3 mr-2 animate-spin" />
                             Creating...
                           </>
                         ) : (
@@ -1172,8 +1301,24 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
                         <span className="text-xs text-gray-400">(edited)</span>
                       )}
                       {post.isPoll && (
-                        <span className="text-xs bg-[#083232] text-white px-2 py-0.5 rounded">
-                          Poll
+                        <span
+                          className={`text-xs px-2 py-0.5 rounded ${
+                            post.isGovernanceProposal
+                              ? "bg-amber-500 text-white"
+                              : "bg-[#083232] text-white"
+                          }`}
+                        >
+                          {post.isGovernanceProposal
+                            ? `Vote: ${
+                                post.proposalType === "transfer_funds"
+                                  ? "Transfer"
+                                  : post.proposalType === "accept_member"
+                                  ? "New Member"
+                                  : post.proposalType === "remove_member"
+                                  ? "Remove Member"
+                                  : "Proposal"
+                              }`
+                            : "Poll"}
                         </span>
                       )}
                     </div>
@@ -1182,6 +1327,27 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
                         <p className="text-gray-900 font-medium">
                           {post.content}
                         </p>
+                        {/* Show description for governance proposals */}
+                        {post.isGovernanceProposal && post.description && (
+                          <p className="text-sm text-gray-600 bg-gray-50 p-2 rounded">
+                            {post.description}
+                          </p>
+                        )}
+                        {/* Show transfer details if available */}
+                        {post.proposalType === "transfer_funds" &&
+                          post.metadata && (
+                            <div className="text-xs text-gray-500 bg-amber-50 p-2 rounded border border-amber-200">
+                              <strong>Transfer Details:</strong>
+                              <br />
+                              Amount: KES{" "}
+                              {post.metadata.amount?.toLocaleString() || "N/A"}
+                              <br />
+                              To: {post.metadata.recipientName || "N/A"} (
+                              {post.metadata.destinationType || "N/A"})
+                              <br />
+                              Reason: {post.metadata.reason || "N/A"}
+                            </div>
+                          )}
                         <div className="space-y-2">
                           {post.pollOptions?.map(
                             (option: string, idx: number) => {
@@ -1200,29 +1366,29 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
                                   : 0;
                               const isSelected = post.userVote === option;
                               const hasVoted = !!post.userVote;
+                              const hasAnyVotes = totalVotes > 0;
                               const canVote =
                                 !hasVoted && post.pollStatus === "active";
 
                               return (
                                 <div
                                   key={idx}
-                                  className={`p-3 rounded-lg border-2 transition-all ${
+                                  className={`px-2.5 py-1.5 rounded-lg border transition-all ${
                                     isSelected
                                       ? "border-[#083232] bg-[#083232]/5"
                                       : hasVoted
-                                      ? "border-gray-200 bg-gray-50"
-                                      : "border-gray-200"
+                                      ? "border-gray-100 bg-gray-50"
+                                      : "border-gray-200 hover:border-gray-300"
                                   }`}
                                 >
                                   <label
-                                    className={`flex items-center gap-3 ${
+                                    className={`flex items-center gap-2 ${
                                       canVote
                                         ? "cursor-pointer"
                                         : "cursor-default"
                                     }`}
                                   >
-                                    {/* Radio button */}
-                                    <div className="flex-shrink-0">
+                                    <div className="shrink-0">
                                       {canVote ? (
                                         <input
                                           type="radio"
@@ -1232,39 +1398,33 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
                                             post.proposalId &&
                                             handleVotePoll(
                                               post.proposalId,
-                                              option
+                                              option,
+                                              post.isGovernanceProposal || false
                                             )
                                           }
-                                          className="w-4 h-4 text-[#083232] border-gray-300 focus:ring-[#083232] cursor-pointer"
+                                          className="w-3.5 h-3.5 text-[#083232] border-gray-300 focus:ring-[#083232] cursor-pointer"
                                         />
                                       ) : isSelected ? (
-                                        <CheckCircle2 className="w-5 h-5 text-[#083232]" />
+                                        <CheckCircle2 className="w-4 h-4 text-[#083232]" />
                                       ) : (
-                                        <Circle className="w-5 h-5 text-gray-300" />
+                                        <Circle className="w-4 h-4 text-gray-300" />
                                       )}
                                     </div>
-
-                                    {/* Option text and vote count */}
                                     <div className="flex-1 min-w-0">
-                                      <div className="flex items-center justify-between mb-1">
-                                        <span className="text-sm font-medium">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-sm">
                                           {option}
                                         </span>
-                                        {hasVoted && (
-                                          <span className="text-xs text-gray-600">
-                                            {percentage}% ({optionVotes}{" "}
-                                            {optionVotes === 1
-                                              ? "vote"
-                                              : "votes"}
-                                            )
+                                        {hasAnyVotes && (
+                                          <span className="text-xs text-gray-500">
+                                            {optionVotes} ({percentage}%)
                                           </span>
                                         )}
                                       </div>
-                                      {/* Progress bar after voting */}
-                                      {hasVoted && (
-                                        <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                                      {hasAnyVotes && (
+                                        <div className="w-full bg-gray-200 rounded-full h-1 mt-1">
                                           <div
-                                            className="bg-[#083232] h-2 rounded-full transition-all"
+                                            className="bg-[#083232] h-1 rounded-full transition-all"
                                             style={{ width: `${percentage}%` }}
                                           />
                                         </div>
@@ -1284,23 +1444,20 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
                               ? `Ended ${formatTimeAgo(post.pollDeadline)}`
                               : ""}
                           </p>
-                          {post.userVote && (
-                            <p>
-                              {Object.values(post.votes || {}).reduce(
-                                (a: number, b: any) =>
-                                  a + (typeof b === "number" ? b : 0),
-                                0
-                              )}{" "}
-                              total{" "}
-                              {Object.values(post.votes || {}).reduce(
-                                (a: number, b: any) =>
-                                  a + (typeof b === "number" ? b : 0),
-                                0
-                              ) === 1
-                                ? "vote"
-                                : "votes"}
-                            </p>
-                          )}
+                          <p>
+                            {Object.values(post.votes || {}).reduce(
+                              (a: number, b: any) =>
+                                a + (typeof b === "number" ? b : 0),
+                              0
+                            )}{" "}
+                            {Object.values(post.votes || {}).reduce(
+                              (a: number, b: any) =>
+                                a + (typeof b === "number" ? b : 0),
+                              0
+                            ) === 1
+                              ? "vote"
+                              : "votes"}
+                          </p>
                         </div>
                         {/* Delete button for poll creator */}
                         {post.author.id === userId && (
@@ -1310,7 +1467,7 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
                                 post.proposalId &&
                                 handleDeletePoll(post.proposalId)
                               }
-                              className="flex items-center gap-1 text-sm text-gray-600 hover:text-[#f64d52] transition-colors"
+                              className="flex items-center gap-1 text-sm text-gray-600 hover:text-[#f64d52] transition-colors cursor-pointer"
                             >
                               <Trash2 className="w-4 h-4" />
                               <span>Delete poll</span>

@@ -58,6 +58,7 @@ export class AutoDebitService {
         cm.user_id,
         cm.chama_id,
         ch.name as chama_name,
+        ch.contribution_frequency,
         u.full_name,
         u.email,
         u.phone
@@ -318,7 +319,10 @@ export class AutoDebitService {
    */
   private async scheduleNextExecution(autoDebit: any) {
     const nextExecutionDate = this.calculateNextExecutionDate(
-      parseInt(autoDebit.auto_debit_day),
+      autoDebit.frequency_type || 'monthly',
+      autoDebit.auto_debit_day,
+      autoDebit.day_of_week,
+      autoDebit.interval_days || 1,
     );
 
     await this.db.query(
@@ -335,26 +339,66 @@ export class AutoDebitService {
   }
 
   /**
-   * Calculate next execution date based on auto-debit day
+   * Calculate next execution date based on frequency type
    */
-  private calculateNextExecutionDate(autoDebitDay: number): Date {
+  private calculateNextExecutionDate(
+    frequencyType: string,
+    autoDebitDay?: number,
+    dayOfWeek?: number,
+    intervalDays: number = 1,
+  ): Date {
     const now = new Date();
     const nextDate = new Date(now);
 
-    // Move to next month
-    nextDate.setMonth(nextDate.getMonth() + 1);
+    switch (frequencyType) {
+      case 'daily':
+        nextDate.setDate(nextDate.getDate() + intervalDays);
+        break;
 
-    // Set the day (handle month-end edge cases)
-    const lastDayOfMonth = new Date(
-      nextDate.getFullYear(),
-      nextDate.getMonth() + 1,
-      0,
-    ).getDate();
-    const targetDay = Math.min(autoDebitDay, lastDayOfMonth);
+      case '2-day':
+        nextDate.setDate(nextDate.getDate() + 2);
+        break;
 
-    nextDate.setDate(targetDay);
+      case '3-day':
+        nextDate.setDate(nextDate.getDate() + 3);
+        break;
+
+      case 'weekly':
+        // Calculate next occurrence of the specified day of week
+        const currentDay = nextDate.getDay();
+        const targetDay = dayOfWeek ?? 1; // Default to Monday if not specified
+        let daysUntilTarget = (targetDay - currentDay + 7) % 7;
+        if (daysUntilTarget === 0) daysUntilTarget = 7; // Next week if today is the target day
+        nextDate.setDate(nextDate.getDate() + daysUntilTarget);
+        break;
+
+      case 'biweekly':
+        // Next occurrence of the day, 2 weeks from now
+        const biweeklyTarget = dayOfWeek ?? 1;
+        const currentDayBiweekly = nextDate.getDay();
+        let daysBiweekly = (biweeklyTarget - currentDayBiweekly + 7) % 7;
+        if (daysBiweekly === 0) daysBiweekly = 7;
+        nextDate.setDate(nextDate.getDate() + daysBiweekly + 7); // Add extra week
+        break;
+
+      case 'monthly':
+      default:
+        // Move to next month
+        nextDate.setMonth(nextDate.getMonth() + 1);
+
+        // Set the day (handle month-end edge cases)
+        const lastDayOfMonth = new Date(
+          nextDate.getFullYear(),
+          nextDate.getMonth() + 1,
+          0,
+        ).getDate();
+        const targetDayMonthly = Math.min(autoDebitDay || 1, lastDayOfMonth);
+
+        nextDate.setDate(targetDayMonthly);
+        break;
+    }
+
     nextDate.setHours(0, 0, 0, 0);
-
     return nextDate;
   }
 

@@ -96,8 +96,29 @@ export function NotificationBell() {
   };
 
   const markAllAsRead = async () => {
-    // TODO: Implement mark as read endpoint
-    setUnreadCount(0);
+    try {
+      const accessToken = localStorage.getItem("accessToken");
+      if (!accessToken) return;
+
+      const response = await fetch(
+        "http://localhost:3001/api/activity/notifications/mark-all-read",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({}),
+        }
+      );
+
+      if (response.ok) {
+        setUnreadCount(0);
+        setNotifications((prev) => prev.map((n) => ({ ...n, status: "read" })));
+      }
+    } catch (error) {
+      console.error("Error marking notifications as read:", error);
+    }
   };
 
   const getIcon = (category?: string) => {
@@ -132,7 +153,7 @@ export function NotificationBell() {
               variant="ghost"
               size="sm"
               onClick={markAllAsRead}
-              className="text-sm text-[#2e856e] hover:text-[#083232]"
+              className="text-xs h-7 px-2"
             >
               Mark all read
             </Button>

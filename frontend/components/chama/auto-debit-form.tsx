@@ -42,7 +42,10 @@ interface AutoDebitFormProps {
   existingAutoDebit?: {
     id: string;
     amount: number | null;
-    dayOfMonth: number;
+    dayOfMonth?: number;
+    dayOfWeek?: number;
+    frequencyType?: string;
+    intervalDays?: number;
     paymentMethod: string;
     enabled: boolean;
   };
@@ -67,8 +70,14 @@ export function AutoDebitForm({
   const [fixedAmount, setFixedAmount] = useState(
     existingAutoDebit?.amount?.toString() || expectedAmount.toString()
   );
+  const [frequencyType, setFrequencyType] = useState<
+    "daily" | "2-day" | "3-day" | "weekly" | "biweekly" | "monthly"
+  >((existingAutoDebit?.frequencyType as any) || "monthly");
   const [dayOfMonth, setDayOfMonth] = useState(
     existingAutoDebit?.dayOfMonth?.toString() || "1"
+  );
+  const [dayOfWeek, setDayOfWeek] = useState(
+    existingAutoDebit?.dayOfWeek?.toString() || "1"
   );
   const [enabled, setEnabled] = useState(existingAutoDebit?.enabled ?? true);
   const [loading, setLoading] = useState(false);
@@ -76,9 +85,19 @@ export function AutoDebitForm({
   const [success, setSuccess] = useState(false);
 
   const validateForm = () => {
-    const day = parseInt(dayOfMonth);
-    if (isNaN(day) || day < 1 || day > 28) {
-      return "Day of month must be between 1 and 28";
+    // Validate based on frequency type
+    if (frequencyType === "monthly" || frequencyType === "biweekly") {
+      const day = parseInt(dayOfMonth);
+      if (isNaN(day) || day < 1 || day > 28) {
+        return "Day of month must be between 1 and 28";
+      }
+    }
+
+    if (frequencyType === "weekly" || frequencyType === "biweekly") {
+      const day = parseInt(dayOfWeek);
+      if (isNaN(day) || day < 0 || day > 6) {
+        return "Please select a valid day of the week";
+      }
     }
 
     if (amountType === "fixed") {
@@ -108,7 +127,15 @@ export function AutoDebitForm({
         // Update existing auto-debit
         const dto: UpdateAutoDebitDto = {
           amount: amountType === "fixed" ? parseFloat(fixedAmount) : null,
-          dayOfMonth: parseInt(dayOfMonth),
+          frequencyType,
+          dayOfMonth:
+            frequencyType === "monthly" || frequencyType === "biweekly"
+              ? parseInt(dayOfMonth)
+              : undefined,
+          dayOfWeek:
+            frequencyType === "weekly" || frequencyType === "biweekly"
+              ? parseInt(dayOfWeek)
+              : undefined,
           paymentMethod,
           enabled,
         };
@@ -119,7 +146,15 @@ export function AutoDebitForm({
           chamaId,
           cycleId,
           amount: amountType === "fixed" ? parseFloat(fixedAmount) : null,
-          dayOfMonth: parseInt(dayOfMonth),
+          frequencyType,
+          dayOfMonth:
+            frequencyType === "monthly" || frequencyType === "biweekly"
+              ? parseInt(dayOfMonth)
+              : undefined,
+          dayOfWeek:
+            frequencyType === "weekly" || frequencyType === "biweekly"
+              ? parseInt(dayOfWeek)
+              : undefined,
           paymentMethod,
         };
         await contributionApi.setupAutoDebit(dto);
@@ -244,28 +279,113 @@ export function AutoDebitForm({
             </div>
           )}
 
-          {/* Day of Month */}
+          {/* Frequency Type */}
           <div className="space-y-2">
-            <Label htmlFor="dayOfMonth" className="text-base">
-              Execution Day
+            <Label htmlFor="frequencyType" className="text-base">
+              Contribution Frequency
             </Label>
-            <Select value={dayOfMonth} onValueChange={setDayOfMonth}>
+            <Select
+              value={frequencyType}
+              onValueChange={(value) => setFrequencyType(value as any)}
+            >
               <SelectTrigger className="h-12">
-                <SelectValue placeholder="Select day" />
+                <SelectValue placeholder="Select frequency" />
               </SelectTrigger>
-              <SelectContent className="max-h-64">
-                {Array.from({ length: 28 }, (_, i) => i + 1).map((day) => (
-                  <SelectItem key={day} value={day.toString()}>
-                    Day {day} of every month
-                  </SelectItem>
-                ))}
+              <SelectContent>
+                <SelectItem value="daily">Daily</SelectItem>
+                <SelectItem value="2-day">Every 2 Days</SelectItem>
+                <SelectItem value="3-day">Every 3 Days</SelectItem>
+                <SelectItem value="weekly">Weekly</SelectItem>
+                <SelectItem value="biweekly">
+                  Bi-weekly (Every 2 weeks)
+                </SelectItem>
+                <SelectItem value="monthly">Monthly</SelectItem>
               </SelectContent>
             </Select>
-            <p className="text-sm text-gray-600">
-              <Calendar className="inline h-4 w-4 mr-1" />
-              Days limited to 1-28 to ensure execution in all months
-            </p>
           </div>
+
+          {/* Day of Week (for weekly/biweekly) */}
+          {(frequencyType === "weekly" || frequencyType === "biweekly") && (
+            <div className="space-y-2">
+              <Label htmlFor="dayOfWeek" className="text-base">
+                Day of Week
+              </Label>
+              <Select value={dayOfWeek} onValueChange={setDayOfWeek}>
+                <SelectTrigger className="h-12">
+                  <SelectValue placeholder="Select day" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="0">Sunday</SelectItem>
+                  <SelectItem value="1">Monday</SelectItem>
+                  <SelectItem value="2">Tuesday</SelectItem>
+                  <SelectItem value="3">Wednesday</SelectItem>
+                  <SelectItem value="4">Thursday</SelectItem>
+                  <SelectItem value="5">Friday</SelectItem>
+                  <SelectItem value="6">Saturday</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-sm text-gray-600">
+                <Calendar className="inline h-4 w-4 mr-1" />
+                Contributions will be processed on this day each{" "}
+                {frequencyType === "weekly" ? "week" : "two weeks"}
+              </p>
+            </div>
+          )}
+
+          {/* Day of Month (for monthly/biweekly) */}
+          {(frequencyType === "monthly" || frequencyType === "biweekly") && (
+            <div className="space-y-2">
+              <Label htmlFor="dayOfMonth" className="text-base">
+                {frequencyType === "monthly"
+                  ? "Day of Month"
+                  : "Day of Month (for biweekly cycle)"}
+              </Label>
+              <Select value={dayOfMonth} onValueChange={setDayOfMonth}>
+                <SelectTrigger className="h-12">
+                  <SelectValue placeholder="Select day" />
+                </SelectTrigger>
+                <SelectContent className="max-h-64">
+                  {Array.from({ length: 28 }, (_, i) => i + 1).map((day) => (
+                    <SelectItem key={day} value={day.toString()}>
+                      Day {day}{" "}
+                      {frequencyType === "monthly"
+                        ? "of every month"
+                        : "of biweekly cycle"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-sm text-gray-600">
+                <Calendar className="inline h-4 w-4 mr-1" />
+                Days limited to 1-28 to ensure execution in all months
+              </p>
+            </div>
+          )}
+
+          {/* Daily frequency info */}
+          {(frequencyType === "daily" ||
+            frequencyType === "2-day" ||
+            frequencyType === "3-day") && (
+            <div className="p-4 bg-blue-50 rounded-lg">
+              <div className="flex items-start space-x-3">
+                <Info className="h-5 w-5 text-blue-600 mt-0.5" />
+                <div>
+                  <p className="font-medium text-blue-900">
+                    {frequencyType === "daily" && "Daily Contributions"}
+                    {frequencyType === "2-day" && "Every 2 Days"}
+                    {frequencyType === "3-day" && "Every 3 Days"}
+                  </p>
+                  <p className="text-sm text-blue-700 mt-1">
+                    Your contributions will be processed
+                    {frequencyType === "daily" && " every day"}
+                    {frequencyType === "2-day" && " every 2 days"}
+                    {frequencyType === "3-day" && " every 3 days"} starting from
+                    the next execution date.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Payment Method */}
           <div className="space-y-3">

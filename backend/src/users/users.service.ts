@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 /* eslint-disable @typescript-eslint/no-unsafe-return */
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { LedgerService } from '../ledger/ledger.service';
 import { DatabaseService } from '../database/database.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -78,6 +78,42 @@ export class UsersService {
       ],
     );
     return { status: 'profile_saved' };
+  }
+
+  async getUserProfile(userId: string) {
+    console.log('getUserProfile called for userId:', userId);
+
+    try {
+      const result = await this.db.query(
+        `SELECT 
+          id, 
+          full_name, 
+          email, 
+          phone,
+          profile_photo_url,
+          bio,
+          dob,
+          website,
+          facebook,
+          twitter,
+          linkedin,
+          created_at
+        FROM users 
+        WHERE id = $1`,
+        [userId],
+      );
+
+      console.log('Query result rows:', result.rows.length);
+
+      if (result.rows.length === 0) {
+        throw new NotFoundException(`User with ID ${userId} not found`);
+      }
+
+      return result.rows[0];
+    } catch (error) {
+      console.error('Error in getUserProfile:', error);
+      throw error;
+    }
   }
 }
 

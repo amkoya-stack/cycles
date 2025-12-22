@@ -6,6 +6,7 @@ import {
   IsUUID,
   IsString,
   Min,
+  Max,
   IsBoolean,
 } from 'class-validator';
 
@@ -35,40 +36,43 @@ export class CreateContributionDto {
   @Min(0.01)
   amount: number;
 
-  @IsOptional()
+  @IsNotEmpty()
   @IsEnum(PaymentMethod)
-  paymentMethod?: PaymentMethod = PaymentMethod.WALLET;
+  paymentMethod: PaymentMethod;
 
   @IsOptional()
   @IsString()
-  mpesaPhone?: string; // For direct M-Pesa payments
+  mpesaPhone?: string; // Required if paymentMethod is MPESA_DIRECT
 
   @IsOptional()
   @IsString()
-  notes?: string;
+  externalReference?: string; // For idempotency
+
+  @IsOptional()
+  @IsString()
+  notes?: string; // Optional notes from user
+
+  @IsOptional()
+  @IsString()
+  comment?: string;
 }
 
-export class ContributionHistoryQueryDto {
+export class GetContributionHistoryDto {
   @IsOptional()
   @IsUUID()
   chamaId?: string;
 
   @IsOptional()
-  @IsUUID()
-  cycleId?: string;
-
-  @IsOptional()
-  @IsUUID()
-  memberId?: string;
+  @IsString()
+  status?: string; // 'pending', 'completed', 'failed'
 
   @IsOptional()
   @IsString()
-  status?: string;
+  dateFrom?: string; // ISO date string
 
   @IsOptional()
-  @IsNumber()
-  @Min(1)
-  page?: number = 1;
+  @IsString()
+  dateTo?: string; // ISO date string
 
   @IsOptional()
   @IsNumber()
@@ -79,13 +83,18 @@ export class ContributionHistoryQueryDto {
   @IsNumber()
   @Min(0)
   offset?: number = 0;
+
+  @IsOptional()
+  @IsString()
+  search?: string; // Search in reference or notes
+
+  @IsOptional()
+  @IsString()
+  comment?: string;
 }
 
-export class CycleContributionSummaryDto {
-  @IsNotEmpty()
-  @IsUUID()
-  cycleId: string;
-}
+// Alias for backward compatibility
+export class ContributionHistoryQueryDto extends GetContributionHistoryDto {}
 
 export class CreatePenaltyWaiverDto {
   @IsNotEmpty()
@@ -103,8 +112,12 @@ export class VotePenaltyWaiverDto {
   waiverRequestId: string;
 
   @IsNotEmpty()
-  @IsEnum(['approve', 'reject'])
-  vote: 'approve' | 'reject';
+  @IsBoolean()
+  approve: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  vote?: boolean;
 
   @IsOptional()
   @IsString()
@@ -134,9 +147,32 @@ export class SetupAutoDebitDto {
   fixedAmount?: number; // Required if amountType is 'fixed'
 
   @IsNotEmpty()
+  @IsEnum(['daily', '2-day', '3-day', 'weekly', 'biweekly', 'monthly'])
+  frequencyType:
+    | 'daily'
+    | '2-day'
+    | '3-day'
+    | 'weekly'
+    | 'biweekly'
+    | 'monthly';
+
+  @IsOptional()
   @IsNumber()
   @Min(1)
-  autoDebitDay: number; // Day of the cycle period (1-31)
+  @Max(31)
+  autoDebitDay?: number; // Day of month for monthly/biweekly
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(6)
+  dayOfWeek?: number; // Day of week for weekly/biweekly (0=Sunday, 6=Saturday)
+
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(30)
+  intervalDays?: number; // Interval for daily frequencies
 
   @IsOptional()
   @IsBoolean()
@@ -166,7 +202,30 @@ export class UpdateAutoDebitDto {
   fixedAmount?: number;
 
   @IsOptional()
+  @IsEnum(['daily', '2-day', '3-day', 'weekly', 'biweekly', 'monthly'])
+  frequencyType?:
+    | 'daily'
+    | '2-day'
+    | '3-day'
+    | 'weekly'
+    | 'biweekly'
+    | 'monthly';
+
+  @IsOptional()
   @IsNumber()
   @Min(1)
+  @Max(31)
   autoDebitDay?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(6)
+  dayOfWeek?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(30)
+  intervalDays?: number;
 }

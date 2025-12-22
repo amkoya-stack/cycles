@@ -261,6 +261,61 @@ export class NotificationService {
   }
 
   /**
+   * Mark notification as read
+   */
+  async markAsRead(notificationId: string, userId: string): Promise<void> {
+    await this.db.setUserContext(userId);
+
+    try {
+      await this.db.query(
+        `UPDATE notification_queue 
+         SET status = 'read', read_at = NOW() 
+         WHERE id = $1 AND user_id = $2 AND status = 'pending'`,
+        [notificationId, userId],
+      );
+    } finally {
+      await this.db.clearContext();
+    }
+  }
+
+  /**
+   * Mark all notifications as read for a user
+   */
+  async markAllAsRead(userId: string, chamaId?: string): Promise<void> {
+    await this.db.setUserContext(userId);
+
+    try {
+      let query = `UPDATE notification_queue 
+                   SET status = 'read', read_at = NOW() 
+                   WHERE user_id = $1 AND status = 'pending'`;
+      const params = [userId];
+
+      if (chamaId) {
+        query += ' AND chama_id = $2';
+        params.push(chamaId);
+      }
+
+      await this.db.query(query, params);
+    } finally {
+      await this.db.clearContext();
+    }
+  }
+
+  /**
+   * Create a test notification (for development/testing)
+   */
+  async createTestNotification(userId: string): Promise<string | null> {
+    return this.queueNotification({
+      userId,
+      channel: NotificationChannel.IN_APP,
+      priority: NotificationPriority.MEDIUM,
+      title: 'Test Notification',
+      message: 'This is a test notification to verify the system is working.',
+      metadata: { test: true, timestamp: new Date().toISOString() },
+    });
+  }
+
+  /**
    * Get or create notification preferences for user/chama
    */
   async getNotificationPreferences(userId: string, chamaId?: string) {

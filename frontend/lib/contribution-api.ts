@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // Backend API URL
 const BACKEND_URL = "http://localhost:3001/api";
 
@@ -150,13 +151,31 @@ export interface SetupAutoDebitDto {
   chamaId: string;
   cycleId: string;
   amount: number | null;
-  dayOfMonth: number;
+  dayOfMonth?: number; // For monthly/biweekly
+  dayOfWeek?: number; // For weekly/biweekly (0=Sunday, 1=Monday, etc.)
+  frequencyType:
+    | "daily"
+    | "2-day"
+    | "3-day"
+    | "weekly"
+    | "biweekly"
+    | "monthly";
+  intervalDays?: number; // For daily intervals
   paymentMethod: "wallet" | "mpesa_direct";
 }
 
 export interface UpdateAutoDebitDto {
   amount?: number | null;
   dayOfMonth?: number;
+  dayOfWeek?: number;
+  frequencyType?:
+    | "daily"
+    | "2-day"
+    | "3-day"
+    | "weekly"
+    | "biweekly"
+    | "monthly";
+  intervalDays?: number;
   paymentMethod?: "wallet" | "mpesa_direct";
   enabled?: boolean;
 }
@@ -178,12 +197,37 @@ export const contributionApi = {
     return response.data;
   },
 
-  // Get contribution history
+  // Get contribution history - now uses wallet transactions
   async getContributionHistory(query: ContributionHistoryQuery) {
-    const response = await apiClient.get("/chama/contributions", {
-      params: query,
+    const response = await apiClient.get("/wallet/transactions", {
+      params: {
+        type: "contribution",
+        limit: query.limit || 50,
+        offset: query.offset || 0,
+        ...query,
+      },
     });
-    return response.data;
+
+    // Transform wallet transaction response to match contribution history format
+    return {
+      contributions:
+        response.data.transactions?.map((tx: any) => ({
+          id: tx.id,
+          user_id: tx.user_id,
+          amount: Math.abs(tx.amount), // Make positive for display
+          status: tx.status,
+          contributed_at: tx.created_at || tx.completed_at,
+          transaction_reference: tx.reference,
+          chama_name: tx.description?.includes("to ")
+            ? tx.description.replace("Contribution to ", "")
+            : "Unknown Chama",
+          notes: tx.description,
+          payment_method: "wallet",
+        })) || [],
+      total: response.data.count || 0,
+      limit: query.limit || 50,
+      offset: query.offset || 0,
+    };
   },
 
   // Get cycle summary

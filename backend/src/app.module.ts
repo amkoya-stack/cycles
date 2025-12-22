@@ -14,6 +14,7 @@ import { AdminModule } from './admin/admin.module';
 import { ReputationModule } from './reputation/reputation.module';
 import { ActivityModule } from './activity/activity.module';
 import { GovernanceModule } from './governance/governance.module';
+import { ChatModule } from './chat/chat.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -42,6 +43,7 @@ import { AppService } from './app.service';
     ReputationModule,
     ActivityModule,
     GovernanceModule,
+    ChatModule,
   ],
   controllers: [AppController],
   providers: [AppService],

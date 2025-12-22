@@ -18,6 +18,8 @@ import { ActivityFeed } from "@/components/chama/activity-feed";
 import { GovernanceSection } from "@/components/governance/governance-section";
 import { CommunityPosts } from "@/components/chama/community-posts";
 import { ActivePollsSidebar } from "@/components/chama/active-polls-sidebar";
+import { ChamaDepositModal } from "@/components/chama/chama-deposit-modal";
+import { ChamaTransferModal } from "@/components/chama/chama-transfer-modal";
 import {
   Users,
   Calendar,
@@ -79,7 +81,31 @@ type TabType =
   | "activity"
   | "documents"
   | "settings"
+  | "reputation"
   | "about";
+
+interface UserChama {
+  id: string;
+  name: string;
+  current_balance?: number;
+}
+
+interface ChamaTransaction {
+  id: string;
+  reference: string;
+  description: string;
+  status: string;
+  created_at: string;
+  completed_at?: string;
+  transaction_type: string;
+  transaction_name: string;
+  amount: number;
+  direction: "debit" | "credit";
+  balance_before?: number;
+  balance_after?: number;
+  counterparty_name?: string;
+  counterparty_type?: string;
+}
 
 export default function CycleBySlugPage() {
   const router = useRouter();
@@ -105,6 +131,19 @@ export default function CycleBySlugPage() {
   const [uploadingImage, setUploadingImage] = useState(false);
   const tabContainerRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  // Chama wallet modals
+  const [showChamaDeposit, setShowChamaDeposit] = useState(false);
+  const [showChamaTransfer, setShowChamaTransfer] = useState(false);
+  const [userChamas, setUserChamas] = useState<UserChama[]>([]);
+  const [chamaMembers, setChamaMembers] = useState<
+    { user_id: string; full_name: string; phone?: string }[]
+  >([]);
+  const [chamaTransactions, setChamaTransactions] = useState<
+    ChamaTransaction[]
+  >([]);
+  const [loadingTransactions, setLoadingTransactions] = useState(false);
+  const [showAllTransactions, setShowAllTransactions] = useState(false);
 
   useEffect(() => {
     const fetchChamaBySlug = async () => {
@@ -195,14 +234,125 @@ export default function CycleBySlugPage() {
     }
   }, [slug]);
 
+  // Fetch user's chamas for transfer modal
+  useEffect(() => {
+    const fetchUserChamas = async () => {
+      try {
+        const accessToken = localStorage.getItem("accessToken");
+        if (!accessToken) return;
+
+        const response = await fetch("http://localhost:3001/api/chama", {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+
+        if (response.ok) {
+          const chamas = await response.json();
+          setUserChamas(chamas);
+        }
+      } catch (err) {
+        console.error("Failed to fetch user chamas:", err);
+      }
+    };
+
+    fetchUserChamas();
+  }, []);
+
+  // Fetch chama members for transfer to user
+  useEffect(() => {
+    const fetchChamaMembers = async () => {
+      if (!chama?.id || !chama?.is_member) return;
+      try {
+        const accessToken = localStorage.getItem("accessToken");
+        if (!accessToken) return;
+
+        const response = await fetch(
+          `http://localhost:3001/api/chama/${chama.id}/members`,
+          {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          }
+        );
+
+        if (response.ok) {
+          const members = await response.json();
+          setChamaMembers(
+            members.map((m: any) => ({
+              user_id: m.user_id,
+              full_name: m.full_name || m.name,
+              phone: m.phone,
+            }))
+          );
+        }
+      } catch (err) {
+        console.error("Failed to fetch chama members:", err);
+      }
+    };
+
+    fetchChamaMembers();
+  }, [chama?.id, chama?.is_member]);
+
+  // Refresh chama data after deposit/transfer
+  const refreshChamaData = async () => {
+    if (!chama) return;
+    try {
+      const accessToken = localStorage.getItem("accessToken");
+      const response = await fetch(
+        `http://localhost:3001/api/chama/${chama.id}`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
+      );
+      if (response.ok) {
+        const data = await response.json();
+        setChama(data);
+      }
+      // Also refresh transactions
+      fetchChamaTransactions();
+    } catch (err) {
+      console.error("Failed to refresh chama data:", err);
+    }
+  };
+
+  // Fetch chama transaction history
+  const fetchChamaTransactions = async () => {
+    if (!chama) return;
+    setLoadingTransactions(true);
+    try {
+      const accessToken = localStorage.getItem("accessToken");
+      if (!accessToken) return;
+
+      const response = await fetch(
+        `http://localhost:3001/api/ledger/chama/${chama.id}/transactions?limit=20`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        setChamaTransactions(data.transactions || []);
+      }
+    } catch (err) {
+      console.error("Failed to fetch chama transactions:", err);
+    } finally {
+      setLoadingTransactions(false);
+    }
+  };
+
+  // Fetch transactions when financials tab is active
+  useEffect(() => {
+    if (activeTab === "financials" && chama?.id) {
+      fetchChamaTransactions();
+    }
+  }, [activeTab, chama?.id]);
+
   const getJoinButtonText = () => {
     if (isJoining) return "Processing...";
-    if (chama.has_pending_request) return "Request Sent";
-    return chama.is_public ? "Join Cycle" : "Request to Join";
+    if (chama?.has_pending_request) return "Request Sent";
+    return chama?.is_public ? "Join Cycle" : "Request to Join";
   };
 
   const getJoinButtonDisabled = () => {
-    return isJoining || chama.has_pending_request;
+    return isJoining || chama?.has_pending_request;
   };
 
   const handleJoinCycle = async () => {
@@ -601,20 +751,16 @@ export default function CycleBySlugPage() {
                 {userRole === "admin" && (
                   <div className="flex gap-2">
                     <Button
-                      onClick={() =>
-                        alert("Deposit to chama wallet - Coming soon!")
-                      }
-                      className="bg-white/20 hover:bg-white/30 border border-white/30"
+                      onClick={() => setShowChamaDeposit(true)}
+                      className="bg-white/20 hover:bg-white/30 border border-white/30 cursor-pointer"
                       size="sm"
                     >
                       <ArrowDownToLine className="w-4 h-4 mr-2" />
                       Deposit
                     </Button>
                     <Button
-                      onClick={() =>
-                        alert("Transfer from chama wallet - Coming soon!")
-                      }
-                      className="bg-white/20 hover:bg-white/30 border border-white/30"
+                      onClick={() => setShowChamaTransfer(true)}
+                      className="bg-white/20 hover:bg-white/30 border border-white/30 cursor-pointer"
                       size="sm"
                     >
                       <Send className="w-4 h-4 mr-2" />
@@ -701,20 +847,101 @@ export default function CycleBySlugPage() {
                     <div className="w-10 h-10 bg-[#083232] rounded-lg flex items-center justify-center">
                       <History className="w-5 h-5 text-white" />
                     </div>
-                    <h3 className="text-lg font-semibold text-gray-900">
-                      Transaction History
-                    </h3>
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900">
+                        Transaction History
+                      </h3>
+                      {chamaTransactions.length > 0 && (
+                        <p className="text-xs text-gray-500">
+                          {showAllTransactions
+                            ? `Showing all ${chamaTransactions.length} transactions`
+                            : `Showing ${Math.min(
+                                5,
+                                chamaTransactions.length
+                              )} of ${chamaTransactions.length}`}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                  <Button variant="outline" size="sm">
-                    View All
-                  </Button>
+                  {chamaTransactions.length > 5 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="cursor-pointer"
+                      onClick={() =>
+                        setShowAllTransactions(!showAllTransactions)
+                      }
+                    >
+                      {showAllTransactions ? "Show Less" : "View All"}
+                    </Button>
+                  )}
                 </div>
               </div>
-              <div className="p-6">
-                <p className="text-center text-gray-500 py-8">
-                  No transactions yet. Transactions will appear here once
-                  members start contributing.
-                </p>
+              <div className="divide-y">
+                {loadingTransactions ? (
+                  <div className="p-6 text-center text-gray-500">
+                    Loading transactions...
+                  </div>
+                ) : chamaTransactions.length === 0 ? (
+                  <div className="p-6 text-center text-gray-500">
+                    No transactions yet. Transactions will appear here once
+                    members start contributing.
+                  </div>
+                ) : (
+                  (showAllTransactions
+                    ? chamaTransactions
+                    : chamaTransactions.slice(0, 5)
+                  ).map((tx) => (
+                    <div
+                      key={tx.id}
+                      className="p-4 hover:bg-gray-50 transition-colors"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                              tx.direction === "credit"
+                                ? "bg-green-100"
+                                : "bg-red-100"
+                            }`}
+                          >
+                            {tx.direction === "credit" ? (
+                              <ArrowDownToLine className="w-5 h-5 text-green-600" />
+                            ) : (
+                              <Send className="w-5 h-5 text-red-600" />
+                            )}
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-900">
+                              {tx.transaction_name}
+                            </p>
+                            <p className="text-sm text-gray-500">
+                              {tx.counterparty_name || tx.description}
+                            </p>
+                            <p className="text-xs text-gray-400">
+                              {new Date(tx.created_at).toLocaleString()}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p
+                            className={`font-semibold ${
+                              tx.direction === "credit"
+                                ? "text-green-600"
+                                : "text-red-600"
+                            }`}
+                          >
+                            {tx.direction === "credit" ? "+" : "-"} KSh{" "}
+                            {formatAmount(tx.amount)}
+                          </p>
+                          <p className="text-xs text-gray-400">
+                            {tx.status === "completed" ? "✓" : tx.status}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </Card>
           </div>
@@ -1033,7 +1260,9 @@ export default function CycleBySlugPage() {
               return (
                 <button
                   key={tab.id}
-                  ref={(el) => (tabRefs.current[index] = el)}
+                  ref={(el) => {
+                    tabRefs.current[index] = el;
+                  }}
                   onClick={() => {
                     setActiveTab(tab.id);
                     // Update URL with tab parameter
@@ -1097,6 +1326,27 @@ export default function CycleBySlugPage() {
           </Card>
         </div>
       )}
+
+      {/* Chama Deposit Modal */}
+      <ChamaDepositModal
+        isOpen={showChamaDeposit}
+        chamaId={chama?.id || ""}
+        chamaName={chama?.name || ""}
+        onClose={() => setShowChamaDeposit(false)}
+        onSuccess={refreshChamaData}
+      />
+
+      {/* Chama Transfer Modal */}
+      <ChamaTransferModal
+        isOpen={showChamaTransfer}
+        sourceChamaId={chama?.id || ""}
+        sourceChamaName={chama?.name || ""}
+        sourceChamaBalance={chama?.current_balance || 0}
+        userChamas={userChamas}
+        chamaMembers={chamaMembers}
+        onClose={() => setShowChamaTransfer(false)}
+        onSuccess={refreshChamaData}
+      />
 
       <Footer />
     </div>
