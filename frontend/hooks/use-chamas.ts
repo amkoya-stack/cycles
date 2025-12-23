@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 
 export function useChamas() {
   const [chamas, setChamas] = useState<any[]>([]);
@@ -64,6 +64,11 @@ export function useChamas() {
       setLoading(false);
     }
   }, []);
+
+  // Auto-fetch chamas when hook is used
+  useEffect(() => {
+    fetchChamas();
+  }, [fetchChamas]);
 
   return { chamas, loading, fetchChamas };
 }

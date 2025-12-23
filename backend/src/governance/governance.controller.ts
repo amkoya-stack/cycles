@@ -170,4 +170,16 @@ export class GovernanceController {
   ) {
     return this.governanceService.cancelProposal(proposalId, req.user.id);
   }
+
+  /**
+   * Pin/unpin a proposal
+   * POST /api/governance/proposals/:proposalId/pin
+   */
+  @Post('proposals/:proposalId/pin')
+  async toggleProposalPin(
+    @Req() req: any,
+    @Param('proposalId') proposalId: string,
+  ) {
+    return this.governanceService.toggleProposalPin(proposalId, req.user.id);
+  }
 }

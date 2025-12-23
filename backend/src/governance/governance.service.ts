@@ -41,6 +41,7 @@ export enum VotingType {
   UNANIMOUS = 'unanimous',
   WEIGHTED_BY_ROLE = 'weighted_by_role',
   WEIGHTED_BY_CONTRIBUTION = 'weighted_by_contribution',
+  WEIGHTED_BY_REPUTATION = 'weighted_by_reputation',
 }
 
 export enum VoteChoice {
@@ -1351,5 +1352,56 @@ export class GovernanceService {
 
     await this.db.clearContext();
     return { success: true };
+  }
+
+  /**
+   * Toggle pin status of a proposal (admin/chairperson only)
+   */
+  async toggleProposalPin(proposalId: string, userId: string) {
+    try {
+      await this.db.setUserContext(userId);
+
+      // Get proposal and verify permissions
+      const proposalResult = await this.db.query(
+        `SELECT p.*, cm.role 
+         FROM proposals p
+         JOIN chama_members cm ON p.chama_id = cm.chama_id 
+         WHERE p.id = $1 AND cm.user_id = $2 AND cm.status = 'active'`,
+        [proposalId, userId],
+      );
+
+      if (proposalResult.rows.length === 0) {
+        throw new BadRequestException(
+          'Proposal not found or insufficient permissions',
+        );
+      }
+
+      const proposal = proposalResult.rows[0];
+
+      // Only admin, chairperson, or treasurer can pin/unpin
+      if (!['admin', 'chairperson', 'treasurer'].includes(proposal.role)) {
+        throw new BadRequestException(
+          'Only administrators can pin/unpin proposals',
+        );
+      }
+
+      // Toggle pinned status
+      const updateResult = await this.db.query(
+        `UPDATE proposals 
+         SET pinned = NOT COALESCE(pinned, false),
+             updated_at = NOW()
+         WHERE id = $1 
+         RETURNING pinned`,
+        [proposalId],
+      );
+
+      const { pinned } = updateResult.rows[0];
+
+      await this.db.clearContext();
+      return { pinned };
+    } catch (error) {
+      await this.db.clearContext();
+      throw error;
+    }
   }
 }

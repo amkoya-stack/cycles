@@ -15,10 +15,10 @@ import { TransactionHistory } from "@/components/wallet/TransactionHistory";
 import { DepositModal } from "@/components/wallet/DepositModal";
 import { WithdrawModal } from "@/components/wallet/WithdrawModal";
 import { TransferModal } from "@/components/wallet/TransferModal";
+import { RequestModal } from "@/components/wallet/RequestModal";
 import { AutoDebitForm } from "@/components/chama/auto-debit-form";
-import { PenaltyManagement } from "@/components/chama/penalty-management";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { History, Calendar, AlertCircle } from "lucide-react";
+import { History, Calendar } from "lucide-react";
 
 interface Transaction {
   id: string;
@@ -46,6 +46,7 @@ export default function WalletPage() {
   const [showDeposit, setShowDeposit] = useState(false);
   const [showWithdraw, setShowWithdraw] = useState(false);
   const [showTransfer, setShowTransfer] = useState(false);
+  const [showRequest, setShowRequest] = useState(false);
 
   // Form states
   const [depositPhone, setDepositPhone] = useState("");
@@ -605,7 +606,7 @@ export default function WalletPage() {
             balance={balance}
             onDeposit={() => setShowDeposit(true)}
             onWithdraw={() => setShowWithdraw(true)}
-            onRequest={() => alert("Request money feature coming soon!")}
+            onRequest={() => setShowRequest(true)}
             onReceipts={() => alert("Receipts feature coming soon!")}
             onBalanceUpdate={fetchBalance}
           />
@@ -685,24 +686,7 @@ export default function WalletPage() {
             }}
           />
 
-          {/* Contributions Section */}
-          <Card className="p-4 mb-4">
-            <Tabs defaultValue="penalties" className="w-full">
-              <TabsList className="grid w-full grid-cols-1 mb-4">
-                <TabsTrigger
-                  value="penalties"
-                  className="data-[state=active]:bg-[#083232] data-[state=active]:text-white"
-                >
-                  <AlertCircle className="h-4 w-4 mr-2" />
-                  Penalties
-                </TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="penalties">
-                <PenaltyManagement />
-              </TabsContent>
-            </Tabs>
-          </Card>
+          {/* Contributions Section can be added here if needed for chama-specific functionality */}
 
           <TransactionHistory
             transactions={transactions}
@@ -748,6 +732,16 @@ export default function WalletPage() {
           }}
           onSubmit={handleTransfer}
           isLoading={actionLoading}
+        />
+
+        <RequestModal
+          isOpen={showRequest}
+          onClose={() => setShowRequest(false)}
+          coMembers={coMembers}
+          onRequestSent={() => {
+            // Optionally refresh notifications or show success
+            console.log("Request sent successfully");
+          }}
         />
 
         <Footer />

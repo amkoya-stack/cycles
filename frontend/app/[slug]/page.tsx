@@ -20,6 +20,7 @@ import { CommunityPosts } from "@/components/chama/community-posts";
 import { ActivePollsSidebar } from "@/components/chama/active-polls-sidebar";
 import { ChamaDepositModal } from "@/components/chama/chama-deposit-modal";
 import { ChamaTransferModal } from "@/components/chama/chama-transfer-modal";
+import { useNotifications } from "@/hooks/use-notifications";
 import {
   Users,
   Calendar,
@@ -42,6 +43,8 @@ import {
   History,
   ArrowDownToLine,
   Send,
+  Check,
+  X,
 } from "lucide-react";
 
 interface ChamaDetails {
@@ -144,6 +147,9 @@ export default function CycleBySlugPage() {
   >([]);
   const [loadingTransactions, setLoadingTransactions] = useState(false);
   const [showAllTransactions, setShowAllTransactions] = useState(false);
+
+  // Fund request notifications
+  const { fundRequests, unreadCount, respondToRequest } = useNotifications();
 
   useEffect(() => {
     const fetchChamaBySlug = async () => {
@@ -769,18 +775,6 @@ export default function CycleBySlugPage() {
                   </div>
                 )}
               </div>
-              <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/20">
-                <div>
-                  <p className="text-xs opacity-75 mb-1">Total Contributions</p>
-                  <p className="text-xl font-semibold">
-                    KSh {formatAmount(chama.total_contributions)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs opacity-75 mb-1">Next Payout</p>
-                  <p className="text-xl font-semibold">TBD</p>
-                </div>
-              </div>
             </div>
 
             {/* Quick Stats Grid */}
@@ -797,6 +791,89 @@ export default function CycleBySlugPage() {
                     <p className="text-xs text-gray-500 mt-1">
                       Ready for payout
                     </p>
+
+                    {/* Fund Request Notifications for this Chama */}
+                    {fundRequests.filter(
+                      (req) =>
+                        req.chama_id === chama.id && req.status === "pending"
+                    ).length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-gray-200">
+                        <p className="text-xs text-orange-600 font-medium mb-2">
+                          Pending Fund Requests (
+                          {
+                            fundRequests.filter(
+                              (req) =>
+                                req.chama_id === chama.id &&
+                                req.status === "pending"
+                            ).length
+                          }
+                          )
+                        </p>
+                        <div className="space-y-2 max-h-32 overflow-y-auto">
+                          {fundRequests
+                            .filter(
+                              (req) =>
+                                req.chama_id === chama.id &&
+                                req.status === "pending"
+                            )
+                            .slice(0, 3)
+                            .map((request) => (
+                              <div
+                                key={request.id}
+                                className="bg-orange-50 p-2 rounded-lg border border-orange-200"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-medium text-gray-900 truncate">
+                                      {request.requester_name}
+                                    </p>
+                                    <p className="text-xs text-gray-600 truncate">
+                                      KSh {formatAmount(request.amount)}
+                                    </p>
+                                  </div>
+                                  <div className="flex gap-1 ml-2">
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="h-6 w-6 p-0 text-green-600 hover:bg-green-100"
+                                      onClick={() =>
+                                        respondToRequest(request.id, "approve")
+                                      }
+                                    >
+                                      <Check className="h-3 w-3" />
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="h-6 w-6 p-0 text-red-600 hover:bg-red-100"
+                                      onClick={() =>
+                                        respondToRequest(request.id, "decline")
+                                      }
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          {fundRequests.filter(
+                            (req) =>
+                              req.chama_id === chama.id &&
+                              req.status === "pending"
+                          ).length > 3 && (
+                            <p className="text-xs text-gray-500 text-center">
+                              +
+                              {fundRequests.filter(
+                                (req) =>
+                                  req.chama_id === chama.id &&
+                                  req.status === "pending"
+                              ).length - 3}{" "}
+                              more
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <div className="bg-green-100 p-3 rounded-xl">
                     <Wallet className="w-6 h-6 text-green-600" />

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   MessageSquare,
   ThumbsUp,
@@ -19,6 +19,8 @@ import {
   Pin,
   Circle,
   CheckCircle2,
+  Mic,
+  X,
 } from "lucide-react";
 import {
   Tooltip,
@@ -33,6 +35,14 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
 
@@ -102,6 +112,10 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<{
+    fullName: string;
+    avatar?: string;
+  } | null>(null);
   const [newPostContent, setNewPostContent] = useState("");
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyContent, setReplyContent] = useState("");
@@ -114,7 +128,14 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaInputRef = useRef<HTMLInputElement>(null);
   const [pollQuestion, setPollQuestion] = useState("");
+  const [pollType, setPollType] = useState("");
   const [pollOptions, setPollOptions] = useState(["Option 1", "Option 2"]);
+  const [showMeetingDialog, setShowMeetingDialog] = useState(false);
+  const [meetingTitle, setMeetingTitle] = useState("");
+  const [whoCanSpeak, setWhoCanSpeak] = useState("everyone");
+  const [recordSpace, setRecordSpace] = useState(false);
+  const [startNow, setStartNow] = useState(true);
+  const [scheduledTime, setScheduledTime] = useState("");
   const [pollDescription, setPollDescription] = useState("");
   const [pollDeadlineHours, setPollDeadlineHours] = useState(24); // Default 24 hours
   const [creatingPoll, setCreatingPoll] = useState(false);
@@ -128,12 +149,52 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
     { label: "7d", hours: 168 },
   ];
 
+  // Poll type options
+  const pollTypes = [
+    "Use chama funds (withdrawal)",
+    "Accept/reject new member",
+    "Change contribution amount/frequency",
+    "Make group investment",
+    "Expel member",
+    "Update constitution",
+    "Change member roles",
+    "Approve large loans",
+    "Dissolve chama",
+    "General poll",
+  ];
+
   const getAuthToken = () => {
     if (typeof window !== "undefined") {
       return localStorage.getItem("accessToken");
     }
     return null;
   };
+
+  // Fetch current user profile
+  useEffect(() => {
+    const fetchCurrentUser = async () => {
+      try {
+        const token = getAuthToken();
+        const response = await fetch(`${API_URL}/auth/profile`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (response.ok) {
+          const userData = await response.json();
+          setCurrentUser({
+            fullName: userData.full_name || "You",
+            avatar: userData.profile_photo_url,
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching user profile:", error);
+      }
+    };
+
+    fetchCurrentUser();
+  }, []);
 
   const fetchPosts = useCallback(async () => {
     try {
@@ -348,7 +409,8 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
               votes: voteBreakdown,
               userVote: userVotedOption,
               edited: false,
-              pinned: false,
+              pinned: p.pinned || false,
+              pinnedAt: p.pinned_at,
               createdAt: p.created_at,
               updatedAt: p.updated_at,
               metadata: p.metadata,
@@ -583,16 +645,32 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
   const handleTogglePin = async (postId: string) => {
     try {
       const token = getAuthToken();
+      const post = posts.find((p) => p.id === postId);
 
-      const response = await fetch(
-        `${API_URL}/chama/${chamaId}/community/posts/${postId}/pin`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      let response;
+      if (post?.isPoll && post?.proposalId) {
+        // Handle governance proposal (poll) pinning
+        response = await fetch(
+          `${API_URL}/governance/proposals/${post.proposalId}/pin`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+      } else {
+        // Handle regular community post pinning
+        response = await fetch(
+          `${API_URL}/chama/${chamaId}/community/posts/${postId}/pin`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+      }
 
       if (!response.ok) {
         throw new Error("Failed to pin/unpin post");
@@ -897,6 +975,10 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
       >
         <div className="flex gap-3">
           <Avatar className="w-8 h-8 flex-shrink-0">
+            <AvatarImage
+              src={reply.author.avatar}
+              alt={reply.author.fullName}
+            />
             <AvatarFallback className="bg-[#2e856e] text-white text-xs">
               {getInitials(reply.author.fullName)}
             </AvatarFallback>
@@ -1030,8 +1112,12 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
       <Card className="p-3">
         <div className="flex gap-2">
           <Avatar className="w-8 h-8 flex-shrink-0">
+            <AvatarImage
+              src={currentUser?.avatar}
+              alt={currentUser?.fullName || "You"}
+            />
             <AvatarFallback className="bg-[#083232] text-white text-xs">
-              Y
+              {currentUser?.fullName ? getInitials(currentUser.fullName) : "Y"}
             </AvatarFallback>
           </Avatar>
           <div className="flex-1">
@@ -1153,6 +1239,23 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
                     <div className="space-y-3 py-2">
                       <div>
                         <label className="text-xs font-medium text-gray-500">
+                          Poll Type
+                        </label>
+                        <Select value={pollType} onValueChange={setPollType}>
+                          <SelectTrigger className="mt-1 h-9">
+                            <SelectValue placeholder="Select poll type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {pollTypes.map((type) => (
+                              <SelectItem key={type} value={type}>
+                                {type}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-500">
                           Question
                         </label>
                         <Input
@@ -1202,7 +1305,7 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => removePollOption(index)}
-                                  className="h-8 w-8 p-0 text-gray-400 hover:text-red-500"
+                                  className="h-8 w-8 p-0 text-gray-400 hover:text-red-500 cursor-pointer"
                                 >
                                   ✕
                                 </Button>
@@ -1222,7 +1325,9 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
                       <Button
                         className="w-full bg-[#083232] hover:bg-[#2e856e] h-9 text-sm"
                         onClick={handleCreatePoll}
-                        disabled={!pollQuestion.trim() || creatingPoll}
+                        disabled={
+                          !pollQuestion.trim() || !pollType || creatingPoll
+                        }
                       >
                         {creatingPoll ? (
                           <>
@@ -1233,6 +1338,159 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
                           "Create Poll"
                         )}
                       </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+
+                {/* Voice Recording/Meeting */}
+                <Dialog open={showMeetingDialog} onOpenChange={setShowMeetingDialog}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <DialogTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 text-gray-500 hover:text-[#083232] hover:bg-gray-100"
+                        >
+                          <Mic className="w-4 h-4" />
+                        </Button>
+                      </DialogTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">
+                      <p>Create a meeting</p>
+                    </TooltipContent>
+                  </Tooltip>
+                  <DialogContent className="max-w-md">
+                    <DialogHeader>
+                      <DialogTitle className="text-lg font-semibold">
+                        Create a Meeting
+                      </DialogTitle>
+                      <button
+                        onClick={() => setShowMeetingDialog(false)}
+                        className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-offset-2 hover:cursor-pointer cursor-pointer"
+                        style={{ cursor: 'pointer !important' }}
+                      >
+                        <X className="h-4 w-4 cursor-pointer" />
+                        <span className="sr-only">Close</span>
+                      </button>
+                    </DialogHeader>
+                    <div className="space-y-6 py-4">
+                      {/* Meeting Title */}
+                      <div className="space-y-2">
+                        <Label htmlFor="meeting-title" className="text-sm font-medium">
+                          Meeting Title
+                        </Label>
+                        <Input
+                          id="meeting-title"
+                          placeholder="Enter meeting title..."
+                          value={meetingTitle}
+                          onChange={(e) => setMeetingTitle(e.target.value)}
+                          className="w-full"
+                        />
+                      </div>
+
+                      {/* Who Can Speak */}
+                      <div className="space-y-3">
+                        <Label className="text-sm font-medium">
+                          Who can speak?
+                        </Label>
+                        <div className="space-y-2">
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="radio"
+                              id="everyone"
+                              name="whoCanSpeak"
+                              value="everyone"
+                              checked={whoCanSpeak === "everyone"}
+                              onChange={(e) => setWhoCanSpeak(e.target.value)}
+                              className="w-4 h-4 text-[#083232] border-gray-300 focus:ring-[#083232]"
+                            />
+                            <Label htmlFor="everyone" className="text-sm text-gray-700">
+                              Everyone in this chama
+                            </Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="radio"
+                              id="selected"
+                              name="whoCanSpeak"
+                              value="selected"
+                              checked={whoCanSpeak === "selected"}
+                              onChange={(e) => setWhoCanSpeak(e.target.value)}
+                              className="w-4 h-4 text-[#083232] border-gray-300 focus:ring-[#083232]"
+                            />
+                            <Label htmlFor="selected" className="text-sm text-gray-700">
+                              Only people I invite to speak
+                            </Label>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Record Space Toggle */}
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm font-medium">
+                          Record Space
+                        </Label>
+                        <button
+                          onClick={() => setRecordSpace(!recordSpace)}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#083232] focus:ring-offset-2 ${
+                            recordSpace ? 'bg-[#083232]' : 'bg-gray-200'
+                          }`}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                              recordSpace ? 'translate-x-6' : 'translate-x-1'
+                            }`}
+                          />
+                        </button>
+                      </div>
+
+                      {/* Start Time Options */}
+                      <div className="space-y-3">
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="radio"
+                            id="start-now"
+                            name="startTime"
+                            checked={startNow}
+                            onChange={() => setStartNow(true)}
+                            className="w-4 h-4 text-[#083232] border-gray-300 focus:ring-[#083232]"
+                          />
+                          <Label htmlFor="start-now" className="text-sm text-gray-700">
+                            Start Now
+                          </Label>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="radio"
+                              id="schedule"
+                              name="startTime"
+                              checked={!startNow}
+                              onChange={() => setStartNow(false)}
+                              className="w-4 h-4 text-[#083232] border-gray-300 focus:ring-[#083232]"
+                            />
+                            <Label htmlFor="schedule" className="text-sm text-gray-700">
+                              Schedule for later
+                            </Label>
+                          </div>
+                          {!startNow && (
+                            <Input
+                              type="datetime-local"
+                              value={scheduledTime}
+                              onChange={(e) => setScheduledTime(e.target.value)}
+                              className="ml-6 w-full"
+                            />
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Auto-start logic for immediate meetings */}
+                      {startNow && meetingTitle.trim() && (
+                        <div className="text-sm text-green-600 bg-green-50 p-3 rounded-lg">
+                          Meeting will start automatically when created
+                        </div>
+                      )}
                     </div>
                   </DialogContent>
                 </Dialog>
@@ -1284,6 +1542,10 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
               )}
               <div className="flex gap-2">
                 <Avatar className="w-8 h-8 flex-shrink-0">
+                  <AvatarImage
+                    src={post.author.avatar}
+                    alt={post.author.fullName}
+                  />
                   <AvatarFallback className="bg-[#2e856e] text-white text-xs">
                     {getInitials(post.author.fullName)}
                   </AvatarFallback>

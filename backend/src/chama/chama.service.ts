@@ -746,34 +746,53 @@ export class ChamaService {
    * List pending join requests (admin only)
    */
   async listJoinRequests(userId: string, chamaId: string): Promise<any> {
-    // Check if user is chairperson or admin of this chama
-    const member = await this.getMemberRole(userId, chamaId);
-    if (member.role !== 'chairperson' && member.role !== 'admin') {
-      throw new ForbiddenException(
-        'Only chairperson or admin can view join requests',
+    try {
+      console.log(
+        `[listJoinRequests] Checking permissions for user ${userId} in chama ${chamaId}`,
       );
+
+      // Check if user is chairperson or admin of this chama
+      const member = await this.getMemberRole(userId, chamaId);
+      console.log(`[listJoinRequests] User role: ${member.role}`);
+
+      if (member.role !== 'chairperson' && member.role !== 'admin') {
+        throw new ForbiddenException(
+          'Only chairperson or admin can view join requests',
+        );
+      }
+
+      console.log(
+        `[listJoinRequests] Fetching join requests for chama ${chamaId}`,
+      );
+
+      // Get pending join requests
+      const requests = await this.db.query(
+        `SELECT 
+          mr.id,
+          mr.requested_at,
+          u.id as user_id,
+          u.full_name as user_name,
+          u.email as user_email,
+          u.phone as user_phone,
+          'pending' as status
+        FROM membership_requests mr
+        JOIN users u ON mr.requester_id = u.id
+        WHERE mr.chama_id = $1 
+          AND mr.status = 'pending'
+          AND mr.expires_at > NOW() -- Only active requests
+        ORDER BY mr.requested_at DESC`,
+        [chamaId],
+      );
+
+      console.log(
+        `[listJoinRequests] Found ${requests.rows.length} join requests`,
+      );
+      return requests.rows;
+    } catch (error) {
+      console.error(`[listJoinRequests] Error:`, error.message);
+      console.error(`[listJoinRequests] Stack:`, error.stack);
+      throw error;
     }
-
-    // Get pending join requests
-    const requests = await this.db.query(
-      `SELECT 
-        mr.id,
-        mr.created_at as requested_at,
-        u.id as user_id,
-        u.full_name as user_name,
-        u.email as user_email,
-        u.phone as user_phone,
-        'pending' as status
-      FROM membership_requests mr
-      JOIN users u ON mr.requester_id = u.id
-      WHERE mr.chama_id = $1 
-        AND mr.status = 'pending'
-        AND mr.expires_at > NOW() -- Only active requests
-      ORDER BY mr.created_at DESC`,
-      [chamaId],
-    );
-
-    return requests.rows;
   }
 
   /**
@@ -1356,16 +1375,32 @@ export class ChamaService {
    * Get member role in chama
    */
   private async getMemberRole(userId: string, chamaId: string): Promise<any> {
+    console.log(
+      `[getMemberRole] Checking membership for user ${userId} in chama ${chamaId}`,
+    );
+
     const result = await this.db.query(
       "SELECT * FROM chama_members WHERE chama_id = $1 AND user_id = $2 AND status = 'active'",
       [chamaId, userId],
     );
 
+    console.log(
+      `[getMemberRole] Found ${result.rows.length} active memberships`,
+    );
+
     if (result.rows.length === 0) {
+      console.log(
+        `[getMemberRole] User ${userId} is not an active member of chama ${chamaId}`,
+      );
       throw new ForbiddenException('You are not a member of this chama');
     }
 
-    return result.rows[0];
+    const member = result.rows[0];
+    console.log(
+      `[getMemberRole] User ${userId} has role: ${member.role} in chama ${chamaId}`,
+    );
+
+    return member;
   }
 
   /**
@@ -1892,7 +1927,7 @@ export class ChamaService {
 
     // Get all members from these chamas, excluding the current user
     const coMembers = await this.db.query(
-      `SELECT DISTINCT u.id, u.full_name, u.phone, u.email
+      `SELECT DISTINCT u.id, u.full_name, u.phone, u.email, u.profile_photo_url
        FROM users u
        INNER JOIN chama_members cm ON u.id = cm.user_id
        WHERE cm.chama_id = ANY($1)

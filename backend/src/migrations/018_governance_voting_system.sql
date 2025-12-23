@@ -24,7 +24,8 @@ CREATE TYPE voting_type AS ENUM (
   'supermajority_75',          -- 75% required
   'unanimous',                 -- 100% required
   'weighted_by_role',          -- Chair=2 votes, etc.
-  'weighted_by_contribution'   -- Based on contribution history
+  'weighted_by_contribution',   -- Based on contribution history
+  'weighted_by_reputation'     -- Based on reputation score (bronze=1, silver=2, gold=3, etc.)
 );
 
 DROP TYPE IF EXISTS vote_choice CASCADE;
@@ -233,6 +234,31 @@ BEGIN
       ELSE
         v_weight := 1.00;
       END IF;
+      
+    WHEN 'weighted_by_reputation' THEN
+      -- Weight based on reputation tier (Bronze=1, Silver=2, Gold=3, Platinum=4, Diamond=5)
+      DECLARE
+        v_reputation_tier VARCHAR(20);
+      BEGIN
+        SELECT 
+          CASE 
+            WHEN u.reputation_score >= 1000 THEN 'diamond'
+            WHEN u.reputation_score >= 750 THEN 'platinum' 
+            WHEN u.reputation_score >= 500 THEN 'gold'
+            WHEN u.reputation_score >= 250 THEN 'silver'
+            ELSE 'bronze'
+          END INTO v_reputation_tier
+        FROM users u 
+        WHERE u.id = p_user_id;
+        
+        CASE v_reputation_tier
+          WHEN 'diamond' THEN v_weight := 5.00;
+          WHEN 'platinum' THEN v_weight := 4.00;
+          WHEN 'gold' THEN v_weight := 3.00;
+          WHEN 'silver' THEN v_weight := 2.00;
+          ELSE v_weight := 1.00; -- bronze or no reputation
+        END CASE;
+      END;
   END CASE;
   
   RETURN v_weight;
@@ -290,7 +316,7 @@ BEGIN
   WHERE proposal_id = p_proposal_id;
   
   -- Calculate percentages based on voting type
-  IF v_voting_type IN ('weighted_by_role', 'weighted_by_contribution') THEN
+  IF v_voting_type IN ('weighted_by_role', 'weighted_by_contribution', 'weighted_by_reputation') THEN
     -- Use weighted votes
     IF v_total_weight > 0 THEN
       v_percentage_for := (v_weighted_for / v_total_weight) * 100;

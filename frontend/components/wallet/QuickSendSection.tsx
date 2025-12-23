@@ -39,9 +39,9 @@ export function QuickSendSection({
               onClick={() => onChamaClick(chama)}
             >
               <div className="w-10 h-10 rounded-full bg-[#083232] flex items-center justify-center text-white font-semibold text-xs group-hover:bg-[#2e856e] transition-colors">
-                {chama.profile_picture ? (
+                {chama.cover_image ? (
                   <img
-                    src={chama.profile_picture}
+                    src={chama.cover_image}
                     alt={chama.name}
                     className="w-full h-full rounded-full object-cover"
                   />
@@ -71,7 +71,15 @@ export function QuickSendSection({
               onClick={() => onMemberClick(member)}
             >
               <div className="w-10 h-10 rounded-full bg-[#2e856e] flex items-center justify-center text-white font-semibold text-xs group-hover:bg-[#083232] transition-colors">
-                {firstName.charAt(0).toUpperCase()}
+                {member.profile_photo_url ? (
+                  <img
+                    src={member.profile_photo_url}
+                    alt={displayName}
+                    className="w-full h-full rounded-full object-cover"
+                  />
+                ) : (
+                  firstName.charAt(0).toUpperCase()
+                )}
               </div>
               <span className="text-[10px] text-gray-700 font-medium max-w-[56px] truncate text-center leading-tight">
                 {firstName}

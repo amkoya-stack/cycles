@@ -178,4 +178,99 @@ export class WalletController {
     const result = await this.wallet.requestRefund(req.user.id, callbackId);
     return result;
   }
+
+  /**
+   * Create a fund request
+   * POST /api/wallet/request
+   */
+  @Post('request')
+  async createFundRequest(
+    @Req() req: any,
+    @Body()
+    body: {
+      amount: number;
+      description?: string;
+      recipientId?: string;
+      chamaId?: string;
+      requestType: 'member' | 'chama';
+    },
+  ) {
+    const result = await this.wallet.createFundRequest(req.user.id, body);
+    return result;
+  }
+
+  /**
+   * Get fund requests received by the user
+   * GET /api/wallet/requests/received
+   */
+  @Get('requests/received')
+  async getReceivedFundRequests(
+    @Req() req: any,
+    @Query('status') status?: string,
+  ) {
+    const result = await this.wallet.getFundRequests(req.user.id, status);
+    return result;
+  }
+
+  /**
+   * Get fund requests sent by the user
+   * GET /api/wallet/requests/sent
+   */
+  @Get('requests/sent')
+  async getSentFundRequests(@Req() req: any) {
+    const result = await this.wallet.getSentFundRequests(req.user.id);
+    return result;
+  }
+
+  /**
+   * Respond to a fund request (approve/decline)
+   * POST /api/wallet/requests/:requestId/respond
+   */
+  @Post('requests/:requestId/respond')
+  async respondToFundRequest(
+    @Req() req: any,
+    @Param('requestId') requestId: string,
+    @Body() body: { action: 'approve' | 'decline' },
+  ) {
+    const result = await this.wallet.respondToFundRequest(
+      req.user.id,
+      requestId,
+      body.action,
+    );
+    return result;
+  }
+
+  /**
+   * Get fund request notifications
+   * GET /api/wallet/notifications
+   */
+  @Get('notifications')
+  async getFundRequestNotifications(
+    @Req() req: any,
+    @Query('isRead') isRead?: string,
+  ) {
+    const isReadBool =
+      isRead === 'true' ? true : isRead === 'false' ? false : undefined;
+    const result = await this.wallet.getFundRequestNotifications(
+      req.user.id,
+      isReadBool,
+    );
+    return result;
+  }
+
+  /**
+   * Mark notification as read
+   * POST /api/wallet/notifications/:notificationId/read
+   */
+  @Post('notifications/:notificationId/read')
+  async markNotificationAsRead(
+    @Req() req: any,
+    @Param('notificationId') notificationId: string,
+  ) {
+    const result = await this.wallet.markNotificationAsRead(
+      req.user.id,
+      notificationId,
+    );
+    return result;
+  }
 }

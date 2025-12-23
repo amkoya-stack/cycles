@@ -12,6 +12,7 @@ import {
   Settings,
 } from "lucide-react";
 import { NotificationBell } from "@/components/notifications/notification-bell";
+import { NotificationsDropdown } from "@/components/wallet/NotificationsDropdown";
 
 interface HomeNavbarProps {
   isAuthenticated: boolean;
@@ -199,9 +200,19 @@ export function HomeNavbar({
                               className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-50 transition-all group"
                               onClick={() => setShowCyclesDropdown(false)}
                             >
-                              <div className="w-10 h-10 bg-gradient-to-br from-[#083232] to-[#2e856e] rounded-lg flex items-center justify-center text-white text-lg flex-shrink-0 shadow-sm group-hover:scale-105 transition-transform">
-                                {chama.settings?.icon || "🟢"}
-                              </div>
+                              {chama.cover_image ? (
+                                <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 shadow-sm group-hover:scale-105 transition-transform">
+                                  <img
+                                    src={chama.cover_image}
+                                    alt={chama.name}
+                                    className="w-full h-full object-cover"
+                                  />
+                                </div>
+                              ) : (
+                                <div className="w-10 h-10 bg-gradient-to-br from-[#083232] to-[#2e856e] rounded-lg flex items-center justify-center text-white text-lg flex-shrink-0 shadow-sm group-hover:scale-105 transition-transform">
+                                  {chama.name.charAt(0).toUpperCase()}
+                                </div>
+                              )}
                               <div className="flex-1 min-w-0">
                                 <p className="text-sm font-medium text-gray-900 truncate group-hover:text-[#083232] transition-colors">
                                   {chama.name}
@@ -264,7 +275,7 @@ export function HomeNavbar({
               {isAuthenticated ? (
                 <>
                   <div className="text-white">
-                    <NotificationBell />
+                    <NotificationsDropdown />
                   </div>
                   <Link
                     href="/wallet"

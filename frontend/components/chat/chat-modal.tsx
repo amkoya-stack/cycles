@@ -351,22 +351,43 @@ export function ChatModal({ isOpen, onClose, onNewMessage }: ChatModalProps) {
                       }`}
                     >
                       <div
-                        className={`max-w-[70%] px-3 py-2 rounded-lg text-sm ${
+                        className={`flex items-end gap-2 max-w-[85%] ${
                           message.is_sent_by_me
-                            ? "bg-[#083232] text-white"
-                            : "bg-gray-100 text-gray-900"
+                            ? "flex-row-reverse"
+                            : "flex-row"
                         }`}
                       >
-                        <p>{message.content}</p>
-                        <p
-                          className={`text-xs mt-1 ${
+                        {!message.is_sent_by_me && (
+                          <Avatar className="h-6 w-6 flex-shrink-0 mb-1">
+                            <AvatarImage
+                              src={selectedConversation?.other_user_avatar}
+                            />
+                            <AvatarFallback className="text-xs bg-gray-300">
+                              {selectedConversation?.other_user_name
+                                .split(" ")
+                                .map((n) => n[0])
+                                .join("")}
+                            </AvatarFallback>
+                          </Avatar>
+                        )}
+                        <div
+                          className={`relative px-4 py-2 rounded-2xl text-sm break-words ${
                             message.is_sent_by_me
-                              ? "text-gray-300"
-                              : "text-gray-500"
+                              ? "bg-[#083232] text-white rounded-br-md"
+                              : "bg-gray-200 text-gray-900 rounded-bl-md"
                           }`}
                         >
-                          {formatTime(message.created_at)}
-                        </p>
+                          <p className="leading-relaxed">{message.content}</p>
+                          <p
+                            className={`text-xs mt-1 ${
+                              message.is_sent_by_me
+                                ? "text-gray-300"
+                                : "text-gray-500"
+                            }`}
+                          >
+                            {formatTime(message.created_at)}
+                          </p>
+                        </div>
                       </div>
                     </div>
                   ))}

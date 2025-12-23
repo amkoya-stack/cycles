@@ -67,7 +67,10 @@ export class ChatService {
       const messageResult = await this.db.query(
         `INSERT INTO messages (conversation_id, sender_id, content, message_type)
          VALUES ($1, $2, $3, $4)
-         RETURNING *`,
+         RETURNING *, 
+         true as is_sent_by_me,
+         (SELECT full_name FROM users WHERE id = $2) as sender_name,
+         (SELECT profile_photo_url FROM users WHERE id = $2) as sender_avatar`,
         [conversationId, senderId, dto.content, dto.messageType || 'text'],
       );
 

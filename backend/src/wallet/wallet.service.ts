@@ -58,19 +58,35 @@ export class WalletService {
    * Get user's wallet balance
    */
   async getBalance(userId: string): Promise<number> {
-    // Get user's account
-    const accountResult = await this.db.query(
-      "SELECT balance FROM accounts WHERE user_id = $1 AND status = 'active' LIMIT 1",
-      [userId],
-    );
+    try {
+      console.log(`[getBalance] Getting balance for user: ${userId}`);
+      // Get user's account
+      const accountResult = await this.db.query(
+        "SELECT balance FROM accounts WHERE user_id = $1 AND status = 'active' LIMIT 1",
+        [userId],
+      );
 
-    if (accountResult.rows.length === 0) {
-      throw new NotFoundException('Wallet not found');
+      console.log(
+        `[getBalance] Found ${accountResult.rows.length} accounts for user ${userId}`,
+      );
+
+      if (accountResult.rows.length === 0) {
+        console.log(`[getBalance] No wallet found for user ${userId}`);
+        throw new NotFoundException('Wallet not found');
+      }
+
+      // User wallet is a CREDIT account (liability), so balance is negative in our system
+      // Display as positive to user
+      const balance = Math.abs(accountResult.rows[0].balance);
+      console.log(`[getBalance] User ${userId} balance: ${balance}`);
+      return balance;
+    } catch (error) {
+      console.error(
+        `[getBalance] Error getting balance for user ${userId}:`,
+        error,
+      );
+      throw error;
     }
-
-    // User wallet is a CREDIT account (liability), so balance is negative in our system
-    // Display as positive to user
-    return Math.abs(accountResult.rows[0].balance);
   }
 
   /**
@@ -620,5 +636,292 @@ export class WalletService {
       callbackId,
       status: 'pending_review',
     };
+  }
+
+  /**
+   * Create a fund request
+   */
+  async createFundRequest(
+    requesterId: string,
+    dto: {
+      amount: number;
+      description?: string;
+      recipientId?: string;
+      chamaId?: string;
+      requestType: 'member' | 'chama';
+    },
+  ) {
+    console.log('Creating fund request:', { requesterId, dto });
+
+    // Validate request type and recipient
+    if (dto.requestType === 'member' && !dto.recipientId) {
+      throw new BadRequestException(
+        'Recipient ID is required for member requests',
+      );
+    }
+    if (dto.requestType === 'chama' && !dto.chamaId) {
+      throw new BadRequestException('Chama ID is required for chama requests');
+    }
+
+    // Validate that requester and recipient are different
+    if (dto.requestType === 'member' && dto.recipientId === requesterId) {
+      throw new BadRequestException('Cannot request funds from yourself');
+    }
+
+    // For member requests, verify both users are in the same chama
+    if (dto.requestType === 'member') {
+      const sharedChamas = await this.db.query(
+        `SELECT COUNT(DISTINCT c.id) as shared_chamas
+         FROM chama_members cm1
+         JOIN chama_members cm2 ON cm1.chama_id = cm2.chama_id
+         WHERE cm1.user_id = $1 AND cm2.user_id = $2 
+           AND cm1.status = 'active' AND cm2.status = 'active'`,
+        [requesterId, dto.recipientId],
+      );
+
+      if (parseInt(sharedChamas.rows[0].shared_chamas) === 0) {
+        throw new BadRequestException(
+          'You can only request funds from members in your chamas',
+        );
+      }
+    }
+
+    // For chama requests, verify user is a member
+    if (dto.requestType === 'chama') {
+      const membership = await this.db.query(
+        'SELECT id FROM chama_members WHERE user_id = $1 AND chama_id = $2 AND status = $3',
+        [requesterId, dto.chamaId, 'active'],
+      );
+
+      if (membership.rowCount === 0) {
+        throw new BadRequestException(
+          'You must be an active member to request funds from this chama',
+        );
+      }
+    }
+
+    // Create the fund request
+    const result = await this.db.query(
+      `INSERT INTO fund_requests (
+        requester_id, recipient_id, chama_id, amount, description, request_type
+      ) VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING *`,
+      [
+        requesterId,
+        dto.recipientId || null,
+        dto.chamaId || null,
+        dto.amount,
+        dto.description || `Request for ${dto.amount} KES`,
+        dto.requestType,
+      ],
+    );
+
+    console.log('Fund request created:', result.rows[0]);
+    return result.rows[0];
+  }
+
+  /**
+   * Get fund requests for a user (received by them)
+   */
+  async getFundRequests(userId: string, status?: string) {
+    let query = `
+      SELECT 
+        fr.*,
+        u.full_name as requester_name,
+        u.profile_photo_url as requester_avatar,
+        u.phone as requester_phone,
+        c.name as chama_name,
+        c.cover_image as chama_avatar
+      FROM fund_requests fr
+      JOIN users u ON fr.requester_id = u.id
+      LEFT JOIN chamas c ON fr.chama_id = c.id
+      WHERE (
+        (fr.request_type = 'member' AND fr.recipient_id = $1) OR
+        (fr.request_type = 'chama' AND fr.chama_id IN (
+          SELECT chama_id FROM chama_members 
+          WHERE user_id = $1 AND status = 'active' AND role IN ('admin', 'treasurer', 'chairperson')
+        ))
+      )
+    `;
+
+    const params = [userId];
+
+    if (status) {
+      query += ' AND fr.status = $2';
+      params.push(status);
+    }
+
+    query += ' ORDER BY fr.created_at DESC';
+
+    const result = await this.db.query(query, params);
+    return result.rows;
+  }
+
+  /**
+   * Get sent fund requests by a user
+   */
+  async getSentFundRequests(userId: string) {
+    const result = await this.db.query(
+      `SELECT 
+        fr.*,
+        CASE 
+          WHEN fr.request_type = 'member' THEN u.full_name
+          ELSE c.name
+        END as recipient_name,
+        CASE 
+          WHEN fr.request_type = 'member' THEN u.profile_photo_url
+          ELSE c.cover_image
+        END as recipient_avatar
+      FROM fund_requests fr
+      LEFT JOIN users u ON fr.recipient_id = u.id
+      LEFT JOIN chamas c ON fr.chama_id = c.id
+      WHERE fr.requester_id = $1
+      ORDER BY fr.created_at DESC`,
+      [userId],
+    );
+
+    return result.rows;
+  }
+
+  /**
+   * Respond to a fund request (approve/decline)
+   */
+  async respondToFundRequest(
+    userId: string,
+    requestId: string,
+    action: 'approve' | 'decline',
+  ) {
+    console.log('Responding to fund request:', { userId, requestId, action });
+
+    // Get the fund request
+    const requestResult = await this.db.query(
+      'SELECT * FROM fund_requests WHERE id = $1',
+      [requestId],
+    );
+
+    if (requestResult.rowCount === 0) {
+      throw new NotFoundException('Fund request not found');
+    }
+
+    const fundRequest = requestResult.rows[0];
+
+    // Validate user can respond to this request
+    let canRespond = false;
+
+    if (
+      fundRequest.request_type === 'member' &&
+      fundRequest.recipient_id === userId
+    ) {
+      canRespond = true;
+    } else if (fundRequest.request_type === 'chama') {
+      // Check if user is admin/treasurer of the chama
+      const membership = await this.db.query(
+        'SELECT role FROM chama_members WHERE user_id = $1 AND chama_id = $2 AND status = $3',
+        [userId, fundRequest.chama_id, 'active'],
+      );
+
+      if (
+        membership.rowCount > 0 &&
+        ['admin', 'treasurer'].includes(membership.rows[0].role)
+      ) {
+        canRespond = true;
+      }
+    }
+
+    if (!canRespond) {
+      throw new BadRequestException(
+        'You are not authorized to respond to this request',
+      );
+    }
+
+    // Check if request is still pending
+    if (fundRequest.status !== 'pending') {
+      throw new BadRequestException('Request has already been processed');
+    }
+
+    const newStatus = action === 'approve' ? 'approved' : 'declined';
+
+    // If approving, process the transfer
+    if (action === 'approve') {
+      try {
+        if (fundRequest.request_type === 'member') {
+          // Transfer from user's wallet to requester's wallet
+          await this.ledger.processTransfer(
+            userId,
+            fundRequest.requester_id,
+            fundRequest.amount,
+            `Fund request approved: ${fundRequest.description}`,
+          );
+        } else if (fundRequest.request_type === 'chama') {
+          // Transfer from chama to user's wallet (payout)
+          await this.ledger.processPayout(
+            fundRequest.chama_id,
+            fundRequest.requester_id,
+            fundRequest.amount,
+            `Fund request approved: ${fundRequest.description}`,
+            uuidv4(),
+          );
+        }
+      } catch (error) {
+        console.error('Failed to process fund transfer:', error);
+        throw new BadRequestException('Insufficient funds or transfer failed');
+      }
+    }
+
+    // Update the request status
+    await this.db.query(
+      'UPDATE fund_requests SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+      [newStatus, requestId],
+    );
+
+    console.log(`Fund request ${action}d successfully`);
+    return {
+      message: `Fund request ${action}d successfully`,
+      status: newStatus,
+    };
+  }
+
+  /**
+   * Get fund request notifications for a user
+   */
+  async getFundRequestNotifications(userId: string, isRead?: boolean) {
+    let query = `
+      SELECT 
+        frn.*,
+        fr.amount,
+        fr.request_type,
+        fr.status as request_status
+      FROM fund_request_notifications frn
+      JOIN fund_requests fr ON frn.fund_request_id = fr.id
+      WHERE frn.user_id = $1
+    `;
+
+    const params: any[] = [userId];
+
+    if (isRead !== undefined) {
+      query += ' AND frn.is_read = $2';
+      params.push(isRead);
+    }
+
+    query += ' ORDER BY frn.created_at DESC';
+
+    const result = await this.db.query(query, params);
+    return result.rows;
+  }
+
+  /**
+   * Mark fund request notification as read
+   */
+  async markNotificationAsRead(userId: string, notificationId: string) {
+    const result = await this.db.query(
+      'UPDATE fund_request_notifications SET is_read = true WHERE id = $1 AND user_id = $2',
+      [notificationId, userId],
+    );
+
+    if (result.rowCount === 0) {
+      throw new NotFoundException('Notification not found');
+    }
+
+    return { message: 'Notification marked as read' };
   }
 }

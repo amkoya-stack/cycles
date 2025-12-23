@@ -186,7 +186,22 @@ export class ChamaController {
   @Get(':id/invite/requests')
   @UseGuards(JwtAuthGuard)
   async listJoinRequests(@Req() req: any, @Param('id') chamaId: string) {
-    return this.chamaService.listJoinRequests(req.user.id, chamaId);
+    console.log(
+      `[Controller] listJoinRequests called: user=${req.user?.id}, chama=${chamaId}`,
+    );
+    try {
+      const result = await this.chamaService.listJoinRequests(
+        req.user.id,
+        chamaId,
+      );
+      console.log(
+        `[Controller] listJoinRequests success: found ${result.length} requests`,
+      );
+      return result;
+    } catch (error) {
+      console.error(`[Controller] listJoinRequests error:`, error.message);
+      throw error;
+    }
   }
 
   /**
