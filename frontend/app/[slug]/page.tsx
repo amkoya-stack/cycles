@@ -20,6 +20,7 @@ import { CommunityPosts } from "@/components/chama/community-posts";
 import { ActivePollsSidebar } from "@/components/chama/active-polls-sidebar";
 import { ChamaDepositModal } from "@/components/chama/chama-deposit-modal";
 import { ChamaTransferModal } from "@/components/chama/chama-transfer-modal";
+import { DocumentVault } from "@/components/chama/document-vault";
 import { useNotifications } from "@/hooks/use-notifications";
 import {
   Users,
@@ -1028,19 +1029,36 @@ export default function CycleBySlugPage() {
         return <ActivityFeed chamaId={chama.id} />;
 
       case "documents":
-        return (
-          <div className="space-y-4">
-            <Card className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold">Documents & Files</h3>
-                <Button variant="outline">Upload Document</Button>
-              </div>
-              <p className="text-sm text-gray-500">
-                No documents uploaded yet.
-              </p>
-            </Card>
-          </div>
-        );
+        if (!chama.is_member) {
+          return (
+            <div className="space-y-4">
+              <Card className="p-8 text-center">
+                <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  Member Access Required
+                </h3>
+                <p className="text-gray-600 mb-6">
+                  You need to be a member to access the document vault.
+                </p>
+                {!chama.has_pending_request && (
+                  <Button
+                    onClick={handleJoinCycle}
+                    disabled={getJoinButtonDisabled()}
+                    className={
+                      chama.is_public
+                        ? "bg-[#083232] hover:bg-[#2e856e] text-white"
+                        : "bg-[#f64d52] hover:bg-[#d43d42] text-white"
+                    }
+                  >
+                    <UserPlus className="w-4 h-4 mr-2" />
+                    {getJoinButtonText()}
+                  </Button>
+                )}
+              </Card>
+            </div>
+          );
+        }
+        return <DocumentVault chamaId={chama.id} />;
 
       case "settings":
         if (!chama.is_member) {

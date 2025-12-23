@@ -4,6 +4,11 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
+import {
+  NotificationService,
+  NotificationChannel,
+  NotificationPriority,
+} from './notification.service';
 
 export enum ActivityCategory {
   FINANCIAL = 'financial',
@@ -100,9 +105,26 @@ interface GetActivitiesParams {
   offset?: number;
 }
 
+interface LogAndNotifyParams {
+  activity: CreateActivityLogParams;
+  changes?: Array<{ field: string; oldValue: any; newValue: any }>;
+  notify?: {
+    channels?: NotificationChannel[];
+    priority?: NotificationPriority;
+    title?: string;
+    message: string;
+    excludeUserId?: string;
+    scheduledFor?: Date;
+    metadata?: Record<string, any>;
+  };
+}
+
 @Injectable()
 export class ActivityService {
-  constructor(private readonly db: DatabaseService) {}
+  constructor(
+    private readonly db: DatabaseService,
+    private readonly notificationService: NotificationService,
+  ) {}
 
   /**
    * Create an activity log entry
@@ -380,5 +402,48 @@ export class ActivityService {
     }
 
     return csv;
+  }
+
+  /**
+   * Convenience: log activity, attach audit changes, and notify members
+   */
+  async logActivityWithAuditAndNotify(params: LogAndNotifyParams) {
+    const { activity, changes, notify } = params;
+
+    // Create activity + audit trail
+    const activityId = changes?.length
+      ? await this.createActivityWithAudit(activity, changes)
+      : await this.createActivityLog(activity);
+
+    // Send notifications if requested
+    if (notify?.channels?.length) {
+      const channels = notify.channels;
+      const priority = notify.priority || NotificationPriority.MEDIUM;
+      const title = notify.title || activity.title;
+      const message = notify.message;
+      await Promise.all(
+        channels.map((channel) =>
+          this.notificationService.notifyChamaMembers(
+            activity.chamaId,
+            {
+              channel,
+              priority,
+              title,
+              message,
+              activityLogId: activityId,
+              metadata: {
+                ...notify.metadata,
+                category: activity.category,
+                activityType: activity.activityType,
+              },
+              scheduledFor: notify.scheduledFor,
+            },
+            notify.excludeUserId,
+          ),
+        ),
+      );
+    }
+
+    return activityId;
   }
 }

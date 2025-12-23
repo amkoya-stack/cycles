@@ -1,3 +1,4 @@
+/* eslint-disable react/no-unescaped-entities */
 import { useState } from "react";
 import { Bell, Check, X, Clock, User, Users } from "lucide-react";
 import {

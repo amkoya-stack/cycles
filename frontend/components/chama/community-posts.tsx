@@ -21,6 +21,8 @@ import {
   CheckCircle2,
   Mic,
   X,
+  ArrowLeft,
+  Clock,
 } from "lucide-react";
 import {
   Tooltip,
@@ -36,6 +38,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Select,
   SelectContent,
@@ -131,11 +135,17 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
   const [pollType, setPollType] = useState("");
   const [pollOptions, setPollOptions] = useState(["Option 1", "Option 2"]);
   const [showMeetingDialog, setShowMeetingDialog] = useState(false);
+  const [showSchedulerDialog, setShowSchedulerDialog] = useState(false);
   const [meetingTitle, setMeetingTitle] = useState("");
   const [whoCanSpeak, setWhoCanSpeak] = useState("everyone");
   const [recordSpace, setRecordSpace] = useState(false);
   const [startNow, setStartNow] = useState(true);
   const [scheduledTime, setScheduledTime] = useState("");
+  const [schedulerMonth, setSchedulerMonth] = useState("December");
+  const [schedulerDay, setSchedulerDay] = useState("28");
+  const [schedulerYear, setSchedulerYear] = useState("2025");
+  const [schedulerHour, setSchedulerHour] = useState("20");
+  const [schedulerMinute, setSchedulerMinute] = useState("00");
   const [pollDescription, setPollDescription] = useState("");
   const [pollDeadlineHours, setPollDeadlineHours] = useState(24); // Default 24 hours
   const [creatingPoll, setCreatingPoll] = useState(false);
@@ -1343,7 +1353,10 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
                 </Dialog>
 
                 {/* Voice Recording/Meeting */}
-                <Dialog open={showMeetingDialog} onOpenChange={setShowMeetingDialog}>
+                <Dialog
+                  open={showMeetingDialog}
+                  onOpenChange={setShowMeetingDialog}
+                >
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <DialogTrigger asChild>
@@ -1368,7 +1381,7 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
                       <button
                         onClick={() => setShowMeetingDialog(false)}
                         className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-offset-2 hover:cursor-pointer cursor-pointer"
-                        style={{ cursor: 'pointer !important' }}
+                        style={{ cursor: "pointer !important" }}
                       >
                         <X className="h-4 w-4 cursor-pointer" />
                         <span className="sr-only">Close</span>
@@ -1377,7 +1390,10 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
                     <div className="space-y-6 py-4">
                       {/* Meeting Title */}
                       <div className="space-y-2">
-                        <Label htmlFor="meeting-title" className="text-sm font-medium">
+                        <Label
+                          htmlFor="meeting-title"
+                          className="text-sm font-semibold"
+                        >
                           Meeting Title
                         </Label>
                         <Input
@@ -1391,106 +1407,300 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
 
                       {/* Who Can Speak */}
                       <div className="space-y-3">
-                        <Label className="text-sm font-medium">
+                        <Label
+                          htmlFor="who-can-speak"
+                          className="text-sm font-semibold"
+                        >
                           Who can speak?
                         </Label>
-                        <div className="space-y-2">
-                          <div className="flex items-center space-x-2">
-                            <input
-                              type="radio"
-                              id="everyone"
-                              name="whoCanSpeak"
-                              value="everyone"
-                              checked={whoCanSpeak === "everyone"}
-                              onChange={(e) => setWhoCanSpeak(e.target.value)}
-                              className="w-4 h-4 text-[#083232] border-gray-300 focus:ring-[#083232]"
-                            />
-                            <Label htmlFor="everyone" className="text-sm text-gray-700">
-                              Everyone in this chama
-                            </Label>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <input
-                              type="radio"
-                              id="selected"
-                              name="whoCanSpeak"
-                              value="selected"
-                              checked={whoCanSpeak === "selected"}
-                              onChange={(e) => setWhoCanSpeak(e.target.value)}
-                              className="w-4 h-4 text-[#083232] border-gray-300 focus:ring-[#083232]"
-                            />
-                            <Label htmlFor="selected" className="text-sm text-gray-700">
-                              Only people I invite to speak
-                            </Label>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Record Space Toggle */}
-                      <div className="flex items-center justify-between">
-                        <Label className="text-sm font-medium">
-                          Record Space
-                        </Label>
-                        <button
-                          onClick={() => setRecordSpace(!recordSpace)}
-                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#083232] focus:ring-offset-2 ${
-                            recordSpace ? 'bg-[#083232]' : 'bg-gray-200'
-                          }`}
+                        <Select
+                          value={whoCanSpeak}
+                          onValueChange={setWhoCanSpeak}
                         >
-                          <span
-                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                              recordSpace ? 'translate-x-6' : 'translate-x-1'
-                            }`}
-                          />
-                        </button>
+                          <SelectTrigger id="who-can-speak">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="everyone">
+                              Every member
+                            </SelectItem>
+                            <SelectItem value="selected">
+                              Selected few
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
 
-                      {/* Start Time Options */}
+                      {/* Record Meeting Toggle */}
+                      <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <Label className="text-sm font-semibold">
+                          Record Meeting
+                        </Label>
+                        <Switch
+                          checked={recordSpace}
+                          onCheckedChange={setRecordSpace}
+                        />
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="flex gap-2">
+                        <Button
+                          onClick={() => {
+                            // TODO: Implement meeting creation
+                            console.log("Creating meeting:", {
+                              title: meetingTitle,
+                              whoCanSpeak,
+                              recordSpace,
+                              startNow,
+                              scheduledTime: !startNow ? scheduledTime : null,
+                            });
+                            setShowMeetingDialog(false);
+                            // Reset form
+                            setMeetingTitle("");
+                            setWhoCanSpeak("everyone");
+                            setRecordSpace(false);
+                            setStartNow(true);
+                            setScheduledTime("");
+                          }}
+                          disabled={!meetingTitle.trim()}
+                          className="flex-1 bg-[#083232] hover:bg-[#2e856e] text-white font-semibold h-10"
+                        >
+                          Start Meeting Now
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => {
+                            setShowMeetingDialog(false);
+                            setShowSchedulerDialog(true);
+                          }}
+                          className="h-10 w-10 border-[#083232] hover:bg-gray-50"
+                        >
+                          <Clock className="h-4 w-4 text-[#083232]" />
+                        </Button>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+
+                {/* Scheduler Dialog */}
+                <Dialog
+                  open={showSchedulerDialog}
+                  onOpenChange={setShowSchedulerDialog}
+                >
+                  <DialogContent className="max-w-[440px] [&>[data-slot='dialog-close']]:hidden">
+                    <DialogHeader>
+                      <button
+                        onClick={() => {
+                          setShowSchedulerDialog(false);
+                          setShowMeetingDialog(true);
+                        }}
+                        className="absolute left-4 top-4 rounded-sm opacity-80 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-offset-2 cursor-pointer"
+                        style={{ cursor: "pointer" }}
+                        aria-label="Back to meeting"
+                        title="Back"
+                      >
+                        <ArrowLeft className="h-4 w-4" />
+                      </button>
+                      <DialogTitle className="text-base font-semibold text-center">
+                        Schedule Meeting
+                      </DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-3">
+                      {/* Date Section */}
                       <div className="space-y-3">
-                        <div className="flex items-center space-x-2">
-                          <input
-                            type="radio"
-                            id="start-now"
-                            name="startTime"
-                            checked={startNow}
-                            onChange={() => setStartNow(true)}
-                            className="w-4 h-4 text-[#083232] border-gray-300 focus:ring-[#083232]"
-                          />
-                          <Label htmlFor="start-now" className="text-sm text-gray-700">
-                            Start Now
-                          </Label>
-                        </div>
-                        <div className="space-y-2">
-                          <div className="flex items-center space-x-2">
-                            <input
-                              type="radio"
-                              id="schedule"
-                              name="startTime"
-                              checked={!startNow}
-                              onChange={() => setStartNow(false)}
-                              className="w-4 h-4 text-[#083232] border-gray-300 focus:ring-[#083232]"
-                            />
-                            <Label htmlFor="schedule" className="text-sm text-gray-700">
-                              Schedule for later
+                        <Label className="text-sm font-semibold">Date</Label>
+                        <div className="flex gap-1">
+                          {/* Month */}
+                          <div className="w-[211.2px]">
+                            <Label
+                              htmlFor="month"
+                              className="text-xs text-gray-600"
+                            >
+                              Month
                             </Label>
+                            <Select
+                              value={schedulerMonth}
+                              onValueChange={setSchedulerMonth}
+                            >
+                              <SelectTrigger
+                                id="month"
+                                className="mt-1 w-full h-[57.6px]"
+                              >
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {[
+                                  "January",
+                                  "February",
+                                  "March",
+                                  "April",
+                                  "May",
+                                  "June",
+                                  "July",
+                                  "August",
+                                  "September",
+                                  "October",
+                                  "November",
+                                  "December",
+                                ].map((month) => (
+                                  <SelectItem key={month} value={month}>
+                                    {month}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </div>
-                          {!startNow && (
-                            <Input
-                              type="datetime-local"
-                              value={scheduledTime}
-                              onChange={(e) => setScheduledTime(e.target.value)}
-                              className="ml-6 w-full"
-                            />
-                          )}
+
+                          {/* Day */}
+                          <div className="w-[92.4px]">
+                            <Label
+                              htmlFor="day"
+                              className="text-xs text-gray-600"
+                            >
+                              Day
+                            </Label>
+                            <Select
+                              value={schedulerDay}
+                              onValueChange={setSchedulerDay}
+                            >
+                              <SelectTrigger
+                                id="day"
+                                className="mt-1 w-full h-[57.6px]"
+                              >
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {Array.from({ length: 31 }, (_, i) =>
+                                  (i + 1).toString()
+                                ).map((day) => (
+                                  <SelectItem key={day} value={day}>
+                                    {day}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {/* Year */}
+                          <div className="w-[112.4px]">
+                            <Label
+                              htmlFor="year"
+                              className="text-xs text-gray-600"
+                            >
+                              Year
+                            </Label>
+                            <Select
+                              value={schedulerYear}
+                              onValueChange={setSchedulerYear}
+                            >
+                              <SelectTrigger
+                                id="year"
+                                className="mt-1 w-full h-[57.6px]"
+                              >
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {Array.from(
+                                  { length: 5 },
+                                  (_, i) => new Date().getFullYear() + i
+                                ).map((year) => (
+                                  <SelectItem
+                                    key={year}
+                                    value={year.toString()}
+                                  >
+                                    {year}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
                         </div>
                       </div>
 
-                      {/* Auto-start logic for immediate meetings */}
-                      {startNow && meetingTitle.trim() && (
-                        <div className="text-sm text-green-600 bg-green-50 p-3 rounded-lg">
-                          Meeting will start automatically when created
+                      {/* Time Section */}
+                      <div className="space-y-3">
+                        <Label className="text-sm font-semibold">Time</Label>
+                        <div className="flex gap-1">
+                          {/* Hour */}
+                          <div className="w-[160px]">
+                            <Label
+                              htmlFor="hour"
+                              className="text-xs text-gray-600"
+                            >
+                              Hour
+                            </Label>
+                            <Select
+                              value={schedulerHour}
+                              onValueChange={setSchedulerHour}
+                            >
+                              <SelectTrigger
+                                id="hour"
+                                className="mt-1 w-full h-[57.6px]"
+                              >
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {Array.from({ length: 24 }, (_, i) =>
+                                  i.toString().padStart(2, "0")
+                                ).map((hour) => (
+                                  <SelectItem key={hour} value={hour}>
+                                    {hour}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {/* Minute */}
+                          <div className="w-[160px]">
+                            <Label
+                              htmlFor="minute"
+                              className="text-xs text-gray-600"
+                            >
+                              Minute
+                            </Label>
+                            <Select
+                              value={schedulerMinute}
+                              onValueChange={setSchedulerMinute}
+                            >
+                              <SelectTrigger
+                                id="minute"
+                                className="mt-1 w-full h-[57.6px]"
+                              >
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {Array.from({ length: 60 }, (_, i) =>
+                                  i.toString().padStart(2, "0")
+                                ).map((minute) => (
+                                  <SelectItem key={minute} value={minute}>
+                                    {minute}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
                         </div>
-                      )}
+                      </div>
+
+                      {/* Confirm Button */}
+                      <Button
+                        onClick={() => {
+                          // TODO: Implement meeting scheduling
+                          console.log("Schedule meeting for:", {
+                            month: schedulerMonth,
+                            day: schedulerDay,
+                            year: schedulerYear,
+                            hour: schedulerHour,
+                            minute: schedulerMinute,
+                          });
+                          setShowSchedulerDialog(false);
+                        }}
+                        className="w-full bg-[#083232] hover:bg-[#2e856e] text-white font-semibold h-10"
+                      >
+                        Confirm Schedule
+                      </Button>
                     </div>
                   </DialogContent>
                 </Dialog>

@@ -53,11 +53,6 @@ export function ChamaCard({ chama, onJoin, onView }: ChamaCardProps) {
 
       {/* Content */}
       <div className="p-3 space-y-2 flex-1 flex flex-col">
-        {/* Header */}
-        <div className="flex-shrink-0">
-          <span className="text-xl">{chama.icon || "🟢"}</span>
-        </div>
-
         {/* Chama Name - Clickable */}
         <h3
           className="font-semibold text-sm text-[#083232] line-clamp-1 flex-shrink-0 cursor-pointer hover:text-[#2e856e] transition-colors"
