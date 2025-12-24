@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Footer } from "@/components/footer";
 import { HomeNavbar } from "@/components/home/home-navbar";
-import { useAuthGuard } from "@/hooks/use-auth";
 import { useChamas } from "@/hooks/use-chamas";
 import { io, Socket } from "socket.io-client";
 import { BalanceCard } from "@/components/wallet/BalanceCard";
@@ -33,9 +32,6 @@ interface Transaction {
 
 export default function WalletPage() {
   const router = useRouter();
-
-  // Auth guard - redirect to login if token expired
-  const { isAuthenticated } = useAuthGuard();
 
   const { chamas, fetchChamas } = useChamas();
   const [balance, setBalance] = useState<number>(0);

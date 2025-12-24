@@ -6,7 +6,6 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { HomeNavbar } from "@/components/home/home-navbar";
 import { Footer } from "@/components/footer";
-import { useAuthGuard } from "@/hooks/use-auth";
 import {
   Users,
   Calendar,
@@ -31,9 +30,6 @@ export default function InvitePage() {
   const router = useRouter();
   const token = params.token as string;
 
-  // Auth guard - redirect to login if not authenticated
-  const { isAuthenticated } = useAuthGuard();
-
   const [invite, setInvite] = useState<InviteDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [accepting, setAccepting] = useState(false);
@@ -41,10 +37,10 @@ export default function InvitePage() {
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
-    if (isAuthenticated && token) {
+    if (token) {
       fetchInviteDetails();
     }
-  }, [token, isAuthenticated]);
+  }, [token]);
 
   const fetchInviteDetails = async () => {
     try {
@@ -67,11 +63,19 @@ export default function InvitePage() {
   };
 
   const acceptInvite = async () => {
+    // Check authentication first
+    const accessToken = localStorage.getItem("accessToken");
+    if (!accessToken) {
+      // Save intended action and redirect to login
+      localStorage.setItem("redirectAfterLogin", `/invite/${token}`);
+      router.push("/auth/login");
+      return;
+    }
+
     setAccepting(true);
     setError("");
 
     try {
-      const accessToken = localStorage.getItem("accessToken");
       const response = await fetch(
         `http://localhost:3001/api/chama/invite/token/${token}/accept`,
         {

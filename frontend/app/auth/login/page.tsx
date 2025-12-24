@@ -104,8 +104,12 @@ export default function LoginPage() {
       localStorage.setItem("accessToken", data.accessToken);
       localStorage.setItem("refreshToken", data.refreshToken);
 
-      // Redirect to cycle About tab or home
-      if (redirectUrl) {
+      // Check for intended destination after login
+      const redirectAfterLogin = localStorage.getItem("redirectAfterLogin");
+      if (redirectAfterLogin) {
+        localStorage.removeItem("redirectAfterLogin");
+        router.push(redirectAfterLogin);
+      } else if (redirectUrl) {
         router.push(redirectUrl);
       } else {
         router.push("/");

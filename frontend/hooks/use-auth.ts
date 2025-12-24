@@ -58,22 +58,27 @@ export function useAuth() {
 
 /**
  * Hook for protected pages - redirects to login if not authenticated
- * Use this in pages that require authentication
+ * Use this ONLY in pages that absolutely require authentication
+ * (e.g., create cycle, settings, admin-only pages)
  */
 export function useAuthGuard() {
   const router = useRouter();
   const { isAuthenticated } = useAuth();
+  const [hasRedirected, setHasRedirected] = useState(false);
 
   useEffect(() => {
-    // Only redirect after hydration (when isAuthenticated is determined)
-    if (isAuthenticated === false) {
-      // Clear any stale data
-      localStorage.removeItem("accessToken");
-      localStorage.removeItem("refreshToken");
+    // Only redirect once after hydration completes
+    if (!hasRedirected && isAuthenticated === false) {
+      setHasRedirected(true);
+      // Save intended destination for redirect after login
+      const currentPath = window.location.pathname + window.location.search;
+      if (currentPath !== "/auth/login") {
+        localStorage.setItem("redirectAfterLogin", currentPath);
+      }
       // Redirect to login
       router.push("/auth/login");
     }
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, router, hasRedirected]);
 
   return { isAuthenticated };
 }
