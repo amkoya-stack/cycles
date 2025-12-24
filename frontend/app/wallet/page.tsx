@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Footer } from "@/components/footer";
 import { HomeNavbar } from "@/components/home/home-navbar";
-import { useAuth } from "@/hooks/use-auth";
+import { useAuthGuard } from "@/hooks/use-auth";
 import { useChamas } from "@/hooks/use-chamas";
 import { io, Socket } from "socket.io-client";
 import { BalanceCard } from "@/components/wallet/BalanceCard";
@@ -33,7 +33,10 @@ interface Transaction {
 
 export default function WalletPage() {
   const router = useRouter();
-  const { isAuthenticated, validateToken } = useAuth();
+  
+  // Auth guard - redirect to login if token expired
+  const { isAuthenticated } = useAuthGuard();
+  
   const { chamas, fetchChamas } = useChamas();
   const [balance, setBalance] = useState<number>(0);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -74,7 +77,6 @@ export default function WalletPage() {
   const [filterType, setFilterType] = useState("all");
 
   useEffect(() => {
-    validateToken();
     fetchWalletData();
     fetchChamas();
     fetchCoMembers();
@@ -91,7 +93,7 @@ export default function WalletPage() {
       }
       clearInterval(balancePolling);
     };
-  }, [validateToken, fetchChamas]);
+  }, [fetchChamas]);
 
   // Pre-populate phone fields when modals open
   useEffect(() => {

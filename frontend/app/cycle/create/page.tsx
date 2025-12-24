@@ -5,6 +5,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useAuthGuard } from "@/hooks/use-auth";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -25,17 +26,13 @@ type Frequency = "daily" | "weekly" | "monthly" | "custom";
 
 export default function CreateChamaPage() {
   const router = useRouter();
+  
+  // Auth guard - redirect to login if token expired
+  useAuthGuard();
+  
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
-  // Check authentication on mount
-  useEffect(() => {
-    const accessToken = localStorage.getItem("accessToken");
-    if (!accessToken) {
-      router.push("/auth/login");
-    }
-  }, [router]);
 
   // Form data
   const [formData, setFormData] = useState({

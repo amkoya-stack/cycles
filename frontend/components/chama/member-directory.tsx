@@ -64,6 +64,7 @@ import {
 } from "lucide-react";
 
 interface Member {
+  id?: string; // Add optional id field
   user_id: string;
   name: string;
   email: string;
@@ -951,7 +952,7 @@ export function MemberDirectory({
                 .slice(0, 5)
                 .map((member, index) => (
                   <div
-                    key={member.id}
+                    key={member.id || member.user_id}
                     className="flex items-center gap-3 p-3 rounded-lg bg-gradient-to-r from-gray-50 to-transparent border border-gray-100"
                   >
                     <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-br from-[#083232] to-[#2e856e] text-white font-bold text-sm">

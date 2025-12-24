@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { HomeNavbar } from "@/components/home/home-navbar";
 import { Footer } from "@/components/footer";
-import { useAuth } from "@/hooks/use-auth";
+import { useAuthGuard } from "@/hooks/use-auth";
 import { ReputationCard } from "@/components/reputation/reputation-card";
 import { BadgeGrid } from "@/components/reputation/badge";
 import { chatApi, type Conversation, type Message } from "@/lib/chat-api";
@@ -47,6 +47,12 @@ interface UserProfile {
   email_verified: boolean;
   phone_verified: boolean;
   created_at: string;
+  bio?: string;
+  website?: string;
+  facebook?: string;
+  twitter?: string;
+  linkedin?: string;
+  profile_photo_url?: string;
 }
 
 type TabType =
@@ -60,7 +66,10 @@ type TabType =
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { isAuthenticated, validateToken } = useAuth();
+  
+  // Auth guard - redirect to login if token expired
+  const { isAuthenticated } = useAuthGuard();
+  
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -94,10 +103,9 @@ export default function ProfilePage() {
   const [profilePhotoPreview, setProfilePhotoPreview] = useState("");
 
   useEffect(() => {
-    validateToken();
     fetchProfile();
     fetchUserChamas();
-  }, [validateToken]);
+  }, []);
 
   useEffect(() => {
     if (activeTab === "messages") {

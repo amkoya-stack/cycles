@@ -8,7 +8,6 @@ import { Badge } from "@/components/ui/badge";
 import { HomeNavbar } from "@/components/home/home-navbar";
 import { Footer } from "@/components/footer";
 import { useAuth } from "@/hooks/use-auth";
-import { ReputationBadge } from "@/components/reputation/reputation-badge";
 import {
   User,
   Mail,

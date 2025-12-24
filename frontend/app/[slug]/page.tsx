@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useRef, useLayoutEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
+import { useAuthGuard } from "@/hooks/use-auth";
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
@@ -148,6 +149,9 @@ export default function CycleBySlugPage() {
   >([]);
   const [loadingTransactions, setLoadingTransactions] = useState(false);
   const [showAllTransactions, setShowAllTransactions] = useState(false);
+
+  // Auth guard - redirect to login if token expired
+  const { isAuthenticated } = useAuthGuard();
 
   // Fund request notifications
   const { fundRequests, unreadCount, respondToRequest } = useNotifications();

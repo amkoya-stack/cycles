@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 const isTokenExpired = (token: string): boolean => {
   try {
@@ -53,4 +54,26 @@ export function useAuth() {
   }, []);
 
   return { isAuthenticated, validateToken, logout };
+}
+
+/**
+ * Hook for protected pages - redirects to login if not authenticated
+ * Use this in pages that require authentication
+ */
+export function useAuthGuard() {
+  const router = useRouter();
+  const { isAuthenticated } = useAuth();
+
+  useEffect(() => {
+    // Only redirect after hydration (when isAuthenticated is determined)
+    if (isAuthenticated === false) {
+      // Clear any stale data
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("refreshToken");
+      // Redirect to login
+      router.push("/auth/login");
+    }
+  }, [isAuthenticated, router]);
+
+  return { isAuthenticated };
 }

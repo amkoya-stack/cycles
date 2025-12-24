@@ -274,7 +274,7 @@ export function PayoutHistory({ chamaId }: PayoutHistoryProps) {
       {history && history.pagination.totalPages > 1 && (
         <div className="flex items-center justify-between pt-4 border-t">
           <p className="text-sm text-gray-600">
-            Page {history.pagination.currentPage} of{" "}
+            Page {history.pagination.page} of{" "}
             {history.pagination.totalPages}
           </p>
           <div className="flex gap-2">
@@ -329,10 +329,10 @@ export function PayoutHistory({ chamaId }: PayoutHistoryProps) {
                 <p className="text-sm text-gray-500">Scheduled Date</p>
                 <p>{new Date(selectedPayout.scheduledAt).toLocaleString()}</p>
               </div>
-              {selectedPayout.processedAt && (
+              {selectedPayout.executedAt && (
                 <div>
                   <p className="text-sm text-gray-500">Processed Date</p>
-                  <p>{new Date(selectedPayout.processedAt).toLocaleString()}</p>
+                  <p>{new Date(selectedPayout.executedAt).toLocaleString()}</p>
                 </div>
               )}
               {selectedPayout.transactionId && (
