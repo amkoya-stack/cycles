@@ -66,10 +66,10 @@ type TabType =
 
 export default function ProfilePage() {
   const router = useRouter();
-  
+
   // Auth guard - redirect to login if token expired
   const { isAuthenticated } = useAuthGuard();
-  
+
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);

@@ -30,6 +30,9 @@ export function ChamaSettings({
     late_penalty_enabled: currentSettings?.late_penalty_enabled || false,
     allow_partial_contributions:
       currentSettings?.allow_partial_contributions || false,
+    members_can_invite: currentSettings?.members_can_invite || false,
+    invite_requires_approval:
+      currentSettings?.invite_requires_approval || false,
   });
   const [loading, setLoading] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
@@ -41,6 +44,9 @@ export function ChamaSettings({
       late_penalty_enabled: currentSettings?.late_penalty_enabled || false,
       allow_partial_contributions:
         currentSettings?.allow_partial_contributions || false,
+      members_can_invite: currentSettings?.members_can_invite || false,
+      invite_requires_approval:
+        currentSettings?.invite_requires_approval || false,
     });
   }, [currentSettings]);
 
@@ -170,7 +176,7 @@ export function ChamaSettings({
           </div>
 
           {/* Partial Contributions Setting */}
-          <div className="flex items-start justify-between space-x-4">
+          <div className="flex items-start justify-between space-x-4 pb-4 border-b">
             <div className="flex-1 space-y-1">
               <Label
                 htmlFor="partial-contributions"
@@ -190,6 +196,65 @@ export function ChamaSettings({
                 handleToggle("allow_partial_contributions", checked)
               }
               disabled={!isAdmin || loading}
+            />
+          </div>
+
+          {/* Members Can Invite Setting */}
+          <div className="flex items-start justify-between space-x-4 pb-4 border-b">
+            <div className="flex-1 space-y-1">
+              <Label
+                htmlFor="members-can-invite"
+                className="text-base font-medium"
+              >
+                Members Can Invite
+              </Label>
+              <p className="text-sm text-gray-600">
+                Allow regular members to invite new people to join the chama.
+                When disabled, only admins and chairpersons can send invites.
+              </p>
+              {settings.members_can_invite && (
+                <div className="flex items-center gap-2 mt-2 text-sm text-blue-700 bg-blue-50 px-3 py-2 rounded">
+                  <CheckCircle2 className="h-4 w-4" />
+                  <span>All members can invite new people via link or email</span>
+                </div>
+              )}
+            </div>
+            <Switch
+              id="members-can-invite"
+              checked={settings.members_can_invite}
+              onCheckedChange={(checked) =>
+                handleToggle("members_can_invite", checked)
+              }
+              disabled={!isAdmin || loading}
+            />
+          </div>
+
+          {/* Invite Requires Approval Setting */}
+          <div className="flex items-start justify-between space-x-4">
+            <div className="flex-1 space-y-1">
+              <Label
+                htmlFor="invite-approval"
+                className="text-base font-medium"
+              >
+                Invite Requires Approval
+              </Label>
+              <p className="text-sm text-gray-600">
+                Require admin approval for invites sent by regular members.
+                Admin and chairperson invites are always sent immediately.
+              </p>
+              {!settings.members_can_invite && (
+                <p className="text-xs text-gray-500 italic mt-1">
+                  (Only applies when members can invite)
+                </p>
+              )}
+            </div>
+            <Switch
+              id="invite-approval"
+              checked={settings.invite_requires_approval}
+              onCheckedChange={(checked) =>
+                handleToggle("invite_requires_approval", checked)
+              }
+              disabled={!isAdmin || loading || !settings.members_can_invite}
             />
           </div>
 

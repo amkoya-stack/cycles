@@ -55,6 +55,7 @@ export interface InviteMemberDto {
   phone?: string;
   email?: string;
   userId?: string;
+  generateLink?: boolean; // Generate shareable invite link
 }
 
 export interface CreateCycleDto {
@@ -359,6 +360,16 @@ export class ChamaService {
     if (dto.settings) {
       updates.push(`settings = $${paramIndex++}`);
       values.push(JSON.stringify(dto.settings));
+      
+      // Sync dedicated columns with settings JSONB for invite permissions
+      if (dto.settings.members_can_invite !== undefined) {
+        updates.push(`members_can_invite = $${paramIndex++}`);
+        values.push(dto.settings.members_can_invite);
+      }
+      if (dto.settings.invite_requires_approval !== undefined) {
+        updates.push(`invite_requires_approval = $${paramIndex++}`);
+        values.push(dto.settings.invite_requires_approval);
+      }
     }
     if (dto.status) {
       updates.push(`status = $${paramIndex++}`);
@@ -571,12 +582,24 @@ export class ChamaService {
     chamaId: string,
     dto: InviteMemberDto,
   ): Promise<any> {
-    // Check if user is chairperson or treasurer
+    // Get chama details and settings
+    const chama = await this.getChamaDetails(userId, chamaId);
+    const settings = chama.settings || {};
+
+    // Check permissions: admin/chairperson/treasurer OR members if allowed
     const member = await this.getMemberRole(userId, chamaId);
-    if (member.role !== 'chairperson' && member.role !== 'treasurer') {
+    const isAdmin = ['chairperson', 'treasurer', 'admin'].includes(member.role);
+    const membersCanInvite = settings.members_can_invite === true;
+
+    if (!isAdmin && !membersCanInvite) {
       throw new ForbiddenException(
-        'Only chairperson or treasurer can invite members',
+        'You do not have permission to invite members. Contact an admin.',
       );
+    }
+
+    // Check max members
+    if (chama.active_members >= chama.max_members) {
+      throw new BadRequestException('Chama has reached maximum members');
     }
 
     // Check if already member
@@ -590,19 +613,14 @@ export class ChamaService {
       }
     }
 
-    // Check max members
-    const chama = await this.getChamaDetails(userId, chamaId);
-    if (chama.active_members >= chama.max_members) {
-      throw new BadRequestException('Chama has reached maximum members');
-    }
-
     const inviteId = uuidv4();
+    const inviteToken = dto.generateLink ? this.generateInviteToken() : null;
 
     await this.db.transactionAsSystem(async (client) => {
       await client.query(
         `INSERT INTO chama_invites (
-          id, chama_id, invited_by, invitee_phone, invitee_email, invitee_user_id, status
-        ) VALUES ($1, $2, $3, $4, $5, $6, 'pending')`,
+          id, chama_id, invited_by, invitee_phone, invitee_email, invitee_user_id, invite_token, status
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending')`,
         [
           inviteId,
           chamaId,
@@ -610,19 +628,43 @@ export class ChamaService {
           dto.phone || null,
           dto.email || null,
           dto.userId || null,
+          inviteToken,
         ],
       );
     });
 
     // Send invitation notification
     if (dto.phone) {
+      const inviteLink = inviteToken
+        ? `${process.env.FRONTEND_URL || 'http://localhost:3000'}/invite/${inviteToken}`
+        : '';
       await this.notification.sendSMSReceipt({
         phoneNumber: dto.phone,
-        message: `You've been invited to join ${chama.name} chama. Reply to accept.`,
+        message: `You've been invited to join ${chama.name} chama. ${inviteLink ? `Join here: ${inviteLink}` : 'Reply to accept.'}`,
       });
     }
 
-    return { inviteId, message: 'Invitation sent successfully' };
+    if (dto.email && inviteToken) {
+      const inviteLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/invite/${inviteToken}`;
+      // TODO: Send email with invite link
+    }
+
+    return {
+      inviteId,
+      inviteToken,
+      inviteLink: inviteToken
+        ? `${process.env.FRONTEND_URL || 'http://localhost:3000'}/invite/${inviteToken}`
+        : null,
+      message: 'Invitation sent successfully',
+    };
+  }
+
+  /**
+   * Generate unique invite token
+   */
+  private generateInviteToken(): string {
+    const crypto = require('crypto');
+    return crypto.randomBytes(32).toString('hex');
   }
 
   /**
@@ -740,6 +782,104 @@ export class ChamaService {
     });
 
     return { message: 'Successfully joined chama' };
+  }
+
+  /**
+   * Get invite details by token
+   */
+  async getInviteByToken(token: string): Promise<any> {
+    const result = await this.db.query(
+      `SELECT ci.*, c.name as chama_name, c.description, c.max_members,
+              u.full_name as invited_by_name,
+              (SELECT COUNT(*) FROM chama_members WHERE chama_id = ci.chama_id AND status = 'active') as active_members
+       FROM chama_invites ci
+       JOIN chamas c ON ci.chama_id = c.id
+       JOIN users u ON ci.invited_by = u.id
+       WHERE ci.invite_token = $1`,
+      [token],
+    );
+
+    if (result.rows.length === 0) {
+      throw new NotFoundException('Invite not found');
+    }
+
+    const invite = result.rows[0];
+
+    if (invite.status !== 'pending') {
+      throw new BadRequestException('Invite already used or expired');
+    }
+
+    if (new Date(invite.expires_at) < new Date()) {
+      await this.db.query(
+        `UPDATE chama_invites SET status = 'expired' WHERE id = $1`,
+        [invite.id],
+      );
+      throw new BadRequestException('Invite has expired');
+    }
+
+    return {
+      inviteId: invite.id,
+      chamaId: invite.chama_id,
+      chamaName: invite.chama_name,
+      description: invite.description,
+      invitedBy: invite.invited_by_name,
+      activeMembers: invite.active_members,
+      maxMembers: invite.max_members,
+      expiresAt: invite.expires_at,
+    };
+  }
+
+  /**
+   * Accept invitation via token
+   */
+  async acceptInviteByToken(userId: string, token: string): Promise<any> {
+    const inviteDetails = await this.getInviteByToken(token);
+
+    // Check if user is already a member
+    const existing = await this.db.query(
+      'SELECT id FROM chama_members WHERE chama_id = $1 AND user_id = $2',
+      [inviteDetails.chamaId, userId],
+    );
+
+    if (existing.rows.length > 0) {
+      throw new BadRequestException('You are already a member of this chama');
+    }
+
+    // Check max members
+    if (inviteDetails.activeMembers >= inviteDetails.maxMembers) {
+      throw new BadRequestException('Chama has reached maximum members');
+    }
+
+    // Get next payout position
+    const positionResult = await this.db.query(
+      `SELECT COALESCE(MAX(payout_position), 0) + 1 as next_position
+       FROM chama_members WHERE chama_id = $1`,
+      [inviteDetails.chamaId],
+    );
+    const nextPosition = positionResult.rows[0].next_position;
+
+    await this.db.transactionAsSystem(async (client) => {
+      // Add as member
+      await client.query(
+        `INSERT INTO chama_members (
+          chama_id, user_id, role, status, payout_position
+        ) VALUES ($1, $2, 'member', 'active', $3)`,
+        [inviteDetails.chamaId, userId, nextPosition],
+      );
+
+      // Update invite
+      await client.query(
+        `UPDATE chama_invites SET status = 'accepted', responded_at = NOW(), invitee_user_id = $1
+         WHERE invite_token = $2`,
+        [userId, token],
+      );
+    });
+
+    return {
+      message: 'Successfully joined chama',
+      chamaId: inviteDetails.chamaId,
+      chamaName: inviteDetails.chamaName,
+    };
   }
 
   /**

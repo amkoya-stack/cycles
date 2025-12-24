@@ -170,6 +170,25 @@ export class ChamaController {
   }
 
   /**
+   * Get invite details by token (for shareable links)
+   * GET /api/chama/invite/token/:token
+   */
+  @Get('invite/token/:token')
+  async getInviteByToken(@Param('token') token: string) {
+    return this.chamaService.getInviteByToken(token);
+  }
+
+  /**
+   * Accept invitation via token (for shareable links)
+   * POST /api/chama/invite/token/:token/accept
+   */
+  @Post('invite/token/:token/accept')
+  @UseGuards(JwtAuthGuard)
+  async acceptInviteByToken(@Req() req: any, @Param('token') token: string) {
+    return this.chamaService.acceptInviteByToken(req.user.id, token);
+  }
+
+  /**
    * Join public chama (auto-accept)
    * POST /api/chama/:id/invite/accept-public
    */

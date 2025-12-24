@@ -48,6 +48,7 @@ import {
   FileText,
   User,
   UserMinus,
+  UserPlus,
   Settings,
   Activity,
   Calendar,
@@ -102,6 +103,7 @@ interface MemberDirectoryProps {
   chamaId: string;
   userRole: string | null;
   currentUserId: string | null;
+  onInviteMember?: () => void;
 }
 
 const ROLE_CONFIG = {
@@ -141,6 +143,7 @@ export function MemberDirectory({
   chamaId,
   userRole,
   currentUserId,
+  onInviteMember,
 }: MemberDirectoryProps) {
   const router = useRouter();
   const { toast } = useToast();
@@ -584,8 +587,28 @@ export function MemberDirectory({
       <div className="flex gap-6">
         {/* Left side - Main content */}
         <div className="flex-1 space-y-4">
-          {/* Filters and search */}
+          {/* Header with invite button */}
           <Card className="p-4">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Users className="w-5 h-5 text-[#083232]" />
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Members ({members.length})
+                </h3>
+              </div>
+              {canManageMembers && onInviteMember && (
+                <Button
+                  onClick={onInviteMember}
+                  className="bg-[#083232] hover:bg-[#2e856e]"
+                  size="sm"
+                >
+                  <UserPlus className="w-4 h-4 mr-2" />
+                  Invite Member
+                </Button>
+              )}
+            </div>
+
+            {/* Filters and search */}
             <div className="flex flex-col sm:flex-row gap-4">
               <div className="flex-1">
                 <div className="relative">

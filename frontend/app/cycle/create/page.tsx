@@ -26,10 +26,10 @@ type Frequency = "daily" | "weekly" | "monthly" | "custom";
 
 export default function CreateChamaPage() {
   const router = useRouter();
-  
+
   // Auth guard - redirect to login if token expired
   useAuthGuard();
-  
+
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");

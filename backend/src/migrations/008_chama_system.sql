@@ -23,7 +23,9 @@ CREATE TABLE IF NOT EXISTS chamas (
         "late_penalty_enabled": false,
         "late_penalty_percentage": 5,
         "min_contribution_percentage": 100,
-        "allow_partial_contributions": false
+        "allow_partial_contributions": false,
+        "members_can_invite": false,
+        "invite_requires_approval": false
     }'::JSONB,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
@@ -76,19 +78,21 @@ CREATE TABLE IF NOT EXISTS chama_invites (
     invitee_phone TEXT, -- Can invite by phone even if not registered
     invitee_email TEXT,
     invitee_user_id UUID REFERENCES users(id) ON DELETE CASCADE, -- Set when user registers
+    invite_token TEXT UNIQUE, -- Unique token for shareable link
     status TEXT NOT NULL DEFAULT 'pending', -- pending, accepted, rejected, expired
     invited_at TIMESTAMPTZ DEFAULT NOW(),
     responded_at TIMESTAMPTZ,
     expires_at TIMESTAMPTZ DEFAULT NOW() + INTERVAL '7 days',
     
     CONSTRAINT valid_invite_status CHECK (status IN ('pending', 'accepted', 'rejected', 'expired')),
-    CONSTRAINT invite_has_contact CHECK (invitee_phone IS NOT NULL OR invitee_email IS NOT NULL OR invitee_user_id IS NOT NULL)
+    CONSTRAINT invite_has_contact CHECK (invitee_phone IS NOT NULL OR invitee_email IS NOT NULL OR invitee_user_id IS NOT NULL OR invite_token IS NOT NULL)
 );
 
 CREATE INDEX idx_chama_invites_chama ON chama_invites(chama_id);
 CREATE INDEX idx_chama_invites_user ON chama_invites(invitee_user_id);
 CREATE INDEX idx_chama_invites_status ON chama_invites(status);
 CREATE INDEX idx_chama_invites_phone ON chama_invites(invitee_phone);
+CREATE INDEX idx_chama_invites_token ON chama_invites(invite_token);
 
 -- ============================================================================
 -- CONTRIBUTION CYCLES TABLE

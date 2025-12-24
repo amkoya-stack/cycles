@@ -22,6 +22,7 @@ import { ActivePollsSidebar } from "@/components/chama/active-polls-sidebar";
 import { ChamaDepositModal } from "@/components/chama/chama-deposit-modal";
 import { ChamaTransferModal } from "@/components/chama/chama-transfer-modal";
 import { DocumentVault } from "@/components/chama/document-vault";
+import { InviteMemberModal } from "@/components/chama/invite-member-modal";
 import { useNotifications } from "@/hooks/use-notifications";
 import {
   Users,
@@ -140,6 +141,7 @@ export default function CycleBySlugPage() {
   // Chama wallet modals
   const [showChamaDeposit, setShowChamaDeposit] = useState(false);
   const [showChamaTransfer, setShowChamaTransfer] = useState(false);
+  const [showInviteModal, setShowInviteModal] = useState(false);
   const [userChamas, setUserChamas] = useState<UserChama[]>([]);
   const [chamaMembers, setChamaMembers] = useState<
     { user_id: string; full_name: string; phone?: string }[]
@@ -713,6 +715,7 @@ export default function CycleBySlugPage() {
             chamaId={chama.id}
             userRole={userRole}
             currentUserId={currentUserId}
+            onInviteMember={() => setShowInviteModal(true)}
           />
         );
 
@@ -1444,6 +1447,15 @@ export default function CycleBySlugPage() {
         userChamas={userChamas}
         chamaMembers={chamaMembers}
         onClose={() => setShowChamaTransfer(false)}
+        onSuccess={refreshChamaData}
+      />
+
+      {/* Invite Member Modal */}
+      <InviteMemberModal
+        isOpen={showInviteModal}
+        chamaId={chama?.id || ""}
+        chamaName={chama?.name || ""}
+        onClose={() => setShowInviteModal(false)}
         onSuccess={refreshChamaData}
       />
 

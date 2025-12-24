@@ -33,10 +33,10 @@ interface Transaction {
 
 export default function WalletPage() {
   const router = useRouter();
-  
+
   // Auth guard - redirect to login if token expired
   const { isAuthenticated } = useAuthGuard();
-  
+
   const { chamas, fetchChamas } = useChamas();
   const [balance, setBalance] = useState<number>(0);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
