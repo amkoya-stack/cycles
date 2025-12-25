@@ -447,66 +447,160 @@ export class RotationService {
    * Get rotation status for a chama
    */
   async getRotationStatus(chamaId: string) {
-    const result = await this.db.query(
-      `SELECT 
-        ro.*,
-        c.name as chama_name,
-        (SELECT COUNT(*) FROM rotation_positions WHERE rotation_order_id = ro.id AND status = 'completed') as completed_positions,
-        (SELECT COUNT(*) FROM rotation_positions WHERE rotation_order_id = ro.id AND status = 'skipped') as skipped_positions
-       FROM rotation_orders ro
-       JOIN chamas c ON ro.chama_id = c.id
-       WHERE ro.chama_id = $1 AND ro.status = 'active'`,
-      [chamaId],
-    );
+    try {
+      const result = await this.db.query(
+        `SELECT 
+          ro.*,
+          c.name as chama_name,
+          (SELECT COUNT(*) FROM rotation_positions WHERE rotation_order_id = ro.id AND status = 'completed') as completed_positions,
+          (SELECT COUNT(*) FROM rotation_positions WHERE rotation_order_id = ro.id AND status = 'skipped') as skipped_positions
+         FROM rotation_orders ro
+         JOIN chamas c ON ro.chama_id = c.id
+         WHERE ro.chama_id = $1 AND ro.status = 'active'`,
+        [chamaId],
+      );
 
-    if (result.rowCount === 0) {
-      return {
-        hasRotation: false,
-        message: 'No active rotation order found',
-      };
-    }
+      if (result.rowCount === 0) {
+        return {
+          hasRotation: false,
+          rotation: null,
+          positions: [],
+          currentCycle: null,
+          progress: {
+            currentPosition: 0,
+            totalPositions: 0,
+            completedCount: 0,
+            skippedCount: 0,
+            remainingCount: 0,
+          },
+          message: 'No active rotation order found',
+        };
+      }
 
-    const rotation = result.rows[0];
+      const rotation = result.rows[0];
 
-    // Get all positions
-    const positionsResult = await this.db.query(
-      `SELECT rp.*, cm.user_id, u.full_name, u.phone, u.email
+      // Get all positions
+      const positionsResult = await this.db.query(
+        `SELECT rp.*, cm.user_id, u.full_name, u.phone, u.email
        FROM rotation_positions rp
        JOIN chama_members cm ON rp.member_id = cm.id
        JOIN users u ON cm.user_id = u.id
        WHERE rp.rotation_order_id = $1
        ORDER BY rp.position ASC`,
-      [rotation.id],
-    );
+        [rotation.id],
+      );
 
-    // Transform to camelCase for frontend
-    const positions = positionsResult.rows.map((pos) => ({
-      ...pos,
-      fullName: pos.full_name,
-      userId: pos.user_id,
-      memberId: pos.member_id,
-      rotationOrderId: pos.rotation_order_id,
-      meritScore: pos.merit_score,
-      assignedAt: pos.assigned_at,
-      completedAt: pos.completed_at,
-      skippedReason: pos.skipped_reason,
-    }));
+      // Transform to camelCase for frontend
+      const positions = positionsResult.rows.map((pos) => ({
+        ...pos,
+        fullName: pos.full_name,
+        userId: pos.user_id,
+        memberId: pos.member_id,
+        rotationOrderId: pos.rotation_order_id,
+        meritScore: pos.merit_score,
+        assignedAt: pos.assigned_at,
+        completedAt: pos.completed_at,
+        skippedReason: pos.skipped_reason,
+      }));
 
-    return {
-      hasRotation: true,
-      rotation,
-      positions,
-      progress: {
-        current: rotation.current_position || 0,
-        total: rotation.total_positions,
-        completed: parseInt(rotation.completed_positions),
-        skipped: parseInt(rotation.skipped_positions),
-        remaining:
-          rotation.total_positions -
-          parseInt(rotation.completed_positions) -
-          parseInt(rotation.skipped_positions),
-      },
-    };
+      // Get current cycle and contributions
+      const currentCycleResult = await this.db.query(
+        `SELECT cc.*, 
+        rp.id as recipient_position_id,
+        u.full_name as recipient_name
+       FROM contribution_cycles cc
+       LEFT JOIN chama_members cm ON cc.payout_recipient_id = cm.id
+       LEFT JOIN users u ON cm.user_id = u.id
+       LEFT JOIN rotation_positions rp ON rp.member_id = cc.payout_recipient_id 
+         AND rp.rotation_order_id = $2 AND rp.status = 'current'
+       WHERE cc.chama_id = $1 AND cc.status = 'active'
+       ORDER BY cc.cycle_number DESC LIMIT 1`,
+        [chamaId, rotation.id],
+      );
+
+      let currentCycle: any = null;
+      if (currentCycleResult.rowCount > 0) {
+        const cycle = currentCycleResult.rows[0];
+        const expectedAmount = cycle.expected_amount || 0;
+
+        // Get contributions for this cycle - simplified query
+        const contributionsResult = await this.db.query(
+          `SELECT 
+          cm.id as member_id,
+          u.id as user_id,
+          u.full_name as user_name,
+          COALESCE(c.amount, 0) as paid_amount,
+          CASE WHEN c.status = 'completed' THEN true ELSE false END as is_paid,
+          c.id as contribution_id
+         FROM chama_members cm
+         JOIN users u ON cm.user_id = u.id
+         LEFT JOIN contributions c ON c.member_id = cm.id AND c.cycle_id = $1
+         WHERE cm.chama_id = $2 AND cm.status = 'active'
+         ORDER BY u.full_name`,
+          [cycle.id, chamaId],
+        );
+
+        console.log('Cycle ID:', cycle.id);
+        console.log('Contributions found:', contributionsResult.rows.map(r => ({
+          member: r.user_name,
+          paid: r.paid_amount,
+          isPaid: r.is_paid,
+          contributionId: r.contribution_id
+        })));
+
+        currentCycle = {
+          id: cycle.id,
+          chamaId: cycle.chama_id,
+          cycleNumber: cycle.cycle_number,
+          expectedAmount: expectedAmount,
+          startDate: cycle.start_date,
+          dueDate: cycle.due_date,
+          status: cycle.status,
+          currentRecipient: cycle.recipient_name
+            ? {
+                id: cycle.payout_recipient_id,
+                name: cycle.recipient_name,
+                positionId: cycle.recipient_position_id,
+              }
+            : null,
+          contributions: contributionsResult.rows.map((contrib) => ({
+            memberId: contrib.member_id,
+            userId: contrib.user_id,
+            userName: contrib.user_name,
+            expectedAmount: expectedAmount,
+            paidAmount: parseFloat(contrib.paid_amount) || 0,
+            lateFee: 0,
+            isPaid: contrib.is_paid || false,
+            paymentDate: null,
+          })),
+        };
+      }
+
+      const responseData = {
+        hasRotation: true,
+        rotation,
+        positions,
+        currentCycle,
+        progress: {
+          currentPosition: rotation.current_position || 0,
+          totalPositions: rotation.total_positions,
+          completedCount: parseInt(rotation.completed_positions),
+          skippedCount: parseInt(rotation.skipped_positions),
+          remainingCount:
+            rotation.total_positions -
+            parseInt(rotation.completed_positions) -
+            parseInt(rotation.skipped_positions),
+        },
+      };
+
+      console.log('Rotation response progress:', responseData.progress);
+      console.log('Total positions:', rotation.total_positions);
+
+      return responseData;
+    } catch (error) {
+      console.error('Error in getRotationStatus:', error);
+      throw error;
+    }
   }
 
   /**

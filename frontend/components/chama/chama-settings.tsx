@@ -215,7 +215,9 @@ export function ChamaSettings({
               {settings.members_can_invite && (
                 <div className="flex items-center gap-2 mt-2 text-sm text-blue-700 bg-blue-50 px-3 py-2 rounded">
                   <CheckCircle2 className="h-4 w-4" />
-                  <span>All members can invite new people via link or email</span>
+                  <span>
+                    All members can invite new people via link or email
+                  </span>
                 </div>
               )}
             </div>

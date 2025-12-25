@@ -18,6 +18,9 @@ import { ActivityFeed } from "@/components/chama/activity-feed";
 import { GovernanceSection } from "@/components/governance/governance-section";
 import { CommunityPosts } from "@/components/chama/community-posts";
 import { ActivePollsSidebar } from "@/components/chama/active-polls-sidebar";
+import { MeetingsSidebar } from "@/components/chama/meetings-sidebar";
+import { SpacesMeetingModal } from "@/components/chama/spaces-meeting-modal";
+import { FloatingMeetingIndicator } from "@/components/chama/floating-meeting-indicator";
 import { ChamaDepositModal } from "@/components/chama/chama-deposit-modal";
 import { ChamaTransferModal } from "@/components/chama/chama-transfer-modal";
 import { DocumentVault } from "@/components/chama/document-vault";
@@ -79,7 +82,6 @@ interface ChamaDetails {
 type TabType =
   | "community"
   | "classroom"
-  | "meetings"
   | "members"
   | "rotation"
   | "financials"
@@ -149,7 +151,18 @@ export default function CycleBySlugPage() {
     ChamaTransaction[]
   >([]);
   const [loadingTransactions, setLoadingTransactions] = useState(false);
+  const [meetingsRefreshKey, setMeetingsRefreshKey] = useState(0);
   const [showAllTransactions, setShowAllTransactions] = useState(false);
+
+  // Meeting modal state
+  const [showSpacesModal, setShowSpacesModal] = useState(false);
+  const [meetingMinimized, setMeetingMinimized] = useState(false);
+  const [meetingParticipantCount, setMeetingParticipantCount] = useState(0);
+  const [activeMeetingId, setActiveMeetingId] = useState("");
+  const [activeMeetingTitle, setActiveMeetingTitle] = useState("");
+  const [livekitToken, setLivekitToken] = useState("");
+  const [livekitUrl, setLivekitUrl] = useState("");
+  const [isHostOfMeeting, setIsHostOfMeeting] = useState(false);
 
   // Fund request notifications
   const { fundRequests, unreadCount, respondToRequest } = useNotifications();
@@ -170,13 +183,20 @@ export default function CycleBySlugPage() {
             }
 
             const chamas = await response.json();
+            console.log(`[DEBUG] All available chamas for user:`, chamas);
             const decodedSlug = decodeURIComponent(slug);
-            const matchedChama = chamas.find(
-              (c: any) =>
-                c.name.toLowerCase().replace(/\s+/g, "-") ===
-                  decodedSlug.toLowerCase() ||
-                c.name.toLowerCase() === decodedSlug.toLowerCase()
-            );
+            console.log(`[DEBUG] Looking for slug: "${decodedSlug}"`);
+            const matchedChama = chamas.find((c: any) => {
+              const nameToSlug = c.name.toLowerCase().replace(/\s+/g, "-");
+              const nameMatch = nameToSlug === decodedSlug.toLowerCase();
+              const directMatch =
+                c.name.toLowerCase() === decodedSlug.toLowerCase();
+              console.log(
+                `[DEBUG] Checking chama: ${c.name} (id: ${c.id}) -> slug: ${nameToSlug}, nameMatch: ${nameMatch}, directMatch: ${directMatch}`
+              );
+              return nameMatch || directMatch;
+            });
+            console.log(`[DEBUG] Matched chama:`, matchedChama);
 
             if (!matchedChama) {
               throw new Error("Cycle not found");
@@ -191,6 +211,14 @@ export default function CycleBySlugPage() {
                 },
               }
             );
+
+            if (detailResponse.status === 401) {
+              // Token expired, redirect to login
+              localStorage.removeItem("accessToken");
+              localStorage.removeItem("refreshToken");
+              router.push("/auth/login");
+              return;
+            }
 
             if (!detailResponse.ok) {
               throw new Error("Failed to load cycle details");
@@ -576,11 +604,65 @@ export default function CycleBySlugPage() {
     return userRole === "admin";
   };
 
+  const handleJoinMeeting = async (meetingId: string, title: string) => {
+    try {
+      const accessToken = localStorage.getItem("accessToken");
+      if (!accessToken) {
+        alert("Please log in to join meetings");
+        return;
+      }
+
+      // Get current user ID to check if they're the host
+      let currentUserId = "";
+      try {
+        const payload = JSON.parse(atob(accessToken.split(".")[1]));
+        currentUserId = payload.sub || payload.userId || "";
+      } catch (e) {
+        console.error("Failed to parse token:", e);
+      }
+
+      // Join the meeting to get Livekit token
+      // Backend will fetch user details (name, avatar) from database
+      const joinResponse = await fetch(
+        `http://localhost:3001/api/meetings/${meetingId}/join`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({}), // Empty body - backend will use user from JWT
+        }
+      );
+
+      if (joinResponse.ok) {
+        const joinData = await joinResponse.json();
+        console.log("Join meeting data:", joinData);
+
+        // Check if current user is the host
+        const isUserHost = joinData.meeting?.host_user_id === currentUserId;
+        console.log(`User is host: ${isUserHost}`);
+
+        setActiveMeetingId(meetingId);
+        setActiveMeetingTitle(title);
+        setLivekitToken(joinData.token);
+        setLivekitUrl(joinData.wsUrl || joinData.url);
+        setIsHostOfMeeting(isUserHost);
+        setShowSpacesModal(true);
+      } else {
+        const error = await joinResponse.json();
+        alert(error.message || "Failed to join meeting");
+      }
+    } catch (error: any) {
+      console.error("Error joining meeting:", error);
+      alert(error.message || "Failed to join meeting");
+    }
+  };
+
   const allTabs = [
     { id: "about" as TabType, label: "About", icon: Info },
     { id: "community" as TabType, label: "Community", icon: MessageSquare },
     { id: "members" as TabType, label: "Members", icon: Users },
-    { id: "meetings" as TabType, label: "Meetings", icon: Video },
     { id: "classroom" as TabType, label: "Classroom", icon: GraduationCap },
     { id: "rotation" as TabType, label: "Rotation", icon: Repeat },
     { id: "financials" as TabType, label: "Financials", icon: TrendingUp },
@@ -615,12 +697,20 @@ export default function CycleBySlugPage() {
                     return "";
                   }
                 })()}
+                onMeetingCreated={() =>
+                  setMeetingsRefreshKey((prev) => prev + 1)
+                }
               />
             </div>
 
-            {/* Right Sidebar - Active Polls */}
+            {/* Right Sidebar - Meetings & Polls */}
             <div className="lg:col-span-1">
-              <div className="sticky top-20">
+              <div className="sticky top-20 space-y-6">
+                <MeetingsSidebar
+                  key={meetingsRefreshKey}
+                  chamaId={chama.id}
+                  onJoinMeeting={handleJoinMeeting}
+                />
                 <ActivePollsSidebar chamaId={chama.id} />
               </div>
             </div>
@@ -640,23 +730,6 @@ export default function CycleBySlugPage() {
               <div className="mt-4">
                 <p className="text-sm text-gray-500">
                   Coming soon: Financial literacy courses and workshops
-                </p>
-              </div>
-            </Card>
-          </div>
-        );
-
-      case "meetings":
-        return (
-          <div className="space-y-4">
-            <Card className="p-6">
-              <h3 className="text-lg font-semibold mb-4">Scheduled Meetings</h3>
-              <p className="text-gray-600">
-                View upcoming meetings and past meeting minutes.
-              </p>
-              <div className="mt-4">
-                <p className="text-sm text-gray-500">
-                  No meetings scheduled yet.
                 </p>
               </div>
             </Card>
@@ -719,7 +792,9 @@ export default function CycleBySlugPage() {
         return (
           <RotationPayoutPage
             chamaId={chama.id}
-            isAdmin={userRole === "admin"}
+            isAdmin={
+              chama.user_role === "chairperson" || chama.user_role === "admin"
+            }
           />
         );
 
@@ -1454,6 +1529,34 @@ export default function CycleBySlugPage() {
         onClose={() => setShowInviteModal(false)}
         onSuccess={refreshChamaData}
       />
+
+      {/* Floating Meeting Indicator */}
+      {meetingMinimized && showSpacesModal && (
+        <FloatingMeetingIndicator
+          isVisible={meetingMinimized}
+          meetingTitle={activeMeetingTitle}
+          participantCount={meetingParticipantCount}
+          onClick={() => setMeetingMinimized(false)}
+        />
+      )}
+
+      {/* Spaces Meeting Modal */}
+      {showSpacesModal && (
+        <SpacesMeetingModal
+          isOpen={!meetingMinimized}
+          onClose={() => {
+            setShowSpacesModal(false);
+            setMeetingMinimized(false);
+          }}
+          onMinimize={() => setMeetingMinimized(true)}
+          onParticipantCountChange={setMeetingParticipantCount}
+          meetingId={activeMeetingId}
+          meetingTitle={activeMeetingTitle}
+          livekitToken={livekitToken}
+          livekitUrl={livekitUrl}
+          isHost={isHostOfMeeting}
+        />
+      )}
 
       <Footer />
     </div>

@@ -1,3 +1,5 @@
+/* eslint-disable react/no-unescaped-entities */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useState, useEffect } from "react";
@@ -35,6 +37,10 @@ export default function InvitePage() {
   const [accepting, setAccepting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const isAuthenticated =
+    typeof window !== "undefined" && !!localStorage.getItem("accessToken");
 
   useEffect(() => {
     if (token) {
@@ -108,7 +114,12 @@ export default function InvitePage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col">
-        <HomeNavbar />
+        <HomeNavbar
+          isAuthenticated={isAuthenticated}
+          showSearchInNav={false}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+        />
         <div className="flex-1 flex items-center justify-center">
           <Loader2 className="w-8 h-8 animate-spin text-[#083232]" />
         </div>
@@ -120,7 +131,12 @@ export default function InvitePage() {
   if (error && !invite) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col">
-        <HomeNavbar />
+        <HomeNavbar
+          isAuthenticated={isAuthenticated}
+          showSearchInNav={false}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+        />
         <div className="flex-1 flex items-center justify-center p-4">
           <Card className="max-w-md w-full p-8 text-center">
             <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
@@ -146,7 +162,12 @@ export default function InvitePage() {
   if (success) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col">
-        <HomeNavbar />
+        <HomeNavbar
+          isAuthenticated={isAuthenticated}
+          showSearchInNav={false}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+        />
         <div className="flex-1 flex items-center justify-center p-4">
           <Card className="max-w-md w-full p-8 text-center">
             <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
@@ -165,7 +186,14 @@ export default function InvitePage() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      <HomeNavbar />
+      <HomeNavbar
+        isAuthenticated={false}
+        showSearchInNav={false}
+        searchQuery={""}
+        onSearchChange={function (value: string): void {
+          throw new Error("Function not implemented.");
+        }}
+      />
 
       <div className="flex-1 flex items-center justify-center p-4">
         <Card className="max-w-2xl w-full p-8">

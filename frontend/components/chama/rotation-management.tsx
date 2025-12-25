@@ -92,7 +92,7 @@ export function RotationManagement({
 
   const rotationTypeDescriptions = {
     sequential:
-      "Members receive payouts in the order they joined the chama. Fair and predictable.",
+      "Members receive payouts in the order they joined the cycle. Fair and predictable.",
     random:
       "Random selection using cryptographically secure shuffle. Completely unbiased.",
     merit_based:
@@ -155,7 +155,7 @@ export function RotationManagement({
           <DialogHeader>
             <DialogTitle>Create Rotation Order</DialogTitle>
             <DialogDescription>
-              Configure how payout recipients will be determined for this chama.
+              Configure how payout recipients will be determined for this cycle.
             </DialogDescription>
           </DialogHeader>
 

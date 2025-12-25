@@ -5,6 +5,8 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { SpacesMeetingModal } from "@/components/chama/spaces-meeting-modal";
+import { FloatingMeetingIndicator } from "@/components/chama/floating-meeting-indicator";
 import {
   MessageSquare,
   ThumbsUp,
@@ -110,9 +112,14 @@ interface Post {
 interface CommunityPostsProps {
   chamaId: string;
   userId: string;
+  onMeetingCreated?: () => void;
 }
 
-export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
+export function CommunityPosts({
+  chamaId,
+  userId,
+  onMeetingCreated,
+}: CommunityPostsProps) {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -149,6 +156,15 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
   const [pollDescription, setPollDescription] = useState("");
   const [pollDeadlineHours, setPollDeadlineHours] = useState(24); // Default 24 hours
   const [creatingPoll, setCreatingPoll] = useState(false);
+  const [creatingMeeting, setCreatingMeeting] = useState(false);
+  const [showSpacesModal, setShowSpacesModal] = useState(false);
+  const [meetingMinimized, setMeetingMinimized] = useState(false);
+  const [meetingParticipantCount, setMeetingParticipantCount] = useState(0);
+  const [activeMeetingId, setActiveMeetingId] = useState("");
+  const [activeMeetingTitle, setActiveMeetingTitle] = useState("");
+  const [livekitToken, setLivekitToken] = useState("");
+  const [livekitUrl, setLivekitUrl] = useState("");
+  const [isHostOfMeeting, setIsHostOfMeeting] = useState(false);
 
   // Poll duration presets in hours
   const pollDurationPresets = [
@@ -212,6 +228,11 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
       setError(null);
       const token = getAuthToken();
 
+      if (!token) {
+        window.location.href = "/auth/login";
+        return;
+      }
+
       // Fetch regular posts
       const postsResponse = await fetch(
         `${API_URL}/chama/${chamaId}/community/posts`,
@@ -221,6 +242,14 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
           },
         }
       );
+
+      if (postsResponse.status === 401) {
+        // Unauthorized - redirect to login
+        localStorage.removeItem("accessToken");
+        localStorage.removeItem("refreshToken");
+        window.location.href = "/auth/login";
+        return;
+      }
 
       if (!postsResponse.ok) {
         throw new Error("Failed to fetch posts");
@@ -963,6 +992,13 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
     return `on ${date.toLocaleDateString()}`;
   };
 
+  const isPollExpired = (deadlineString?: string) => {
+    if (!deadlineString) return false;
+    const deadline = new Date(deadlineString);
+    const now = new Date();
+    return now.getTime() > deadline.getTime();
+  };
+
   const getInitials = (name: string) => {
     return name
       .split(" ")
@@ -1445,16 +1481,104 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
                       {/* Action Buttons */}
                       <div className="flex gap-2">
                         <Button
-                          onClick={() => {
-                            // TODO: Implement meeting creation
-                            console.log("Creating meeting:", {
-                              title: meetingTitle,
-                              whoCanSpeak,
-                              recordSpace,
-                              startNow,
-                              scheduledTime: !startNow ? scheduledTime : null,
-                            });
-                            setShowMeetingDialog(false);
+                          onClick={async () => {
+                            if (!meetingTitle.trim() || creatingMeeting) return;
+
+                            setCreatingMeeting(true);
+                            try {
+                              console.log("Creating meeting...");
+                              const now = new Date();
+                              const end = new Date(
+                                now.getTime() + 2 * 60 * 60 * 1000
+                              );
+
+                              const response = await fetch(
+                                `${API_URL}/meetings`,
+                                {
+                                  method: "POST",
+                                  headers: {
+                                    "Content-Type": "application/json",
+                                    Authorization: `Bearer ${localStorage.getItem(
+                                      "accessToken"
+                                    )}`,
+                                  },
+                                  body: JSON.stringify({
+                                    chamaId,
+                                    title: meetingTitle,
+                                    description: "",
+                                    scheduledStart: now.toISOString(),
+                                    scheduledEnd: end.toISOString(),
+                                    meetingType: "audio",
+                                    isRecordingEnabled: recordSpace,
+                                    requireApproval: whoCanSpeak === "selected",
+                                    maxParticipants: 100,
+                                  }),
+                                }
+                              );
+
+                              console.log("Meeting response:", response.status);
+
+                              if (response.ok) {
+                                const meeting = await response.json();
+                                console.log("Meeting created:", meeting);
+
+                                // Get Livekit token to join
+                                // Backend will fetch user details from database
+                                const joinResponse = await fetch(
+                                  `${API_URL}/meetings/${meeting.id}/join`,
+                                  {
+                                    method: "POST",
+                                    headers: {
+                                      "Content-Type": "application/json",
+                                      Authorization: `Bearer ${localStorage.getItem(
+                                        "accessToken"
+                                      )}`,
+                                    },
+                                    body: JSON.stringify({}), // Empty - backend uses JWT user
+                                  }
+                                );
+
+                                console.log(
+                                  "Join response:",
+                                  joinResponse.status
+                                );
+
+                                if (joinResponse.ok) {
+                                  const joinData = await joinResponse.json();
+                                  console.log("Join data:", joinData);
+
+                                  setActiveMeetingId(meeting.id);
+                                  setActiveMeetingTitle(meetingTitle);
+                                  setLivekitToken(joinData.token);
+                                  setLivekitUrl(joinData.wsUrl || joinData.url);
+                                  setIsHostOfMeeting(true);
+                                  setShowMeetingDialog(false);
+                                  setShowSpacesModal(true);
+                                  console.log("Opening spaces modal");
+                                } else {
+                                  const joinError = await joinResponse.json();
+                                  console.error("Join error:", joinError);
+                                  alert(
+                                    joinError.message ||
+                                      "Failed to join meeting"
+                                  );
+                                }
+                              } else {
+                                const error = await response.json();
+                                console.error("Meeting creation error:", error);
+                                alert(
+                                  error.message || "Failed to create meeting"
+                                );
+                              }
+                            } catch (error: any) {
+                              console.error("Error:", error);
+                              alert(
+                                error.message || "Failed to create meeting"
+                              );
+                            } finally {
+                              setCreatingMeeting(false);
+                            }
+
                             // Reset form
                             setMeetingTitle("");
                             setWhoCanSpeak("everyone");
@@ -1462,10 +1586,12 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
                             setStartNow(true);
                             setScheduledTime("");
                           }}
-                          disabled={!meetingTitle.trim()}
+                          disabled={!meetingTitle.trim() || creatingMeeting}
                           className="flex-1 bg-[#083232] hover:bg-[#2e856e] text-white font-semibold h-10"
                         >
-                          Start Meeting Now
+                          {creatingMeeting
+                            ? "Creating..."
+                            : "Start Meeting Now"}
                         </Button>
                         <Button
                           variant="outline"
@@ -1686,17 +1812,83 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
 
                       {/* Confirm Button */}
                       <Button
-                        onClick={() => {
-                          // TODO: Implement meeting scheduling
-                          console.log("Schedule meeting for:", {
-                            month: schedulerMonth,
-                            day: schedulerDay,
-                            year: schedulerYear,
-                            hour: schedulerHour,
-                            minute: schedulerMinute,
-                          });
-                          setShowSchedulerDialog(false);
+                        onClick={async () => {
+                          if (!meetingTitle.trim()) return;
+
+                          try {
+                            // Build the scheduled date
+                            const monthIndex = [
+                              "January",
+                              "February",
+                              "March",
+                              "April",
+                              "May",
+                              "June",
+                              "July",
+                              "August",
+                              "September",
+                              "October",
+                              "November",
+                              "December",
+                            ].indexOf(schedulerMonth);
+                            const scheduledDate = new Date(
+                              parseInt(schedulerYear),
+                              monthIndex,
+                              parseInt(schedulerDay),
+                              parseInt(schedulerHour),
+                              parseInt(schedulerMinute)
+                            );
+                            const endDate = new Date(
+                              scheduledDate.getTime() + 2 * 60 * 60 * 1000
+                            );
+
+                            const response = await fetch(
+                              `${API_URL}/meetings`,
+                              {
+                                method: "POST",
+                                headers: {
+                                  "Content-Type": "application/json",
+                                  Authorization: `Bearer ${localStorage.getItem(
+                                    "accessToken"
+                                  )}`,
+                                },
+                                body: JSON.stringify({
+                                  chamaId,
+                                  title: meetingTitle,
+                                  description: "",
+                                  scheduledStart: scheduledDate.toISOString(),
+                                  scheduledEnd: endDate.toISOString(),
+                                  meetingType: "audio",
+                                  isRecordingEnabled: recordSpace,
+                                  requireApproval: whoCanSpeak === "selected",
+                                  maxParticipants: 100,
+                                }),
+                              }
+                            );
+
+                            if (response.ok) {
+                              alert("Meeting scheduled successfully!");
+                              setShowSchedulerDialog(false);
+                              setShowMeetingDialog(false);
+                              // Reset form
+                              setMeetingTitle("");
+                              setWhoCanSpeak("everyone");
+                              setRecordSpace(false);
+                              // Notify parent to refresh meetings
+                              onMeetingCreated?.();
+                            } else {
+                              const error = await response.json();
+                              alert(
+                                error.message || "Failed to schedule meeting"
+                              );
+                            }
+                          } catch (error: any) {
+                            alert(
+                              error.message || "Failed to schedule meeting"
+                            );
+                          }
                         }}
+                        disabled={!meetingTitle.trim()}
                         className="w-full bg-[#083232] hover:bg-[#2e856e] text-white font-semibold h-10"
                       >
                         Confirm Schedule
@@ -1747,7 +1939,7 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
               {post.pinned && (
                 <div className="flex items-center gap-1 text-xs text-[#083232] font-medium mb-2">
                   <Pin className="w-3 h-3 fill-current" />
-                  <span>Pinned Post</span>
+                  <span>Pinned</span>
                 </div>
               )}
               <div className="flex gap-2">
@@ -1839,8 +2031,13 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
                               const isSelected = post.userVote === option;
                               const hasVoted = !!post.userVote;
                               const hasAnyVotes = totalVotes > 0;
+                              const pollExpired = isPollExpired(
+                                post.pollDeadline
+                              );
                               const canVote =
-                                !hasVoted && post.pollStatus === "active";
+                                !hasVoted &&
+                                post.pollStatus === "active" &&
+                                !pollExpired;
 
                               return (
                                 <div
@@ -1866,6 +2063,7 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
                                           type="radio"
                                           name={`poll-${post.id}`}
                                           value={option}
+                                          disabled={pollExpired}
                                           onChange={() =>
                                             post.proposalId &&
                                             handleVotePoll(
@@ -1874,7 +2072,7 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
                                               post.isGovernanceProposal || false
                                             )
                                           }
-                                          className="w-3.5 h-3.5 text-[#083232] border-gray-300 focus:ring-[#083232] cursor-pointer"
+                                          className="w-3.5 h-3.5 text-[#083232] border-gray-300 focus:ring-[#083232] cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
                                         />
                                       ) : isSelected ? (
                                         <CheckCircle2 className="w-4 h-4 text-[#083232]" />
@@ -2060,6 +2258,34 @@ export function CommunityPosts({ chamaId, userId }: CommunityPostsProps) {
             </Card>
           );
         })
+      )}
+
+      {/* Floating Meeting Indicator */}
+      {meetingMinimized && showSpacesModal && (
+        <FloatingMeetingIndicator
+          isVisible={meetingMinimized}
+          meetingTitle={activeMeetingTitle}
+          participantCount={meetingParticipantCount}
+          onClick={() => setMeetingMinimized(false)}
+        />
+      )}
+
+      {/* Spaces Meeting Modal */}
+      {showSpacesModal && (
+        <SpacesMeetingModal
+          isOpen={!meetingMinimized}
+          onClose={() => {
+            setShowSpacesModal(false);
+            setMeetingMinimized(false);
+          }}
+          onMinimize={() => setMeetingMinimized(true)}
+          onParticipantCountChange={setMeetingParticipantCount}
+          meetingId={activeMeetingId}
+          meetingTitle={activeMeetingTitle}
+          isHost={isHostOfMeeting}
+          livekitToken={livekitToken}
+          livekitUrl={livekitUrl}
+        />
       )}
     </div>
   );

@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Footer } from "@/components/footer";
 import { HomeNavbar } from "@/components/home/home-navbar";
 import { useChamas } from "@/hooks/use-chamas";
+import { useAuth } from "@/hooks/use-auth";
 import { io, Socket } from "socket.io-client";
 import { BalanceCard } from "@/components/wallet/BalanceCard";
 import { QuickSendSection } from "@/components/wallet/QuickSendSection";
@@ -32,6 +33,7 @@ interface Transaction {
 
 export default function WalletPage() {
   const router = useRouter();
+  const { isAuthenticated } = useAuth();
 
   const { chamas, fetchChamas } = useChamas();
   const [balance, setBalance] = useState<number>(0);

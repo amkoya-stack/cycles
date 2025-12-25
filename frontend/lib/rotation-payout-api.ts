@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // API client for rotation and payout operations
 
 const API_BASE_URL =
@@ -103,6 +104,7 @@ export interface RotationPosition {
 }
 
 export interface RotationStatus {
+  hasRotation: boolean;
   rotation: {
     id: string;
     chamaId: string;
@@ -114,6 +116,31 @@ export interface RotationStatus {
     completedAt?: string;
   } | null;
   positions: RotationPosition[];
+  currentCycle?: {
+    id: string;
+    chamaId: string;
+    cycleNumber: number;
+    expectedAmount: number;
+    startDate: string;
+    dueDate: string;
+    status: string;
+    currentRecipient: {
+      id: string;
+      name: string;
+      positionId: string;
+    } | null;
+    contributions: Array<{
+      memberId: string;
+      userId: string;
+      userName: string;
+      expectedAmount: number;
+      paidAmount: number;
+      lateFee: number;
+      isPaid: boolean;
+      paymentDate: string | null;
+    }>;
+  } | null;
+  cycles?: any; // For backward compatibility
   progress: {
     currentPosition: number;
     totalPositions: number;
@@ -320,6 +347,18 @@ export const payoutApi = {
   // Get payout summary
   async getPayoutSummary(chamaId: string): Promise<PayoutSummary> {
     const response = await apiClient.get(`/chama/${chamaId}/payouts/summary`);
+    return response.data;
+  },
+
+  // Process payout (manual trigger)
+  async processPayout(params: {
+    chamaId: string;
+    rotationId: string;
+    cycleId: string;
+    recipientId: string;
+    amount: number;
+  }): Promise<{ payoutId: string; status: string }> {
+    const response = await apiClient.post("/chama/payouts/process", params);
     return response.data;
   },
 };

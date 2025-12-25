@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useState } from "react";
@@ -15,17 +16,19 @@ import { useToast } from "@/hooks/use-toast";
 import { Link2, Mail, Phone, Copy, CheckCircle, Loader2 } from "lucide-react";
 
 interface InviteMemberModalProps {
-  open: boolean;
+  isOpen: boolean;
   onClose: () => void;
   chamaId: string;
   chamaName: string;
+  onSuccess?: () => void;
 }
 
 export function InviteMemberModal({
-  open,
+  isOpen,
   onClose,
   chamaId,
   chamaName,
+  onSuccess,
 }: InviteMemberModalProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -35,6 +38,15 @@ export function InviteMemberModal({
   // Form states
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+
+  const handleClose = () => {
+    // Reset all form states when modal closes
+    setEmail("");
+    setPhone("");
+    setInviteLink("");
+    setCopied(false);
+    onClose();
+  };
 
   const generateInviteLink = async () => {
     setLoading(true);
@@ -64,6 +76,8 @@ export function InviteMemberModal({
         title: "Invite link generated!",
         description: "Share this link with people you want to invite",
       });
+
+      onSuccess?.();
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -111,6 +125,8 @@ export function InviteMemberModal({
       });
 
       setEmail("");
+      onSuccess?.();
+      handleClose();
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -158,6 +174,8 @@ export function InviteMemberModal({
       });
 
       setPhone("");
+      onSuccess?.();
+      handleClose();
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -188,7 +206,7 @@ export function InviteMemberModal({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>Invite Members to {chamaName}</DialogTitle>

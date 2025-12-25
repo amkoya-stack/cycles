@@ -360,7 +360,7 @@ export class ChamaService {
     if (dto.settings) {
       updates.push(`settings = $${paramIndex++}`);
       values.push(JSON.stringify(dto.settings));
-      
+
       // Sync dedicated columns with settings JSONB for invite permissions
       if (dto.settings.members_can_invite !== undefined) {
         updates.push(`members_can_invite = $${paramIndex++}`);

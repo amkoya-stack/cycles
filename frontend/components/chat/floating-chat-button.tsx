@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/immutability */
 "use client";
 
 import { useState, useEffect } from "react";
@@ -42,9 +43,10 @@ export function FloatingChatButton() {
     <>
       {/* Floating Chat Button */}
       <div
-        className={`fixed bottom-6 right-6 z-50 transition-opacity duration-200 ${
+        className={`fixed bottom-0 right-6 z-50 transition-opacity duration-200 ${
           isOpen ? "opacity-0 pointer-events-none" : "opacity-100"
         }`}
+        style={{ marginBottom: "80px" }}
       >
         <Button
           onClick={() => setIsOpen(true)}

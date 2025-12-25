@@ -16,6 +16,7 @@ import { ActivityModule } from './activity/activity.module';
 import { GovernanceModule } from './governance/governance.module';
 import { ChatModule } from './chat/chat.module';
 import { DocumentModule } from './document/document.module';
+import { MeetingsModule } from './meetings/meetings.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -46,6 +47,7 @@ import { AppService } from './app.service';
     GovernanceModule,
     ChatModule,
     DocumentModule,
+    MeetingsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

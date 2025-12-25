@@ -48,10 +48,15 @@ export class RotationController {
    */
   @Get(':chamaId/rotation')
   async getRotationStatus(@Param('chamaId') chamaId: string, @Req() req: any) {
-    // Validate user is member of the chama
-    await this.validateChamaMember(chamaId, req.user.id);
+    try {
+      // Validate user is member of the chama
+      await this.validateChamaMember(chamaId, req.user.id);
 
-    return this.rotationService.getRotationStatus(chamaId);
+      return this.rotationService.getRotationStatus(chamaId);
+    } catch (error) {
+      console.error('Error in rotation controller:', error);
+      throw error;
+    }
   }
 
   /**
@@ -172,7 +177,7 @@ export class RotationController {
   private async validateChamaAdmin(chamaId: string, userId: string) {
     const result = await this.db.query(
       `SELECT id FROM chama_members 
-       WHERE chama_id = $1 AND user_id = $2 AND role = 'admin' AND status = 'active'`,
+       WHERE chama_id = $1 AND user_id = $2 AND role IN ('admin', 'chairperson') AND status = 'active'`,
       [chamaId, userId],
     );
 
