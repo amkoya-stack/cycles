@@ -7,6 +7,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import LoanDashboard from "@/components/chama/loan-dashboard";
 import { Footer } from "@/components/footer";
 import { HomeNavbar } from "@/components/home/home-navbar";
 import { MemberDirectory } from "@/components/chama/member-directory";
@@ -85,6 +86,7 @@ type TabType =
   | "members"
   | "rotation"
   | "financials"
+  | "loans"
   | "activity"
   | "documents"
   | "settings"
@@ -666,6 +668,7 @@ export default function CycleBySlugPage() {
     { id: "classroom" as TabType, label: "Classroom", icon: GraduationCap },
     { id: "rotation" as TabType, label: "Rotation", icon: Repeat },
     { id: "financials" as TabType, label: "Financials", icon: TrendingUp },
+    { id: "loans" as TabType, label: "Loans", icon: HandCoins },
     { id: "activity" as TabType, label: "Activity", icon: Activity },
     { id: "documents" as TabType, label: "Documents", icon: FileText },
     { id: "settings" as TabType, label: "Settings", icon: LogOut },
@@ -716,6 +719,9 @@ export default function CycleBySlugPage() {
             </div>
           </div>
         );
+
+      case "loans":
+        return <LoanDashboard />;
 
       case "classroom":
         return (

@@ -503,6 +503,18 @@ export class ChamaService {
    * To hide a chama completely, use settings.hidden = true
    */
   async listPublicChamas(): Promise<any> {
+    console.log('🔍 listPublicChamas called');
+    // DEBUG: Log current database and user
+    const dbInfo = await this.db.query(
+      'SELECT current_database() as db, current_user as user',
+    );
+    console.log('🟡 DB Info:', dbInfo.rows);
+    // DEBUG: Log all chamas in the table
+    const allChamas = await this.db.query(
+      'SELECT id, name, status, settings FROM chamas',
+    );
+    console.log('🟢 All chamas in DB:', allChamas.rows);
+
     const result = await this.db.query(
       `SELECT 
         c.id,
@@ -526,6 +538,8 @@ export class ChamaService {
       ORDER BY c.activity_score DESC, c.created_at DESC
       LIMIT 100`,
     );
+
+    console.log(`📊 Query returned ${result.rows.length} chamas`);
 
     // Parse tags from settings JSONB and add reputation
     const chamasWithData = await Promise.all(
@@ -554,6 +568,9 @@ export class ChamaService {
       }),
     );
 
+    console.log(
+      `✅ Returning ${chamasWithData.length} chamas with reputation data`,
+    );
     return chamasWithData;
   }
 
