@@ -1,4 +1,5 @@
 import React from "react";
+import { PieChart, Pie, Cell, Legend, ResponsiveContainer } from "recharts";
 import {
   Bell,
   TrendingUp,
@@ -6,6 +7,7 @@ import {
   AlertCircle,
   Users,
   DollarSign,
+  Wallet,
   Filter,
   Plus,
   MoreHorizontal,
@@ -32,22 +34,22 @@ export default function LoanDashboard() {
       positive: true,
     },
     {
-      title: "Active Loans",
-      value: "45",
-      change: "+5",
-      icon: TrendingUp,
-      iconBg: "bg-blue-100",
-      iconColor: "text-blue-600",
-      positive: true,
-    },
-    {
-      title: "Overdue Payments",
-      value: "3",
-      change: "-2",
-      icon: AlertCircle,
-      iconBg: "bg-orange-100",
-      iconColor: "text-orange-600",
-      positive: false,
+      title: "Active & Overdue Loans",
+      value: null, // We'll render custom content for this card
+      change: null,
+      icon: null,
+      iconBg: "",
+      iconColor: "",
+      positive: null,
+      custom: true,
+      activeLoans: {
+        value: "45",
+        change: "+5",
+      },
+      overduePayments: {
+        value: "3",
+        change: "-2",
+      },
     },
   ];
 
@@ -109,43 +111,94 @@ export default function LoanDashboard() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="p-6 max-w-[1400px] mx-auto">
-        {/* Stats Grid - 3 cards in a row */}
-        <div className="flex gap-4 mb-6">
-          {stats.map((stat, index) => (
-            <Card
-              key={index}
-              className={
-                index === 0
-                  ? "flex-1 basis-0 min-w-0"
-                  : "flex-[0.8] basis-0 min-w-0"
-              }
-            >
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between mb-4">
-                  <div>
-                    <p className="text-sm text-gray-600 mb-2">{stat.title}</p>
-                    <p className="text-3xl font-semibold text-gray-900">
-                      {stat.value}
-                    </p>
-                  </div>
-                  <div
-                    className={`w-12 h-12 ${stat.iconBg} rounded-full flex items-center justify-center`}
-                  >
-                    <stat.icon className={`w-6 h-6 ${stat.iconColor}`} />
-                  </div>
-                </div>
-                <span
-                  className={`text-sm ${
-                    stat.positive
-                      ? "text-green-600 bg-green-50"
-                      : "text-red-600 bg-red-50"
-                  } px-2 py-1 rounded`}
+        {/* Stats Grid - 3 cards in a row, wrapped in a parent Card */}
+        <div className="grid grid-cols-20 gap-4 mb-6 items-stretch">
+          {/* Total Portfolio Card (55% width) */}
+          <Card className="h-full min-h-[280px] flex flex-col col-span-11">
+            <CardContent className="p-0 flex-1 flex flex-col justify-between">
+              <div className="bg-[#083232] rounded-t-xl p-6 flex flex-col gap-2 shadow-sm border-b border-gray-100">
+                <div
+                  className="flex items-center gap-2 rounded-t-lg w-full"
+                  style={{ background: "#083232", padding: "1rem", margin: 0 }}
                 >
-                  {stat.change}
+                  <Wallet className="w-6 h-6 text-white" />
+                  <span className="text-lg font-semibold text-white">
+                    Total Cash
+                  </span>
+                </div>
+                <p className="text-4xl font-extrabold text-white mt-2 mb-1">
+                  Ksh 1,250,000
+                </p>
+                <span className="inline-block text-xs text-green-100 bg-green-600/70 px-3 py-1 rounded-full w-fit font-semibold">
+                  +12.5% from last month
                 </span>
-              </CardContent>
-            </Card>
-          ))}
+              </div>
+              <div className="flex-1 flex flex-col md:flex-row gap-0 md:gap-0 bg-white rounded-b-xl shadow-inner border-t border-gray-100">
+                <div className="flex-1 flex flex-col items-center justify-center p-5 border-b md:border-b-0 md:border-r border-gray-100">
+                  <div className="w-10 h-10 bg-[#2e856e]/10 rounded-full flex items-center justify-center mb-2">
+                    <DollarSign className="w-5 h-5 text-[#2e856e]" />
+                  </div>
+                  <p className="text-xs text-gray-500 font-medium mb-1">
+                    Contributions
+                  </p>
+                  <p className="text-lg font-bold text-[#083232]">
+                    Ksh 1,000,000
+                  </p>
+                </div>
+                <div className="flex-1 flex flex-col items-center justify-center p-5">
+                  <div className="w-10 h-10 bg-[#f64d52]/10 rounded-full flex items-center justify-center mb-2">
+                    <Percent className="w-5 h-5 text-[#f64d52]" />
+                  </div>
+                  <p className="text-xs text-gray-500 font-medium mb-1">
+                    Interest Income
+                  </p>
+                  <p className="text-lg font-bold text-[#083232]">
+                    Ksh 250,000
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          {/* Active & Overdue Loans Card */}
+          {/* Loans Pie Chart Card (45% width) */}
+          <Card className="h-full min-h-[280px] flex flex-col col-span-9">
+            <CardContent className="p-6 flex-1 flex flex-col items-center justify-center">
+              <p className="text-base font-semibold text-gray-900 mb-4">
+                Loan Distribution
+              </p>
+              <ResponsiveContainer width="100%" height={180}>
+                <PieChart>
+                  <Pie
+                    data={[
+                      { name: "Active", value: 45 },
+                      { name: "Overdue", value: 3 },
+                    ]}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={40}
+                    outerRadius={70}
+                    fill="#083232"
+                    dataKey="value"
+                    label={({ name, value }) => `${name}: ${value}`}
+                  >
+                    <Cell key="active" fill="#2e856e" />
+                    <Cell key="overdue" fill="#f64d52" />
+                  </Pie>
+                  <Legend verticalAlign="bottom" height={36} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="flex justify-center gap-6 mt-4">
+                <div className="flex items-center gap-2">
+                  <span className="inline-block w-3 h-3 rounded-full bg-[#2e856e]"></span>
+                  <span className="text-xs text-gray-700">Active: 45</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="inline-block w-3 h-3 rounded-full bg-[#f64d52]"></span>
+                  <span className="text-xs text-gray-700">Overdue: 3</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Navigation Tabs and Buttons */}
@@ -211,7 +264,7 @@ export default function LoanDashboard() {
             <div className="bg-white rounded-lg border border-gray-200 p-6">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-lg font-semibold text-gray-900">
-                  Active Loans
+                  Active & Overdue Loans
                 </h2>
                 <button className="text-sm text-blue-600 hover:text-blue-700">
                   View All
