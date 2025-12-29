@@ -11,7 +11,7 @@ export function useChamas() {
 
       // Fetch public chamas
       const publicResponse = await fetch(
-        "http://localhost:3001/api/chama/public"
+        "http://localhost:3001/api/v1/chama/public"
       );
       let publicChamas = [];
 
@@ -25,7 +25,7 @@ export function useChamas() {
 
       if (accessToken) {
         try {
-          const userResponse = await fetch("http://localhost:3001/api/chama", {
+          const userResponse = await fetch("http://localhost:3001/api/v1/chama", {
             headers: {
               Authorization: `Bearer ${accessToken}`,
             },

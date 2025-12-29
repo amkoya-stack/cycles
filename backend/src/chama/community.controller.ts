@@ -20,7 +20,7 @@ import {
   UpdatePostDto,
 } from './dto/community.dto';
 
-@Controller('chama/:chamaId/community')
+@Controller({ path: 'chama/:chamaId/community', version: '1' })
 @UseGuards(JwtAuthGuard)
 export class CommunityController {
   constructor(private readonly communityService: CommunityService) {}

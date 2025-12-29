@@ -1,9 +1,12 @@
+// backend/src/app.module.ts
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { BullModule } from '@nestjs/bull';
 import { ScheduleModule } from '@nestjs/schedule';
 import { DatabaseModule } from './database/database.module';
 import { RedisModule } from './cache/redis.module';
+import { CommonModule } from './common/common.module';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { WalletModule } from './wallet/wallet.module';
@@ -19,6 +22,7 @@ import { DocumentModule } from './document/document.module';
 import { MeetingsModule } from './meetings/meetings.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { RateLimitGuard } from './common/guards/rate-limit.guard';
 
 @Module({
   imports: [
@@ -35,6 +39,7 @@ import { AppService } from './app.service';
     }),
     DatabaseModule,
     RedisModule,
+    CommonModule,
     UsersModule,
     AuthModule,
     WalletModule,
@@ -50,6 +55,12 @@ import { AppService } from './app.service';
     MeetingsModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    {
+      provide: APP_GUARD,
+      useClass: RateLimitGuard,
+    },
+  ],
 })
 export class AppModule {}

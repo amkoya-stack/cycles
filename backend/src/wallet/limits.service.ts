@@ -3,6 +3,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
+import { mapQueryRow } from '../database/mapper.util';
 
 export interface TransactionLimits {
   daily_deposit_limit: number;
@@ -45,7 +46,23 @@ export class LimitsService {
       'SELECT * FROM get_or_create_user_limits($1::uuid)',
       [userId],
     );
-    return result.rows[0];
+    return mapQueryRow<TransactionLimits>(result, {
+      numberFields: [
+        'dailyDepositLimit',
+        'dailyWithdrawalLimit',
+        'dailyTransferLimit',
+        'monthlyDepositLimit',
+        'monthlyWithdrawalLimit',
+        'monthlyTransferLimit',
+        'maxSingleDeposit',
+        'maxSingleWithdrawal',
+        'maxSingleTransfer',
+        'minDeposit',
+        'minWithdrawal',
+        'minTransfer',
+      ],
+      booleanFields: ['isSuspended'],
+    })!;
   }
 
   /**
@@ -64,16 +81,28 @@ export class LimitsService {
       [userId],
     );
 
-    const daily = dailyResult.rows[0] || {
-      total_deposits: 0,
-      total_withdrawals: 0,
-      total_transfers: 0,
+    const daily = mapQueryRow<{
+      totalDeposits: number;
+      totalWithdrawals: number;
+      totalTransfers: number;
+    }>(dailyResult, {
+      numberFields: ['totalDeposits', 'totalWithdrawals', 'totalTransfers'],
+    }) || {
+      totalDeposits: 0,
+      totalWithdrawals: 0,
+      totalTransfers: 0,
     };
 
-    const monthly = monthlyResult.rows[0] || {
-      total_deposits: 0,
-      total_withdrawals: 0,
-      total_transfers: 0,
+    const monthly = mapQueryRow<{
+      totalDeposits: number;
+      totalWithdrawals: number;
+      totalTransfers: number;
+    }>(monthlyResult, {
+      numberFields: ['totalDeposits', 'totalWithdrawals', 'totalTransfers'],
+    }) || {
+      totalDeposits: 0,
+      totalWithdrawals: 0,
+      totalTransfers: 0,
     };
 
     return {

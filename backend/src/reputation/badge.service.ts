@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
+import { mapQueryRow, mapQueryResult, mapRow } from '../database/mapper.util';
 
 export interface Badge {
   id: string;
@@ -263,7 +264,10 @@ export class BadgeService {
     );
 
     if (existingResult.rows.length > 0) {
-      return this.mapBadgeAward(existingResult.rows[0]);
+      return mapQueryRow<BadgeAward>(existingResult, {
+        dateFields: ['awardedAt', 'revokedAt'],
+        booleanFields: ['isActive', 'awardedBySystem'],
+      });
     }
 
     // Award the badge
@@ -282,7 +286,10 @@ export class BadgeService {
       [badgeId, userId, chamaId, reason],
     );
 
-    return this.mapBadgeAward(result.rows[0]);
+    return mapQueryRow<BadgeAward>(result, {
+      dateFields: ['awardedAt', 'revokedAt'],
+      booleanFields: ['isActive', 'awardedBySystem'],
+    })!;
   }
 
   /**
@@ -345,7 +352,26 @@ export class BadgeService {
 
     const result = await this.db.query(query, params);
 
-    return result.rows.map((row) => this.mapBadgeAwardWithBadge(row));
+    // Map rows and add badge object from joined data
+    return mapQueryResult<BadgeAward>(result, {
+      dateFields: ['awardedAt', 'revokedAt'],
+      booleanFields: ['isActive', 'awardedBySystem'],
+      jsonFields: ['criteria'],
+    }).map((award) => {
+      // Add badge object from joined columns
+      award.badge = {
+        id: (award as any).badgeId,
+        code: (award as any).code,
+        name: (award as any).name,
+        description: (award as any).description,
+        tier: (award as any).tier,
+        iconUrl: (award as any).iconUrl,
+        pointsRequired: (award as any).pointsRequired,
+        criteria: (award as any).criteria,
+        isActive: true,
+      };
+      return award;
+    });
   }
 
   /**
@@ -356,7 +382,11 @@ export class BadgeService {
       `SELECT * FROM badges WHERE is_active = true ORDER BY points_required, tier`,
     );
 
-    return result.rows.map((row) => this.mapBadge(row));
+    return mapQueryResult<Badge>(result, {
+      numberFields: ['pointsRequired'],
+      booleanFields: ['isActive'],
+      jsonFields: ['criteria'],
+    });
   }
 
   /**
@@ -367,8 +397,11 @@ export class BadgeService {
       code,
     ]);
 
-    if (result.rows.length === 0) return null;
-    return this.mapBadge(result.rows[0]);
+    return mapQueryRow<Badge>(result, {
+      numberFields: ['pointsRequired'],
+      booleanFields: ['isActive'],
+      jsonFields: ['criteria'],
+    });
   }
 
   /**
@@ -404,62 +437,11 @@ export class BadgeService {
   }
 
   /**
-   * Map database row to Badge object
-   */
-  private mapBadge(row: any): Badge {
-    return {
-      id: row.id,
-      code: row.code,
-      name: row.name,
-      description: row.description,
-      tier: row.tier,
-      iconUrl: row.icon_url,
-      pointsRequired: row.points_required,
-      criteria: row.criteria,
-      isActive: row.is_active,
-    };
-  }
-
-  /**
    * Alias for checkAndAwardBadges (for consistency)
    */
   async evaluateAndAwardBadges(userId: string, chamaId: string): Promise<void> {
     return this.checkAndAwardBadges(userId, chamaId);
   }
 
-  /**
-   * Map database row to BadgeAward object
-   */
-  private mapBadgeAward(row: any): BadgeAward {
-    return {
-      id: row.id,
-      badgeId: row.badge_id,
-      userId: row.user_id,
-      chamaId: row.chama_id,
-      awardedAt: row.awarded_at,
-      revokedAt: row.revoked_at,
-      isActive: row.is_active,
-      awardReason: row.award_reason,
-      awardedBySystem: row.awarded_by_system,
-    };
-  }
-
-  /**
-   * Map database row with badge data to BadgeAward object
-   */
-  private mapBadgeAwardWithBadge(row: any): BadgeAward {
-    const award = this.mapBadgeAward(row);
-    award.badge = {
-      id: row.badge_id,
-      code: row.code,
-      name: row.name,
-      description: row.description,
-      tier: row.tier,
-      iconUrl: row.icon_url,
-      pointsRequired: row.points_required,
-      criteria: row.criteria,
-      isActive: true,
-    };
-    return award;
-  }
+  // mapBadge, mapBadgeAward, mapBadgeAwardWithBadge removed - now using mapper.util
 }

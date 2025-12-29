@@ -117,7 +117,7 @@ export default function ProfilePage() {
         return;
       }
 
-      const response = await fetch("http://localhost:3001/api/auth/me", {
+      const response = await fetch("http://localhost:3001/api/v1/auth/me", {
         headers: {
           Authorization: `Bearer ${accessToken}`,
         },
@@ -297,7 +297,7 @@ export default function ProfilePage() {
       setProfilePhotoPreview("");
 
       const accessToken = localStorage.getItem("accessToken");
-      await fetch("http://localhost:3001/api/auth/remove-profile-photo", {
+      await fetch("http://localhost:3001/api/v1/auth/remove-profile-photo", {
         method: "POST",
         headers: { Authorization: `Bearer ${accessToken}` },
       });
@@ -319,7 +319,7 @@ export default function ProfilePage() {
         formData.append("file", profilePhotoFile);
 
         const uploadResponse = await fetch(
-          "http://localhost:3001/api/auth/upload-profile-photo",
+          "http://localhost:3001/api/v1/auth/upload-profile-photo",
           {
             method: "POST",
             headers: {
@@ -347,7 +347,7 @@ export default function ProfilePage() {
         isoDateOfBirth = new Date(dateOfBirth + "T00:00:00.000Z").toISOString();
       }
 
-      const response = await fetch("http://localhost:3001/api/auth/profile", {
+      const response = await fetch("http://localhost:3001/api/v1/auth/profile", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${accessToken}`,

@@ -73,7 +73,7 @@ export default function ForgotPasswordPage() {
 
     try {
       const response = await fetch(
-        "http://localhost:3001/api/auth/password/reset",
+        "http://localhost:3001/api/v1/auth/password/reset",
         {
           method: "POST",
           headers: {

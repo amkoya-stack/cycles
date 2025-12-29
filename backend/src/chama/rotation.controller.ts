@@ -18,7 +18,7 @@ import {
   SwapRotationPositionsDto,
 } from './dto/rotation.dto';
 
-@Controller('chama')
+@Controller({ path: 'chama', version: '1' })
 @UseGuards(JwtAuthGuard)
 export class RotationController {
   constructor(

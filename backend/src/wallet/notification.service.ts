@@ -11,10 +11,11 @@ export interface EmailReceipt {
   subject: string;
   transactionRef: string;
   amount: number;
-  type: 'deposit' | 'withdrawal' | 'transfer';
+  type: 'deposit' | 'withdrawal' | 'transfer' | 'contribution' | 'payout';
   status: 'completed' | 'failed';
   timestamp: Date;
   recipientName?: string;
+  chamaName?: string; // For contributions and payouts
 }
 
 export interface SMSReceipt {
@@ -128,7 +129,7 @@ export class NotificationService {
             <h2>Transaction Receipt</h2>
           </div>
           <div class="content">
-            <p>Dear Customer,</p>
+            <p>Dear member,</p>
             <p>Your transaction has been processed ${statusEmoji}</p>
             
             <div class="receipt-item">
@@ -151,6 +152,15 @@ export class NotificationService {
                 ? `
             <div class="receipt-item">
               <strong>Recipient:</strong> ${receipt.recipientName}
+            </div>
+            `
+                : ''
+            }
+            ${
+              receipt.chamaName
+                ? `
+            <div class="receipt-item">
+              <strong>Chama:</strong> ${receipt.chamaName}
             </div>
             `
                 : ''
@@ -309,6 +319,66 @@ export class NotificationService {
 
     await this.sendSMSReceipt({
       phoneNumber: senderPhone,
+      message: smsMessage,
+    });
+  }
+
+  /**
+   * Send contribution receipt
+   */
+  async sendContributionReceipt(
+    email: string,
+    phoneNumber: string,
+    amount: number,
+    reference: string,
+    chamaName: string,
+    feeAmount?: number,
+  ): Promise<void> {
+    await this.sendEmailReceipt({
+      to: email,
+      subject: 'Contribution Receipt - Cycle Platform',
+      transactionRef: reference,
+      amount,
+      type: 'contribution',
+      status: 'completed',
+      timestamp: new Date(),
+      chamaName,
+    });
+
+    const feeText = feeAmount ? ` Fee: KES ${feeAmount.toFixed(2)}.` : '';
+    const smsMessage = `Contribution of KES ${amount.toFixed(2)} to ${chamaName} received.${feeText} Ref: ${reference}`;
+
+    await this.sendSMSReceipt({
+      phoneNumber,
+      message: smsMessage,
+    });
+  }
+
+  /**
+   * Send payout receipt
+   */
+  async sendPayoutReceipt(
+    email: string,
+    phoneNumber: string,
+    amount: number,
+    reference: string,
+    chamaName: string,
+  ): Promise<void> {
+    await this.sendEmailReceipt({
+      to: email,
+      subject: 'Payout Receipt - Cycle Platform',
+      transactionRef: reference,
+      amount,
+      type: 'payout',
+      status: 'completed',
+      timestamp: new Date(),
+      chamaName,
+    });
+
+    const smsMessage = `Payout of KES ${amount.toFixed(2)} from ${chamaName} received. Ref: ${reference}`;
+
+    await this.sendSMSReceipt({
+      phoneNumber,
       message: smsMessage,
     });
   }

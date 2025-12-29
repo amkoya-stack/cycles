@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
+import { mapQueryRow } from '../database/mapper.util';
 import { randomBytes } from 'crypto';
 import { ConfigService } from '@nestjs/config';
 import { signJwt } from './jwt.util';
@@ -17,6 +18,7 @@ import {
 import { UsersService } from '../users/users.service';
 import { LedgerService } from '../ledger/ledger.service';
 import { EmailService } from './email.service';
+import { TokenizationService } from '../common/services/tokenization.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { SendOtpDto } from './dto/send-otp.dto';
@@ -33,6 +35,7 @@ export class AuthService {
     private readonly users: UsersService,
     private readonly ledger: LedgerService,
     private readonly emailService: EmailService,
+    private readonly tokenization: TokenizationService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -42,15 +45,21 @@ export class AuthService {
     const { email, phone, password } = dto;
 
     // Check if user exists and their verification status
+    // Tokenize inputs to match what's stored in DB
+    const tokenizedEmailForCheck = email ? await this.tokenization.tokenize(email, 'email') : null;
+    const tokenizedPhoneForCheck = phone ? await this.tokenization.tokenize(phone, 'phone') : null;
+    
     const existing = await this.db.query(
       'SELECT id, email_verified, phone_verified FROM users WHERE (email = $1 AND $1 IS NOT NULL) OR (phone = $2 AND $2 IS NOT NULL) LIMIT 1',
-      [email || null, phone || null],
+      [tokenizedEmailForCheck, tokenizedPhoneForCheck],
     );
 
-    if (existing.rowCount > 0) {
-      const user = existing.rows[0] as any;
-      const isEmailVerified = user.email_verified;
-      const isPhoneVerified = user.phone_verified;
+    const existingUser = mapQueryRow<{ emailVerified: boolean; phoneVerified: boolean }>(existing, {
+      booleanFields: ['emailVerified', 'phoneVerified'],
+    });
+    if (existingUser) {
+      const isEmailVerified = existingUser.emailVerified;
+      const isPhoneVerified = existingUser.phoneVerified;
 
       // If user exists and is verified, don't allow re-registration
       if (isEmailVerified || isPhoneVerified) {
@@ -87,14 +96,22 @@ export class AuthService {
     }
 
     // New user - create account
+    // Tokenize sensitive data before storing
     const passwordHash = await hashPassword(password);
     const fullName =
       `${dto.firstName || ''} ${dto.lastName || ''}`.trim() || null;
+    const tokenizedEmail = email ? await this.tokenization.tokenize(email, 'email') : null;
+    const tokenizedPhone = phone ? await this.tokenization.tokenize(phone, 'phone') : null;
+    
     const res = await this.db.query<{ id: string }>(
       'INSERT INTO users (email, phone, password_hash, full_name) VALUES ($1, $2, $3, $4) RETURNING id',
-      [email || null, phone || null, passwordHash, fullName],
+      [tokenizedEmail, tokenizedPhone, passwordHash, fullName],
     );
-    const userId = res.rows[0].id;
+    const user = mapQueryRow<{ id: string }>(res);
+    if (!user) {
+      throw new BadRequestException('Failed to create user');
+    }
+    const userId = user.id;
 
     // ✨ Auto-create personal wallet for user
     try {
@@ -122,22 +139,68 @@ export class AuthService {
       throw new BadRequestException('email or phone is required');
     }
     const { email, phone, password } = dto;
-    const res = await this.db.query(
-      'SELECT id, password_hash, two_factor_enabled, phone, email FROM users WHERE (email = $1 AND $1 IS NOT NULL) OR (phone = $2 AND $2 IS NOT NULL) LIMIT 1',
-      [email || null, phone || null],
-    );
+    
+    // Find tokens for the input values (using reverse lookup)
+    // This allows us to match against tokenized values in the database
+    const tokenizedEmail = email ? await this.tokenization.findToken(email, 'email') : null;
+    const tokenizedPhone = phone ? await this.tokenization.findToken(phone, 'phone') : null;
+    
+    // If tokens not found in Redis, try to find user by detokenizing all records
+    // This handles cases where Redis cache expired or user was created before reverse lookup was added
+    let res;
+    if (tokenizedEmail || tokenizedPhone) {
+      // Use tokenized values for lookup
+      res = await this.db.query(
+        'SELECT id, password_hash, two_factor_enabled, phone, email FROM users WHERE (email = $1 AND $1 IS NOT NULL) OR (phone = $2 AND $2 IS NOT NULL) LIMIT 1',
+        [tokenizedEmail, tokenizedPhone],
+      );
+    }
+    
+    // Fallback: if not found with tokens, try brute-force detokenization
+    // This is less efficient but handles edge cases
+    if (!res || res.rowCount === 0) {
+      // Get all users and check by detokenizing (only if we have email or phone)
+      const allUsers = await this.db.query(
+        'SELECT id, password_hash, two_factor_enabled, phone, email FROM users WHERE email IS NOT NULL OR phone IS NOT NULL',
+      );
+      
+      for (const user of allUsers.rows) {
+        const detokenizedEmail = user.email ? await this.tokenization.detokenize(user.email, 'email') : null;
+        const detokenizedPhone = user.phone ? await this.tokenization.detokenize(user.phone, 'phone') : null;
+        
+        if ((email && detokenizedEmail === email) || (phone && detokenizedPhone === phone)) {
+          res = { rowCount: 1, rows: [user] };
+          break;
+        }
+      }
+    }
+    
+    if (!res || res.rowCount === 0) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
     if (res.rowCount === 0) {
       throw new UnauthorizedException('Invalid credentials');
     }
-    const user = res.rows[0] as any;
+    const user = mapQueryRow<any>(res);
+    if (!user) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
     const ok = await verifyPassword(password, user.password_hash);
     if (!ok) {
       throw new UnauthorizedException('Invalid credentials');
     }
+    
+    // Detokenize sensitive fields for 2FA
+    const detokenizedPhone = user.phone ? await this.tokenization.detokenize(user.phone, 'phone') : null;
+    const detokenizedEmail = user.email ? await this.tokenization.detokenize(user.email, 'email') : null;
+    
     // Check if 2FA is enabled
     if (user.two_factor_enabled) {
-      const destination = user.phone || user.email;
-      const channel = user.phone ? 'sms' : 'email';
+      const destination = detokenizedPhone || detokenizedEmail;
+      if (!destination) {
+        throw new BadRequestException('Phone or email required for 2FA');
+      }
+      const channel = detokenizedPhone ? 'sms' : 'email';
       const code = Math.floor(100000 + Math.random() * 900000).toString();
       await this.createOtp(user.id, channel, destination, 'two_factor', code);
       const devEcho =
@@ -177,13 +240,22 @@ export class AuthService {
     if (res.rowCount === 0) {
       throw new BadRequestException('Invalid or expired OTP');
     }
-    const row = res.rows[0] as any;
+    const row = mapQueryRow<any>(res);
+    if (!row) {
+      throw new BadRequestException('Invalid or expired OTP');
+    }
     const ok = await verifyOtpHash(dto.code, row.code as string);
     if (!ok) {
       throw new BadRequestException('Invalid or expired OTP');
     }
     const otpId = row.id as string;
     const userId = row.user_id as string | null;
+    
+    // Tokenize destination to match what's stored in DB
+    const tokenizedDestination = dto.destination.includes('@')
+      ? await this.tokenization.tokenize(dto.destination, 'email')
+      : await this.tokenization.tokenize(dto.destination, 'phone');
+    
     await this.db.transaction(async (client) => {
       await client.query('UPDATE otp_codes SET used_at = now() WHERE id = $1', [
         otpId,
@@ -191,12 +263,12 @@ export class AuthService {
       if (dto.purpose === 'phone_verification') {
         await client.query(
           'UPDATE users SET phone_verified = TRUE WHERE (phone = $1) OR (id = $2)',
-          [dto.destination, userId],
+          [tokenizedDestination, userId],
         );
       } else if (dto.purpose === 'email_verification') {
         await client.query(
           'UPDATE users SET email_verified = TRUE WHERE (email = $1) OR (id = $2)',
-          [dto.destination, userId],
+          [tokenizedDestination, userId],
         );
       }
     });
@@ -226,10 +298,19 @@ export class AuthService {
       'SELECT phone, email FROM users WHERE id = $1',
       [userId],
     );
-    const { phone, email } = destRes.rows[0] as any;
+    const dest = mapQueryRow<{ phone: string | null; email: string | null }>(destRes);
+    if (!dest) {
+      throw new NotFoundException('User not found');
+    }
+    const { phone: tokenizedPhone, email: tokenizedEmail } = dest;
+    
+    // Detokenize for sending OTP
+    const phone = tokenizedPhone ? await this.tokenization.detokenize(tokenizedPhone, 'phone') : null;
+    const email = tokenizedEmail ? await this.tokenization.detokenize(tokenizedEmail, 'email') : null;
+    
     const destination = phone || email;
-    const channel = phone ? 'sms' : 'email';
     if (destination) {
+      const channel = phone ? 'sms' : 'email';
       const code = Math.floor(100000 + Math.random() * 900000).toString();
       await this.createOtp(userId, channel, destination, 'two_factor', code);
     }
@@ -243,7 +324,10 @@ export class AuthService {
     );
     if (res.rowCount === 0)
       throw new BadRequestException('Invalid or expired 2FA code');
-    const r = res.rows[0] as any;
+    const r = mapQueryRow<any>(res);
+    if (!r) {
+      throw new BadRequestException('Invalid or expired 2FA code');
+    }
     const ok = await verifyOtpHash(code, r.code as string);
     if (!ok) throw new BadRequestException('Invalid or expired 2FA code');
     const userId = r.user_id as string;
@@ -275,13 +359,18 @@ export class AuthService {
       purpose: 'password_reset',
     });
     const passwordHash = await hashPassword(dto.newPassword);
+    
+    // Tokenize destination to match what's stored in DB
+    const tokenizedEmail = dto.destination.includes('@')
+      ? await this.tokenization.tokenize(dto.destination, 'email')
+      : null;
+    const tokenizedPhone = !dto.destination.includes('@')
+      ? await this.tokenization.tokenize(dto.destination, 'phone')
+      : null;
+    
     await this.db.query(
       'UPDATE users SET password_hash = $1 WHERE (email = $2) OR (phone = $3)',
-      [
-        passwordHash,
-        dto.destination.includes('@') ? dto.destination : null,
-        dto.destination.includes('@') ? null : dto.destination,
-      ],
+      [passwordHash, tokenizedEmail, tokenizedPhone],
     );
     await this.db.query(
       'UPDATE auth_tokens SET revoked = TRUE WHERE user_id IN (SELECT id FROM users WHERE email = $1 OR phone = $2)',
@@ -311,7 +400,10 @@ export class AuthService {
     if (res.rowCount === 0) {
       throw new BadRequestException('Invalid refresh token');
     }
-    const row = res.rows[0] as any;
+    const row = mapQueryRow<any>(res);
+    if (!row) {
+      throw new BadRequestException('Invalid or expired OTP');
+    }
     const userId = row.user_id as string;
     const tokenId = row.id as string;
     await this.db.query('UPDATE auth_tokens SET revoked = TRUE WHERE id = $1', [
@@ -363,7 +455,23 @@ export class AuthService {
       throw new BadRequestException('User not found');
     }
 
-    return result.rows[0];
+    const user = mapQueryRow<any>(result);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    
+    // Detokenize sensitive fields
+    if (user.email) {
+      user.email = await this.tokenization.detokenize(user.email, 'email');
+    }
+    if (user.phone) {
+      user.phone = await this.tokenization.detokenize(user.phone, 'phone');
+    }
+    if (user.id_number) {
+      user.id_number = await this.tokenization.detokenize(user.id_number, 'id_number');
+    }
+
+    return user;
   }
 
   async getProfile(userId: string) {
@@ -376,7 +484,20 @@ export class AuthService {
       throw new NotFoundException('User not found');
     }
 
-    return result.rows[0];
+    const user = mapQueryRow<any>(result);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    
+    // Detokenize sensitive fields
+    if (user.email) {
+      user.email = await this.tokenization.detokenize(user.email, 'email');
+    }
+    if (user.phone) {
+      user.phone = await this.tokenization.detokenize(user.phone, 'phone');
+    }
+
+    return user;
   }
 
   async uploadProfilePhoto(userId: string, file: Express.Multer.File) {

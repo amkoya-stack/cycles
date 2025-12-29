@@ -15,7 +15,7 @@ import { JwtAuthGuard } from '../auth/jwt.guard';
 import { ChamaService } from './chama.service';
 import { ChamaReputationService } from './chama-reputation.service';
 
-@Controller('chama')
+@Controller({ path: 'chama', version: '1' })
 export class ChamaController {
   constructor(
     private readonly chamaService: ChamaService,

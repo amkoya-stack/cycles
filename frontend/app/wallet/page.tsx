@@ -113,7 +113,7 @@ export default function WalletPage() {
       try {
         const accessToken = localStorage.getItem("accessToken");
         const response = await fetch(
-          `http://localhost:3001/api/wallet/deposit/status/${pollingCheckoutId}`,
+          `http://localhost:3001/api/v1/wallet/deposit/status/${pollingCheckoutId}`,
           {
             headers: { Authorization: `Bearer ${accessToken}` },
           }
@@ -209,7 +209,7 @@ export default function WalletPage() {
       if (!accessToken) return;
 
       const response = await fetch(
-        "http://localhost:3001/api/chama/co-members/all",
+        "http://localhost:3001/api/v1/chama/co-members/all",
         {
           headers: { Authorization: `Bearer ${accessToken}` },
         }
@@ -230,7 +230,7 @@ export default function WalletPage() {
       if (!accessToken) return;
 
       const balanceRes = await fetch(
-        "http://localhost:3001/api/wallet/balance",
+        "http://localhost:3001/api/v1/wallet/balance",
         {
           headers: { Authorization: `Bearer ${accessToken}` },
         }
@@ -257,7 +257,7 @@ export default function WalletPage() {
       if (!accessToken) return;
 
       const txRes = await fetch(
-        "http://localhost:3001/api/wallet/transactions?limit=50",
+        "http://localhost:3001/api/v1/wallet/transactions?limit=50",
         {
           headers: { Authorization: `Bearer ${accessToken}` },
         }
@@ -280,7 +280,7 @@ export default function WalletPage() {
       }
 
       // Fetch user profile to get phone number
-      const profileRes = await fetch("http://localhost:3001/api/auth/me", {
+      const profileRes = await fetch("http://localhost:3001/api/v1/auth/me", {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       if (profileRes.ok) {
@@ -318,7 +318,7 @@ export default function WalletPage() {
     setActionLoading(true);
     try {
       const accessToken = localStorage.getItem("accessToken");
-      const response = await fetch("http://localhost:3001/api/wallet/deposit", {
+      const response = await fetch("http://localhost:3001/api/v1/wallet/deposit", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -374,7 +374,7 @@ export default function WalletPage() {
     try {
       const accessToken = localStorage.getItem("accessToken");
       const response = await fetch(
-        "http://localhost:3001/api/wallet/withdraw",
+        "http://localhost:3001/api/v1/wallet/withdraw",
         {
           method: "POST",
           headers: {
@@ -486,7 +486,7 @@ export default function WalletPage() {
     try {
       const accessToken = localStorage.getItem("accessToken");
       const response = await fetch(
-        "http://localhost:3001/api/wallet/transfer",
+        "http://localhost:3001/api/v1/wallet/transfer",
         {
           method: "POST",
           headers: {
@@ -529,7 +529,7 @@ export default function WalletPage() {
     try {
       const accessToken = localStorage.getItem("accessToken");
       const response = await fetch(
-        `http://localhost:3001/api/chama/${selectedChamaId}/cycles/${selectedCycleId}/contribute`,
+        `http://localhost:3001/api/v1/chama/${selectedChamaId}/cycles/${selectedCycleId}/contribute`,
         {
           method: "POST",
           headers: {
@@ -619,7 +619,7 @@ export default function WalletPage() {
               try {
                 const accessToken = localStorage.getItem("accessToken");
                 const response = await fetch(
-                  `http://localhost:3001/api/chama/${chama.id}/cycles/active`,
+                  `http://localhost:3001/api/v1/chama/${chama.id}/cycles/active`,
                   {
                     headers: { Authorization: `Bearer ${accessToken}` },
                   }

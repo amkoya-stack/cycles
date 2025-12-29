@@ -65,7 +65,7 @@ export function HomeNavbar({
 
         // Fetch user profile
         const profileResponse = await fetch(
-          "http://localhost:3001/api/auth/profile",
+          "http://localhost:3001/api/v1/auth/profile",
           {
             headers: {
               Authorization: `Bearer ${accessToken}`,
@@ -87,7 +87,7 @@ export function HomeNavbar({
         }
 
         // Fetch user chamas
-        const chamaResponse = await fetch("http://localhost:3001/api/chama", {
+        const chamaResponse = await fetch("http://localhost:3001/api/v1/chama", {
           headers: {
             Authorization: `Bearer ${accessToken}`,
           },

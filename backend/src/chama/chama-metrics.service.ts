@@ -4,6 +4,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { Injectable, Logger } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
+import { mapQueryRow, mapQueryResult, mapRow } from '../database/mapper.util';
 
 export interface ChamaMetrics {
   id: string;
@@ -47,7 +48,8 @@ export class ChamaMetricsService {
         [chamaId, periodEnd],
       );
 
-      const metricId = result.rows[0]?.metric_id;
+      const metric = mapQueryRow<{ metricId: string }>(result);
+      const metricId = metric?.metricId;
 
       if (!metricId) {
         throw new Error('Failed to calculate chama metrics');
@@ -59,7 +61,26 @@ export class ChamaMetricsService {
         [metricId],
       );
 
-      return this.mapMetrics(metrics.rows[0]);
+      return mapQueryRow<ChamaMetrics>(metrics, {
+        dateFields: ['calculatedAt', 'periodStart', 'periodEnd'],
+        numberFields: [
+          'totalMembers',
+          'activeMembers',
+          'retentionRate',
+          'membersJoinedMonth',
+          'membersLeftMonth',
+          'averageTenureMonths',
+          'totalLoansIssued',
+          'activeLoans',
+          'completedLoans',
+          'defaultedLoans',
+          'loanDefaultRate',
+          'totalContributions',
+          'onTimeContributions',
+          'contributionConsistencyRate',
+          'healthScore',
+        ],
+      })!;
     } catch (error) {
       this.logger.error(
         `Failed to calculate metrics for chama ${chamaId}: ${error.message}`,
@@ -84,7 +105,26 @@ export class ChamaMetricsService {
       return null;
     }
 
-    return this.mapMetrics(result.rows[0]);
+    return mapQueryRow<ChamaMetrics>(result, {
+      dateFields: ['calculatedAt', 'periodStart', 'periodEnd'],
+      numberFields: [
+        'totalMembers',
+        'activeMembers',
+        'retentionRate',
+        'membersJoinedMonth',
+        'membersLeftMonth',
+        'averageTenureMonths',
+        'totalLoansIssued',
+        'activeLoans',
+        'completedLoans',
+        'defaultedLoans',
+        'loanDefaultRate',
+        'totalContributions',
+        'onTimeContributions',
+        'contributionConsistencyRate',
+        'healthScore',
+      ],
+    })!;
   }
 
   /**
@@ -102,7 +142,26 @@ export class ChamaMetricsService {
       [chamaId, limit],
     );
 
-    return result.rows.map((row) => this.mapMetrics(row));
+    return mapQueryResult<ChamaMetrics>(result, {
+      dateFields: ['calculatedAt', 'periodStart', 'periodEnd'],
+      numberFields: [
+        'totalMembers',
+        'activeMembers',
+        'retentionRate',
+        'membersJoinedMonth',
+        'membersLeftMonth',
+        'averageTenureMonths',
+        'totalLoansIssued',
+        'activeLoans',
+        'completedLoans',
+        'defaultedLoans',
+        'loanDefaultRate',
+        'totalContributions',
+        'onTimeContributions',
+        'contributionConsistencyRate',
+        'healthScore',
+      ],
+    });
   }
 
   /**
@@ -119,7 +178,29 @@ export class ChamaMetricsService {
 
     const metricsMap = new Map<string, ChamaMetrics>();
     for (const row of result.rows) {
-      metricsMap.set(row.chama_id, this.mapMetrics(row));
+      const metric = mapRow<ChamaMetrics>(row, {
+        dateFields: ['calculatedAt', 'periodStart', 'periodEnd'],
+        numberFields: [
+          'totalMembers',
+          'activeMembers',
+          'retentionRate',
+          'membersJoinedMonth',
+          'membersLeftMonth',
+          'averageTenureMonths',
+          'totalLoansIssued',
+          'activeLoans',
+          'completedLoans',
+          'defaultedLoans',
+          'loanDefaultRate',
+          'totalContributions',
+          'onTimeContributions',
+          'contributionConsistencyRate',
+          'healthScore',
+        ],
+      });
+      if (metric) {
+        metricsMap.set(metric.chamaId, metric);
+      }
     }
 
     return metricsMap;
@@ -137,7 +218,26 @@ export class ChamaMetricsService {
       [limit],
     );
 
-    return result.rows.map((row) => this.mapMetrics(row));
+    return mapQueryResult<ChamaMetrics>(result, {
+      dateFields: ['calculatedAt', 'periodStart', 'periodEnd'],
+      numberFields: [
+        'totalMembers',
+        'activeMembers',
+        'retentionRate',
+        'membersJoinedMonth',
+        'membersLeftMonth',
+        'averageTenureMonths',
+        'totalLoansIssued',
+        'activeLoans',
+        'completedLoans',
+        'defaultedLoans',
+        'loanDefaultRate',
+        'totalContributions',
+        'onTimeContributions',
+        'contributionConsistencyRate',
+        'healthScore',
+      ],
+    });
   }
 
   /**
@@ -205,33 +305,5 @@ export class ChamaMetricsService {
     ]);
   }
 
-  /**
-   * Map database row to ChamaMetrics
-   */
-  private mapMetrics(row: any): ChamaMetrics {
-    return {
-      id: row.id,
-      chamaId: row.chama_id,
-      totalMembers: row.total_members,
-      activeMembers: row.active_members,
-      retentionRate: parseFloat(row.retention_rate),
-      membersJoinedMonth: row.members_joined_month,
-      membersLeftMonth: row.members_left_month,
-      averageTenureMonths: parseFloat(row.average_tenure_months),
-      totalLoansIssued: row.total_loans_issued,
-      activeLoans: row.active_loans,
-      completedLoans: row.completed_loans,
-      defaultedLoans: row.defaulted_loans,
-      loanDefaultRate: parseFloat(row.loan_default_rate),
-      totalContributions: row.total_contributions,
-      onTimeContributions: row.on_time_contributions,
-      contributionConsistencyRate: parseFloat(
-        row.contribution_consistency_rate,
-      ),
-      healthScore: row.health_score,
-      calculatedAt: new Date(row.calculated_at),
-      periodStart: new Date(row.period_start),
-      periodEnd: new Date(row.period_end),
-    };
-  }
+  // mapMetrics removed - now using mapQueryRow/mapQueryResult from mapper.util
 }

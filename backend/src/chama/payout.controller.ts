@@ -19,7 +19,7 @@ import {
   GetPayoutHistoryDto,
 } from './dto/payout.dto';
 
-@Controller('chama')
+@Controller({ path: 'chama', version: '1' })
 @UseGuards(JwtAuthGuard)
 export class PayoutController {
   constructor(

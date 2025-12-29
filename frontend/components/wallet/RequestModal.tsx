@@ -60,7 +60,7 @@ export function RequestModal({
         requestType,
       };
 
-      const response = await fetch("http://localhost:3001/api/wallet/request", {
+      const response = await fetch("http://localhost:3001/api/v1/wallet/request", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

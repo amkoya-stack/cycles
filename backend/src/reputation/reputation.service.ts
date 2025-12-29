@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
+import { mapQueryRow, mapQueryResult } from '../database/mapper.util';
 
 export interface ReputationScore {
   id: string;
@@ -180,7 +181,27 @@ export class ReputationService {
       ],
     );
 
-    return this.mapReputationScore(result.rows[0]);
+    return mapQueryRow<ReputationScore>(result, {
+      dateFields: ['lastCalculatedAt'],
+      numberFields: [
+        'totalScore',
+        'contributionScore',
+        'loanRepaymentScore',
+        'meetingAttendanceScore',
+        'votingParticipationScore',
+        'disputePenalty',
+        'contributionConsistencyRate',
+        'loanRepaymentRate',
+        'meetingAttendanceRate',
+        'votingRate',
+        'disputeCount',
+        'contributionStreakMonths',
+        'earlyPaymentCount',
+        'perfectAttendanceMonths',
+        'completedLoans',
+        'loanDefaultCount',
+      ],
+    })!;
   }
 
   /**
@@ -589,7 +610,27 @@ export class ReputationService {
     );
 
     if (result.rows.length === 0) return null;
-    return this.mapReputationScore(result.rows[0]);
+    return mapQueryRow<ReputationScore>(result, {
+      dateFields: ['lastCalculatedAt'],
+      numberFields: [
+        'totalScore',
+        'contributionScore',
+        'loanRepaymentScore',
+        'meetingAttendanceScore',
+        'votingParticipationScore',
+        'disputePenalty',
+        'contributionConsistencyRate',
+        'loanRepaymentRate',
+        'meetingAttendanceRate',
+        'votingRate',
+        'disputeCount',
+        'contributionStreakMonths',
+        'earlyPaymentCount',
+        'perfectAttendanceMonths',
+        'completedLoans',
+        'loanDefaultCount',
+      ],
+    })!;
   }
 
   /**
@@ -644,34 +685,5 @@ export class ReputationService {
     }
   }
 
-  /**
-   * Map database row to ReputationScore object
-   */
-  private mapReputationScore(row: any): ReputationScore {
-    return {
-      id: row.id,
-      userId: row.user_id,
-      chamaId: row.chama_id,
-      totalScore: row.total_score,
-      contributionScore: row.contribution_score,
-      loanRepaymentScore: row.loan_repayment_score,
-      meetingAttendanceScore: row.meeting_attendance_score,
-      votingParticipationScore: row.voting_participation_score,
-      disputePenalty: row.dispute_penalty,
-      tier: row.tier,
-      contributionConsistencyRate: parseFloat(
-        row.contribution_consistency_rate,
-      ),
-      loanRepaymentRate: parseFloat(row.loan_repayment_rate),
-      meetingAttendanceRate: parseFloat(row.meeting_attendance_rate),
-      votingRate: parseFloat(row.voting_rate),
-      disputeCount: row.dispute_count,
-      contributionStreakMonths: row.contribution_streak_months,
-      earlyPaymentCount: row.early_payment_count,
-      perfectAttendanceMonths: row.perfect_attendance_months,
-      completedLoans: row.completed_loans,
-      loanDefaultCount: row.loan_default_count,
-      lastCalculatedAt: row.last_calculated_at,
-    };
-  }
+  // mapReputationScore removed - now using mapQueryRow from mapper.util
 }

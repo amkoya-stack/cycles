@@ -57,7 +57,7 @@ export function BalanceCard({
 
       console.log("Fetching upcoming contributions...");
       const data = await api.get<UpcomingPayment[]>(
-        "http://localhost:3001/api/chama/upcoming-contributions"
+        "http://localhost:3001/api/v1/chama/upcoming-contributions"
       );
 
       console.log("Upcoming payments data:", data);
@@ -91,7 +91,7 @@ export function BalanceCard({
   const handleQuickPay = async (payment: UpcomingPayment) => {
     try {
       await api.post(
-        `http://localhost:3001/api/chama/${payment.chamaId}/cycles/${payment.cycleId}/contribute`,
+        `http://localhost:3001/api/v1/chama/${payment.chamaId}/cycles/${payment.cycleId}/contribute`,
         {
           amount: Number(payment.amount),
           paymentMethod: "wallet",

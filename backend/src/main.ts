@@ -1,7 +1,12 @@
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-require-imports */
+/* eslint-disable @typescript-eslint/no-unsafe-call */
 /* eslint-disable @typescript-eslint/no-floating-promises */
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { AppModule } from './app.module';
+import { IdempotencyInterceptor } from './common/interceptors/idempotency.interceptor';
+import { RedisService } from './cache/redis.service';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -27,6 +32,17 @@ async function bootstrap() {
       forbidNonWhitelisted: true,
     }),
   );
+
+  // Global idempotency interceptor
+  const redisService = app.get(RedisService);
+  app.useGlobalInterceptors(new IdempotencyInterceptor(redisService));
+
+  // Enable API versioning
+  app.enableVersioning({
+    type: VersioningType.URI,
+    defaultVersion: '1',
+    prefix: 'v',
+  });
 
   // API prefix
   app.setGlobalPrefix(process.env.API_PREFIX || 'api');

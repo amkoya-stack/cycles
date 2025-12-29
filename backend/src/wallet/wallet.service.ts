@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-return */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import {
@@ -8,6 +9,7 @@ import {
   forwardRef,
 } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
+import { mapQueryResult, mapQueryRow } from '../database/mapper.util';
 import { LedgerService } from '../ledger/ledger.service';
 import { MpesaService } from '../mpesa/mpesa.service';
 import { StatementService } from './statement.service';
@@ -15,21 +17,26 @@ import { NotificationService } from './notification.service';
 import { WalletGateway } from './wallet.gateway';
 import { LimitsService } from './limits.service';
 import { v4 as uuidv4 } from 'uuid';
+import { InjectQueue } from '@nestjs/bull';
+import type { Queue } from 'bull';
 
 export interface DepositRequest {
   phoneNumber: string; // Format: 254712345678
   amount: number;
+  idempotencyKey?: string;
 }
 
 export interface WithdrawRequest {
   phoneNumber: string;
   amount: number;
+  idempotencyKey?: string;
 }
 
 export interface TransferRequest {
   recipientPhone: string; // Or recipientUserId
   amount: number;
   description?: string;
+  idempotencyKey?: string;
 }
 
 export interface TransactionFilter {
@@ -52,6 +59,8 @@ export class WalletService {
     private readonly notification: NotificationService,
     private readonly walletGateway: WalletGateway,
     private readonly limits: LimitsService,
+    @InjectQueue('financial-transactions')
+    private readonly financialQueue: Queue,
   ) {}
 
   /**
@@ -77,7 +86,13 @@ export class WalletService {
 
       // User wallet is a CREDIT account (liability), so balance is negative in our system
       // Display as positive to user
-      const balance = Math.abs(accountResult.rows[0].balance);
+      const account = mapQueryRow<{ balance: number }>(accountResult, {
+        numberFields: ['balance'],
+      });
+      if (!account) {
+        throw new NotFoundException('Account not found');
+      }
+      const balance = Math.abs(account.balance);
       console.log(`[getBalance] User ${userId} balance: ${balance}`);
       return balance;
     } catch (error) {
@@ -90,7 +105,7 @@ export class WalletService {
   }
 
   /**
-   * Initiate deposit via M-Pesa STK Push
+   * Initiate deposit via M-Pesa STK Push (queued)
    */
   async initiateDeposit(userId: string, request: DepositRequest): Promise<any> {
     if (request.amount <= 0) {
@@ -100,31 +115,32 @@ export class WalletService {
     // Validate against limits
     await this.limits.validateTransaction(userId, 'deposit', request.amount);
 
-    // Generate external reference for idempotency
+    // Generate external reference and idempotency key
     const externalReference = uuidv4();
+    const idempotencyKey = request.idempotencyKey || uuidv4();
 
-    // Initiate STK Push
-    const stkResponse = await this.mpesa.stkPush({
-      phoneNumber: request.phoneNumber,
-      amount: request.amount,
-      accountReference: externalReference,
-      transactionDesc: `Deposit to wallet`,
-    });
-
-    // Create callback tracking record
-    await this.mpesa.createCallbackRecord(
-      userId,
-      request.phoneNumber,
-      request.amount,
-      stkResponse.checkoutRequestId,
-      stkResponse.merchantRequestId,
+    // Enqueue deposit job
+    const job = await this.financialQueue.add(
       'deposit',
+      {
+        userId,
+        amount: request.amount,
+        phoneNumber: request.phoneNumber,
+        externalReference,
+        idempotencyKey,
+      },
+      {
+        jobId: idempotencyKey, // Use idempotency key as job ID for deduplication
+        removeOnComplete: true,
+      },
     );
 
     return {
-      checkoutRequestId: stkResponse.checkoutRequestId,
-      customerMessage: stkResponse.customerMessage,
+      jobId: job.id,
+      status: 'queued',
       externalReference,
+      idempotencyKey,
+      message: 'Deposit request queued for processing',
     };
   }
 
@@ -160,11 +176,13 @@ export class WalletService {
         'SELECT email, phone FROM users WHERE id = $1',
         [userId],
       );
-      if (userResult.rows.length > 0) {
-        const user = userResult.rows[0];
+      const user = mapQueryRow<{ email: string | null; phone: string | null }>(
+        userResult,
+      );
+      if (user) {
         await this.notification.sendDepositReceipt(
-          user.email,
-          user.phone,
+          user.email || '',
+          user.phone || '',
           amount,
           externalReference,
           mpesaReceiptNumber,
@@ -179,7 +197,7 @@ export class WalletService {
   }
 
   /**
-   * Initiate withdrawal to M-Pesa
+   * Initiate withdrawal to M-Pesa (queued)
    */
   async initiateWithdrawal(
     userId: string,
@@ -198,24 +216,32 @@ export class WalletService {
       throw new BadRequestException('Insufficient balance');
     }
 
-    // Generate external reference
+    // Generate external reference and idempotency key
     const externalReference = uuidv4();
+    const idempotencyKey = request.idempotencyKey || uuidv4();
 
-    // Initiate B2C payment
-    const b2cResponse = await this.mpesa.b2cPayment(
-      request.phoneNumber,
-      request.amount,
-      `Withdrawal from wallet`,
+    // Enqueue withdrawal job
+    const job = await this.financialQueue.add(
+      'withdrawal',
+      {
+        userId,
+        amount: request.amount,
+        phoneNumber: request.phoneNumber,
+        externalReference,
+        idempotencyKey,
+      },
+      {
+        jobId: idempotencyKey,
+        removeOnComplete: true,
+      },
     );
 
-    // TODO: Create pending withdrawal transaction
-    // Process through ledger after B2C callback confirms success
-
     return {
-      conversationId: b2cResponse.ConversationID,
-      originatorConversationId: b2cResponse.OriginatorConversationID,
-      responseDescription: b2cResponse.ResponseDescription,
+      jobId: job.id,
+      status: 'queued',
       externalReference,
+      idempotencyKey,
+      message: 'Withdrawal request queued for processing',
     };
   }
 
@@ -242,11 +268,15 @@ export class WalletService {
         'SELECT email, phone FROM users WHERE id = $1',
         [userId],
       );
-      if (userResult.rows.length > 0) {
-        const user = userResult.rows[0];
+      const user = mapQueryRow<{
+        email: string | null;
+        phone: string | null;
+        fullName: string | null;
+      }>(userResult);
+      if (user) {
         await this.notification.sendWithdrawalReceipt(
-          user.email,
-          user.phone,
+          user.email || '',
+          user.phone || '',
           amount,
           externalReference,
           mpesaReceiptNumber,
@@ -260,7 +290,7 @@ export class WalletService {
   }
 
   /**
-   * Internal wallet-to-wallet transfer
+   * Internal wallet-to-wallet transfer (queued)
    */
   async transfer(senderId: string, request: TransferRequest): Promise<any> {
     if (request.amount <= 0) {
@@ -271,7 +301,7 @@ export class WalletService {
     await this.limits.validateTransaction(senderId, 'transfer', request.amount);
 
     // Get recipient by phone, email, or name
-    const identifier = request.recipientPhone; // Actually can be phone, email, or name
+    const identifier = request.recipientPhone;
     const recipientResult = await this.db.query(
       `SELECT id FROM users 
        WHERE phone = $1 
@@ -287,7 +317,11 @@ export class WalletService {
       );
     }
 
-    const recipientId = recipientResult.rows[0].id;
+    const recipient = mapQueryRow<{ id: string }>(recipientResult);
+    if (!recipient) {
+      throw new NotFoundException('Recipient not found');
+    }
+    const recipientId = recipient.id;
 
     // Check sender balance
     const balance = await this.getBalance(senderId);
@@ -295,57 +329,58 @@ export class WalletService {
       throw new BadRequestException('Insufficient balance');
     }
 
-    // Process transfer through ledger
+    // Generate external reference and idempotency key
     const externalReference = uuidv4();
-    const result = await this.ledger.processTransfer(
-      senderId,
-      recipientId,
-      request.amount,
-      request.description || 'Wallet transfer',
+    const idempotencyKey = request.idempotencyKey || uuidv4();
+
+    // Enqueue transfer job
+    const job = await this.financialQueue.add(
+      'transfer',
+      {
+        senderUserId: senderId,
+        receiverUserId: recipientId,
+        amount: request.amount,
+        description: request.description || 'Wallet transfer',
+        externalReference,
+        idempotencyKey,
+      },
+      {
+        jobId: idempotencyKey,
+        removeOnComplete: true,
+      },
     );
 
-    // Send receipt to sender
-    try {
-      const senderResult = await this.db.query(
-        'SELECT email, phone FROM users WHERE id = $1',
-        [senderId],
-      );
-      const recipientNameResult = await this.db.query(
-        'SELECT full_name FROM users WHERE id = $1',
-        [recipientId],
-      );
+    return {
+      jobId: job.id,
+      status: 'queued',
+      externalReference,
+      idempotencyKey,
+      message: 'Transfer queued for processing',
+    };
+  }
 
-      if (senderResult.rows.length > 0 && recipientNameResult.rows.length > 0) {
-        const sender = senderResult.rows[0];
-        const recipient = recipientNameResult.rows[0];
-        const recipientName = recipient.full_name || '';
+  /**
+   * Get job status for queued financial transactions
+   */
+  async getJobStatus(jobId: string): Promise<any> {
+    const job = await this.financialQueue.getJob(jobId);
 
-        await this.notification.sendTransferReceipt(
-          sender.email,
-          sender.phone,
-          recipientName || request.recipientPhone,
-          request.amount,
-          externalReference,
-        );
-      }
-    } catch (error) {
-      console.error('Failed to send transfer receipt:', error);
+    if (!job) {
+      throw new NotFoundException('Job not found');
     }
 
-    // Emit WebSocket events for both sender and recipient
-    try {
-      const senderBalance = await this.getBalance(senderId);
-      const recipientBalance = await this.getBalance(recipientId);
-      this.walletGateway.emitBalanceUpdate(senderId, senderBalance.toString());
-      this.walletGateway.emitBalanceUpdate(
-        recipientId,
-        recipientBalance.toString(),
-      );
-    } catch (error) {
-      console.error('Failed to emit WebSocket updates:', error);
-    }
+    const state = await job.getState();
 
-    return result;
+    return {
+      id: job.id,
+      status: state,
+      progress: job.progress(),
+      result: job.returnvalue,
+      failedReason: job.failedReason,
+      attemptsMade: job.attemptsMade,
+      processedOn: job.processedOn,
+      finishedOn: job.finishedOn,
+    };
   }
 
   /**
@@ -446,8 +481,14 @@ export class WalletService {
     // Clear context
     await this.db.clearContext();
 
+    // Map database rows to TypeScript objects with proper types
+    const transactions = mapQueryResult<any>(result, {
+      dateFields: ['createdAt', 'completedAt'],
+      numberFields: ['amount', 'balanceBefore', 'balanceAfter'],
+    });
+
     return {
-      transactions: result.rows,
+      transactions,
       count: result.rowCount,
     };
   }
@@ -491,11 +532,17 @@ export class WalletService {
 
     await this.db.clearContext();
 
-    if (result.rows.length === 0) {
+    // Map database row to TypeScript object with proper types
+    const transaction = mapQueryRow<any>(result, {
+      dateFields: ['createdAt', 'completedAt'],
+      jsonFields: ['entries'], // Parse JSONB entries array
+    });
+
+    if (!transaction) {
       throw new NotFoundException('Transaction not found');
     }
 
-    return result.rows[0];
+    return transaction;
   }
 
   /**
@@ -559,7 +606,9 @@ export class WalletService {
       throw new NotFoundException('Deposit request not found');
     }
 
-    return result.rows[0];
+    return mapQueryRow<any>(result, {
+      dateFields: ['createdAt', 'completedAt'],
+    });
   }
 
   /**
@@ -605,7 +654,13 @@ export class WalletService {
       throw new NotFoundException('Transaction not found');
     }
 
-    const callback = callbackResult.rows[0];
+    const callback = mapQueryRow<any>(callbackResult, {
+      dateFields: ['createdAt', 'completedAt'],
+      numberFields: ['amount'],
+    });
+    if (!callback) {
+      throw new NotFoundException('Transaction not found');
+    }
 
     if (callback.status !== 'failed' && callback.result_code === 0) {
       throw new BadRequestException('Only failed transactions can be refunded');
@@ -679,7 +734,13 @@ export class WalletService {
         [requesterId, dto.recipientId],
       );
 
-      if (parseInt(sharedChamas.rows[0].shared_chamas) === 0) {
+      const sharedChamasData = mapQueryRow<{ sharedChamas: number }>(
+        sharedChamas,
+        {
+          numberFields: ['sharedChamas'],
+        },
+      );
+      if (!sharedChamasData || sharedChamasData.sharedChamas === 0) {
         throw new BadRequestException(
           'You can only request funds from members in your chamas',
         );
@@ -716,8 +777,12 @@ export class WalletService {
       ],
     );
 
-    console.log('Fund request created:', result.rows[0]);
-    return result.rows[0];
+    const fundRequest = mapQueryRow<any>(result, {
+      dateFields: ['createdAt', 'updatedAt'],
+      numberFields: ['amount'],
+    });
+    console.log('Fund request created:', fundRequest);
+    return fundRequest!;
   }
 
   /**
@@ -803,7 +868,14 @@ export class WalletService {
       throw new NotFoundException('Fund request not found');
     }
 
-    const fundRequest = requestResult.rows[0];
+    const fundRequest = mapQueryRow<any>(requestResult, {
+      dateFields: ['createdAt', 'updatedAt', 'respondedAt'],
+      numberFields: ['amount'],
+      booleanFields: ['isApproved'],
+    });
+    if (!fundRequest) {
+      throw new NotFoundException('Fund request not found');
+    }
 
     // Validate user can respond to this request
     let canRespond = false;

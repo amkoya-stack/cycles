@@ -4,6 +4,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { DatabaseService } from '../database/database.service';
+import { mapQueryRow } from '../database/mapper.util';
 import { LedgerService } from '../ledger/ledger.service';
 import { NotificationService } from './notification.service';
 import { WalletGateway } from './wallet.gateway';
@@ -101,11 +102,11 @@ export class MpesaReconciliationService {
           'SELECT email, phone FROM users WHERE id = $1',
           [userId],
         );
-        if (userResult.rows.length > 0) {
-          const user = userResult.rows[0];
+        const user = mapQueryRow<{ email: string | null; phone: string | null }>(userResult);
+        if (user) {
           await this.notification.sendDepositReceipt(
-            user.email,
-            user.phone,
+            user.email || '',
+            user.phone || '',
             numericAmount,
             checkoutRequestId,
             mpesaReceiptNumber,
@@ -128,10 +129,13 @@ export class MpesaReconciliationService {
           'SELECT balance FROM accounts WHERE user_id = $1',
           [userId],
         );
-        if (balanceResult.rows.length > 0) {
+        const balance = mapQueryRow<{ balance: number }>(balanceResult, {
+          numberFields: ['balance'],
+        });
+        if (balance) {
           this.walletGateway.emitBalanceUpdate(
             userId,
-            balanceResult.rows[0].balance,
+            balance.balance,
           );
           this.walletGateway.emitDepositStatusUpdate(
             userId,
@@ -172,8 +176,8 @@ export class MpesaReconciliationService {
           'SELECT email, phone FROM users WHERE id = $1',
           [userId],
         );
-        if (userResult.rows.length > 0) {
-          const user = userResult.rows[0];
+        const user = mapQueryRow<{ email: string | null; phone: string | null }>(userResult);
+        if (user) {
           await this.notification.sendWithdrawalReceipt(
             user.email,
             user.phone,
@@ -199,10 +203,13 @@ export class MpesaReconciliationService {
           'SELECT balance FROM accounts WHERE user_id = $1',
           [userId],
         );
-        if (balanceResult.rows.length > 0) {
+        const balance = mapQueryRow<{ balance: number }>(balanceResult, {
+          numberFields: ['balance'],
+        });
+        if (balance) {
           this.walletGateway.emitBalanceUpdate(
             userId,
-            balanceResult.rows[0].balance,
+            balance.balance,
           );
         }
       } catch (error) {

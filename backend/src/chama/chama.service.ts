@@ -9,6 +9,7 @@ import {
   forwardRef,
 } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
+import { mapQueryRow } from '../database/mapper.util';
 import { LedgerService } from '../ledger/ledger.service';
 import { NotificationService } from '../wallet/notification.service';
 import { ContributionService } from './contribution.service';
@@ -161,7 +162,9 @@ export class ChamaService {
         // Create chama wallet via ledger
         await this.ledger.createChamaWallet(chamaId, dto.name);
 
-        return chamaResult.rows[0];
+        return mapQueryRow<any>(chamaResult, {
+          dateFields: ['createdAt', 'updatedAt'],
+        });
       });
 
       console.log('Chama created successfully, fetching details...');
@@ -221,8 +224,8 @@ export class ChamaService {
       type: chama.settings?.type || 'savings',
       lending_enabled: chama.settings?.lending_enabled || false,
       is_public: chama.settings?.visibility === 'public',
-      user_role: memberCheck.rows[0]?.role || null,
-      user_member_status: memberCheck.rows[0]?.status || null,
+      user_role: mapQueryRow<{ role: string }>(memberCheck)?.role || null,
+      user_member_status: mapQueryRow<{ status: string }>(memberCheck)?.status || null,
       is_member: memberCheck.rows.length > 0,
       has_pending_request: pendingRequestCheck.rows.length > 0,
     };
@@ -1757,12 +1760,28 @@ export class ChamaService {
     // Check if cycle is complete and trigger payout if configured
     await this.checkCycleCompletion(cycleId);
 
-    // Send notification to member
-    const chama = await this.getChamaDetails(userId, chamaId);
-    await this.notification.sendSMSReceipt({
-      phoneNumber: member.phone || '',
-      message: `Contribution of KES ${dto.amount} to ${chama.name} received. Fee: KES ${feeAmount.toFixed(2)}`,
-    });
+    // Send notification to member (email + SMS)
+    try {
+      const chama = await this.getChamaDetails(userId, chamaId);
+      const userResult = await this.db.query(
+        'SELECT email, phone FROM users WHERE id = $1',
+        [userId],
+      );
+      
+      if (userResult.rows.length > 0) {
+        const user = userResult.rows[0];
+        await this.notification.sendContributionReceipt(
+          user.email,
+          user.phone,
+          dto.amount,
+          externalReference,
+          chama.name,
+          feeAmount,
+        );
+      }
+    } catch (error) {
+      console.error('Failed to send contribution receipt:', error);
+    }
 
     return {
       contributionId,

@@ -74,7 +74,7 @@ export default function RegisterPage() {
     try {
       const normalizedPhone = normalizePhoneNumber(formData.phone);
 
-      const response = await fetch("http://localhost:3001/api/auth/register", {
+      const response = await fetch("http://localhost:3001/api/v1/auth/register", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

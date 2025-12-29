@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-unsafe-return */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import {
   Controller,
   Get,
@@ -11,7 +14,7 @@ import {
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { WalletService } from './wallet.service';
 
-@Controller('wallet')
+@Controller({ path: 'wallet', version: '1' })
 @UseGuards(JwtAuthGuard)
 export class WalletController {
   constructor(private readonly wallet: WalletService) {}
@@ -33,11 +36,13 @@ export class WalletController {
   @Post('deposit')
   async deposit(
     @Req() req: any,
-    @Body() body: { phoneNumber: string; amount: number },
+    @Body()
+    body: { phoneNumber: string; amount: number; idempotencyKey?: string },
   ) {
     const result = await this.wallet.initiateDeposit(req.user.id, {
       phoneNumber: body.phoneNumber,
       amount: body.amount,
+      idempotencyKey: body.idempotencyKey,
     });
     return result;
   }
@@ -49,11 +54,13 @@ export class WalletController {
   @Post('withdraw')
   async withdraw(
     @Req() req: any,
-    @Body() body: { phoneNumber: string; amount: number },
+    @Body()
+    body: { phoneNumber: string; amount: number; idempotencyKey?: string },
   ) {
     const result = await this.wallet.initiateWithdrawal(req.user.id, {
       phoneNumber: body.phoneNumber,
       amount: body.amount,
+      idempotencyKey: body.idempotencyKey,
     });
     return result;
   }
@@ -66,12 +73,18 @@ export class WalletController {
   async transfer(
     @Req() req: any,
     @Body()
-    body: { recipientPhone: string; amount: number; description?: string },
+    body: {
+      recipientPhone: string;
+      amount: number;
+      description?: string;
+      idempotencyKey?: string;
+    },
   ) {
     const result = await this.wallet.transfer(req.user.id, {
       recipientPhone: body.recipientPhone,
       amount: body.amount,
       description: body.description,
+      idempotencyKey: body.idempotencyKey,
     });
     return result;
   }

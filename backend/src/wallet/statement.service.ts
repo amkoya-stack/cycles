@@ -4,6 +4,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
+import { mapQueryRow } from '../database/mapper.util';
 import PDFDocument from 'pdfkit';
 import { Readable } from 'stream';
 
@@ -30,17 +31,20 @@ export class StatementService {
       'SELECT email, phone, first_name, last_name FROM users WHERE id = $1',
       [request.userId],
     );
-    const user = userResult.rows[0];
+    const user = mapQueryRow<{ email: string | null; phone: string | null; firstName: string | null; lastName: string | null }>(userResult);
+    if (!user) {
+      throw new Error('User not found');
+    }
 
     // Get account balance
     const accountResult = await this.db.query(
       "SELECT balance FROM accounts WHERE user_id = $1 AND status = 'active' LIMIT 1",
       [request.userId],
     );
-    const currentBalance =
-      accountResult.rows.length > 0
-        ? Math.abs(accountResult.rows[0].balance)
-        : 0;
+    const account = mapQueryRow<{ balance: number }>(accountResult, {
+      numberFields: ['balance'],
+    });
+    const currentBalance = account ? Math.abs(account.balance) : 0;
 
     // Get transactions
     const transactionsResult = await this.db.query(

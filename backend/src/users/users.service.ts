@@ -5,6 +5,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { LedgerService } from '../ledger/ledger.service';
 import { DatabaseService } from '../database/database.service';
+import { mapQueryRow } from '../database/mapper.util';
+import { TokenizationService } from '../common/services/tokenization.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { BasicKycDto } from '../auth/dto/basic-kyc.dto';
 import { NextOfKinDto } from '../auth/dto/next-of-kin.dto';
@@ -15,6 +17,7 @@ export class UsersService {
   constructor(
     private readonly db: DatabaseService,
     private readonly ledgerService: LedgerService,
+    private readonly tokenization: TokenizationService,
   ) {}
 
   async createUser(createUserDto: CreateUserDto): Promise<UserRow> {
@@ -25,7 +28,10 @@ export class UsersService {
       [createUserDto.firstName, createUserDto.lastName],
     );
 
-    const user = userResult.rows[0];
+    const user = mapQueryRow<any>(userResult);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
 
     await this.ledgerService.createUserWallet(
       user.id,
@@ -36,22 +42,37 @@ export class UsersService {
   }
 
   async updateBasicKyc(userId: string, dto: BasicKycDto) {
+    // Tokenize id_number before storing
+    const tokenizedIdNumber = dto.idNumber 
+      ? await this.tokenization.tokenize(dto.idNumber, 'id_number')
+      : null;
+    
     await this.db.query(
       'UPDATE users SET id_number = $1, full_name = $2, dob = $3 WHERE id = $4',
-      [dto.idNumber, dto.fullName, dto.dob, userId],
+      [tokenizedIdNumber, dto.fullName, dto.dob, userId],
     );
     return { status: 'kyc_saved' };
   }
 
   async addNextOfKin(userId: string, dto: NextOfKinDto) {
+    // Tokenize phone number before storing
+    const tokenizedPhone = dto.phone 
+      ? await this.tokenization.tokenize(dto.phone, 'phone')
+      : null;
+    
     await this.db.query(
       'INSERT INTO next_of_kin (user_id, name, phone, relationship) VALUES ($1, $2, $3, $4)',
-      [userId, dto.name, dto.phone, dto.relationship],
+      [userId, dto.name, tokenizedPhone, dto.relationship],
     );
     return { status: 'nok_saved' };
   }
 
   async updateProfile(userId: string, dto: ProfileDto) {
+    // Tokenize id_number if provided
+    const tokenizedIdNumber = dto.id_number 
+      ? await this.tokenization.tokenize(dto.id_number, 'id_number')
+      : null;
+    
     await this.db.query(
       `UPDATE users SET 
         profile_photo_url = COALESCE($1, profile_photo_url), 
@@ -69,7 +90,7 @@ export class UsersService {
         dto.bio ?? null,
         dto.full_name ?? null,
         dto.date_of_birth ?? null,
-        dto.id_number ?? null,
+        tokenizedIdNumber,
         dto.website ?? null,
         dto.facebook ?? null,
         dto.twitter ?? null,
@@ -93,6 +114,7 @@ export class UsersService {
           profile_photo_url,
           bio,
           dob,
+          id_number,
           website,
           facebook,
           twitter,
@@ -109,7 +131,20 @@ export class UsersService {
         throw new NotFoundException(`User with ID ${userId} not found`);
       }
 
-      return result.rows[0];
+      const user = result.rows[0];
+      
+      // Detokenize sensitive fields
+      if (user.email) {
+        user.email = await this.tokenization.detokenize(user.email, 'email');
+      }
+      if (user.phone) {
+        user.phone = await this.tokenization.detokenize(user.phone, 'phone');
+      }
+      if (user.id_number) {
+        user.id_number = await this.tokenization.detokenize(user.id_number, 'id_number');
+      }
+
+      return user;
     } catch (error) {
       console.error('Error in getUserProfile:', error);
       throw error;

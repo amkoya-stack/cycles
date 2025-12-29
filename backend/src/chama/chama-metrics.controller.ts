@@ -3,7 +3,7 @@ import { JwtAuthGuard } from '../auth/jwt.guard';
 import { ChamaMetricsService } from './chama-metrics.service';
 import { ReputationAutomationService } from '../reputation/reputation-automation.service';
 
-@Controller('chama-metrics')
+@Controller({ path: 'chama-metrics', version: '1' })
 @UseGuards(JwtAuthGuard)
 export class ChamaMetricsController {
   constructor(

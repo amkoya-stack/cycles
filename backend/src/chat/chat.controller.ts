@@ -16,7 +16,7 @@ import type {
   GetMessagesDto,
 } from './chat.service';
 
-@Controller('chat')
+@Controller({ path: 'chat', version: '1' })
 @UseGuards(JwtAuthGuard)
 export class ChatController {
   constructor(private readonly chatService: ChatService) {}

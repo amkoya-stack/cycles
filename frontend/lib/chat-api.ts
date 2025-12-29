@@ -42,12 +42,27 @@ interface ChamaMember {
 }
 
 class ChatApiClient {
-  private baseUrl =
-    process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
+  private baseUrl: string;
+  
+  constructor() {
+    // Explicitly ensure v1 is in the URL
+    const envUrl = process.env.NEXT_PUBLIC_API_URL;
+    if (envUrl) {
+      // If env URL is set, ensure it has /v1
+      this.baseUrl = envUrl.includes('/v1') 
+        ? envUrl 
+        : envUrl.replace('/api', '/api/v1');
+    } else {
+      this.baseUrl = "http://localhost:3001/api/v1";
+    }
+    console.log('[ChatAPI] Base URL initialized to:', this.baseUrl);
+  }
 
   private async makeRequest(endpoint: string, options: RequestInit = {}) {
     const token = localStorage.getItem("accessToken");
-    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+    const fullUrl = `${this.baseUrl}${endpoint}`;
+    console.log(`[ChatAPI] Making request to: ${fullUrl}`);
+    const response = await fetch(fullUrl, {
       ...options,
       headers: {
         "Content-Type": "application/json",

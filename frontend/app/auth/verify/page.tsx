@@ -29,8 +29,8 @@ export default function VerifyPage() {
     try {
       const endpoint =
         type === "email"
-          ? "http://localhost:3001/api/auth/verify-email"
-          : "http://localhost:3001/api/auth/verify-phone";
+          ? "http://localhost:3001/api/v1/auth/verify-email"
+          : "http://localhost:3001/api/v1/auth/verify-phone";
 
       const response = await fetch(endpoint, {
         method: "POST",
@@ -104,7 +104,7 @@ export default function VerifyPage() {
     }
 
     try {
-      const response = await fetch("http://localhost:3001/api/auth/otp/send", {
+      const response = await fetch("http://localhost:3001/api/v1/auth/otp/send", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -21,8 +21,10 @@ import { NextOfKinDto } from './dto/next-of-kin.dto';
 import { ProfileDto } from './dto/profile.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
+import { Detokenize } from '../common/decorators/tokenize.decorator';
+import { TokenizationInterceptor } from '../common/interceptors/tokenization.interceptor';
 
-@Controller('auth')
+@Controller({ path: 'auth', version: '1' })
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
@@ -66,6 +68,8 @@ export class AuthController {
 
   @Get('me')
   @UseGuards(JwtAuthGuard)
+  @UseInterceptors(TokenizationInterceptor)
+  @Detokenize(['email', 'phone', 'id_number'])
   async getMe(@Req() req: any) {
     return this.authService.getUserProfile(req.user.id);
   }
@@ -120,6 +124,8 @@ export class AuthController {
 
   @Get('profile')
   @UseGuards(JwtAuthGuard)
+  @UseInterceptors(TokenizationInterceptor)
+  @Detokenize(['email', 'phone'])
   async getProfile(@Req() req: any) {
     return this.authService.getProfile(req.user.id);
   }
