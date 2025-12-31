@@ -78,6 +78,7 @@ export interface CreateExternalApplicationDto {
   purpose: string;
   proposedInterestRate?: number;
   proposedRepaymentPeriodMonths: number;
+  repaymentFrequency?: 'daily' | 'weekly' | 'biweekly' | 'monthly';
   employmentStatus?: string;
   monthlyIncome?: number;
   employmentDetails?: Record<string, any>;
@@ -134,6 +135,7 @@ export interface ExternalLoanApplication {
   purpose: string;
   proposedInterestRate: number | null;
   proposedRepaymentPeriodMonths: number;
+  repaymentFrequency: 'daily' | 'weekly' | 'biweekly' | 'monthly';
   employmentStatus: string | null;
   monthlyIncome: number | null;
   employmentDetails: Record<string, any> | null;
@@ -233,8 +235,8 @@ export class ExternalLendingService {
     }
 
     const memberRole = mapQueryRow<{ role: string }>(memberResult)?.role;
-    if (!memberRole || !['admin', 'treasurer'].includes(memberRole)) {
-      throw new ForbiddenException('Only admin or treasurer can create loan listings');
+    if (!memberRole || !['admin', 'treasurer', 'admin'].includes(memberRole)) {
+      throw new ForbiddenException('Only admin, treasurer, or admin can create loan listings');
     }
 
     // Check if external lending is enabled
@@ -449,6 +451,7 @@ export class ExternalLendingService {
       purpose,
       proposedInterestRate,
       proposedRepaymentPeriodMonths,
+      repaymentFrequency,
       employmentStatus,
       monthlyIncome,
       employmentDetails,
@@ -541,9 +544,9 @@ export class ExternalLendingService {
       `INSERT INTO external_loan_applications (
         listing_id, chama_id, borrower_id,
         amount_requested, purpose, proposed_interest_rate, proposed_repayment_period_months,
-        employment_status, monthly_income, employment_details, income_proof_document_id,
+        repayment_frequency, employment_status, monthly_income, employment_details, income_proof_document_id,
         borrower_reputation_score, status, expires_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       RETURNING *`,
       [
         listingId,
@@ -553,6 +556,7 @@ export class ExternalLendingService {
         purpose,
         interestRate,
         proposedRepaymentPeriodMonths,
+        repaymentFrequency || 'monthly',
         employmentStatus || null,
         monthlyIncome || null,
         employmentDetails ? JSON.stringify(employmentDetails) : null,
@@ -619,7 +623,7 @@ export class ExternalLendingService {
 
     const result = await this.db.query(query, params);
 
-    return mapQueryResult<ExternalLoanApplication>(result, {
+    const applications = mapQueryResult<ExternalLoanApplication>(result, {
       numberFields: [
         'amountRequested', 'proposedInterestRate', 'proposedRepaymentPeriodMonths',
         'monthlyIncome', 'borrowerReputationScore', 'escrowAmount',
@@ -630,6 +634,12 @@ export class ExternalLendingService {
         'approvedAt', 'rejectedAt', 'escrowReleasedAt', 'createdAt', 'updatedAt', 'expiresAt',
       ],
     });
+
+    // Ensure repaymentFrequency has a default value
+    return applications.map(app => ({
+      ...app,
+      repaymentFrequency: app.repaymentFrequency || 'monthly',
+    }));
   }
 
   /**
@@ -666,7 +676,7 @@ export class ExternalLendingService {
   /**
    * Create escrow account for approved application
    */
-  async createEscrowAccount(applicationId: string): Promise<EscrowAccount> {
+  async createEscrowAccount(applicationId: string, createdBy?: string): Promise<EscrowAccount> {
     // Get application
     const appResult = await this.db.query(
       `SELECT * FROM external_loan_applications WHERE id = $1`,
@@ -689,6 +699,20 @@ export class ExternalLendingService {
     if (application.status !== ExternalApplicationStatus.APPROVED &&
         application.status !== ExternalApplicationStatus.TERMS_NEGOTIATED) {
       throw new BadRequestException(`Cannot create escrow for application with status: ${application.status}`);
+    }
+
+    // Validate creator is admin/treasurer/admin of lending chama
+    if (createdBy) {
+      const creatorResult = await this.db.query(
+        `SELECT role FROM chama_members 
+         WHERE chama_id = $1 AND user_id = $2 AND status = 'active'`,
+        [application.chamaId, createdBy],
+      );
+
+      const creatorRole = mapQueryRow<{ role: string }>(creatorResult)?.role;
+      if (!creatorRole || !['admin', 'treasurer'].includes(creatorRole)) {
+        throw new ForbiddenException('Only admin or treasurer can create escrow accounts');
+      }
     }
 
     // Check if escrow already exists
@@ -775,6 +799,26 @@ export class ExternalLendingService {
     // Get funding chamas
     const fundedByChamas = escrow.fundedByChamas as any[];
     
+    // Validate funder is admin/treasurer/admin of at least one funding chama
+    let hasPermission = false;
+    for (const chamaFunding of fundedByChamas) {
+      const funderResult = await this.db.query(
+        `SELECT role FROM chama_members 
+         WHERE chama_id = $1 AND user_id = $2 AND status = 'active'`,
+        [chamaFunding.chamaId, fundedBy],
+      );
+
+      const funderRole = mapQueryRow<{ role: string }>(funderResult)?.role;
+      if (funderRole && ['admin', 'treasurer'].includes(funderRole)) {
+        hasPermission = true;
+        break;
+      }
+    }
+
+    if (!hasPermission) {
+      throw new ForbiddenException('Only admin or treasurer of a funding chama can fund escrow');
+    }
+    
     // Fund from each chama
     const fundingTransactions: string[] = [];
     for (const chamaFunding of fundedByChamas) {
@@ -849,7 +893,7 @@ export class ExternalLendingService {
       throw new NotFoundException('Application not found');
     }
 
-    // Validate releaser is admin/treasurer of primary chama
+    // Validate releaser is admin/treasurer/admin of primary chama
     const fundedByChamas = escrow.fundedByChamas as any[];
     const primaryChama = fundedByChamas[0];
     
@@ -942,6 +986,7 @@ export class ExternalLendingService {
     approvedBy: string,
     finalInterestRate?: number,
     finalRepaymentPeriodMonths?: number,
+    repaymentFrequency?: 'daily' | 'weekly' | 'biweekly' | 'monthly',
   ): Promise<ExternalLoanApplication> {
     const appResult = await this.db.query(
       `SELECT * FROM external_loan_applications WHERE id = $1`,
@@ -976,14 +1021,16 @@ export class ExternalLendingService {
     const result = await this.db.query(
       `UPDATE external_loan_applications 
        SET status = $1, approved_by = $2, approved_at = NOW(),
-           final_interest_rate = $3, final_repayment_period_months = $4, updated_at = NOW()
-       WHERE id = $5
+           final_interest_rate = $3, final_repayment_period_months = $4,
+           repayment_frequency = $5, updated_at = NOW()
+       WHERE id = $6
        RETURNING *`,
       [
         ExternalApplicationStatus.APPROVED,
         approvedBy,
         finalInterestRate || application.proposedInterestRate,
         finalRepaymentPeriodMonths || application.proposedRepaymentPeriodMonths,
+        repaymentFrequency || application.repaymentFrequency || 'monthly',
         applicationId,
       ],
     );

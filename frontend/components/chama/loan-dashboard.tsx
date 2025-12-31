@@ -42,6 +42,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { apiUrl } from "@/lib/api-config";
+import { LoanApplicationsReview } from "./loan-applications-review";
 
 interface LoanDashboardProps {
   chamaId?: string;
@@ -80,6 +81,12 @@ export default function LoanDashboard({
   const [analytics, setAnalytics] = useState<any>(null);
   const [loadingAnalytics, setLoadingAnalytics] = useState(false);
 
+  // Applications tab state
+  const [applicationsLendingType, setApplicationsLendingType] = useState<
+    "internal" | "external" | "inter-chama"
+  >("internal");
+  const [userRole, setUserRole] = useState<string | null>(null);
+
   // Format amount helper
   const formatAmount = (amount: number) => {
     return new Intl.NumberFormat("en-KE", {
@@ -88,74 +95,81 @@ export default function LoanDashboard({
     }).format(amount);
   };
 
-  // Fetch wallet data
-  useEffect(() => {
-    const fetchWalletData = async () => {
-      if (!chamaId) {
+  // Fetch wallet data function
+  const fetchWalletData = async () => {
+    if (!chamaId) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const accessToken = localStorage.getItem("accessToken");
+      if (!accessToken) {
         setLoading(false);
         return;
       }
 
-      try {
-        const accessToken = localStorage.getItem("accessToken");
-        if (!accessToken) {
-          setLoading(false);
-          return;
-        }
+      // Fetch all data in parallel
+      const [balanceRes, contributionsRes, interestRes, summaryRes, chamaRes] =
+        await Promise.all([
+          fetch(apiUrl(`chama/${chamaId}/balance`), {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          }),
+          fetch(apiUrl(`chama/${chamaId}/contributions/total`), {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          }),
+          fetch(apiUrl(`lending/chama/${chamaId}/interest-income`), {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          }),
+          fetch(apiUrl(`lending/chama/${chamaId}/summary`), {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          }),
+          fetch(apiUrl(`chama/${chamaId}`), {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          }),
+        ]);
 
-        // Fetch all data in parallel
-        const [balanceRes, contributionsRes, interestRes, summaryRes] =
-          await Promise.all([
-            fetch(apiUrl(`chama/${chamaId}/balance`), {
-              headers: { Authorization: `Bearer ${accessToken}` },
-            }),
-            fetch(apiUrl(`chama/${chamaId}/contributions/total`), {
-              headers: { Authorization: `Bearer ${accessToken}` },
-            }),
-            fetch(apiUrl(`lending/chama/${chamaId}/interest-income`), {
-              headers: { Authorization: `Bearer ${accessToken}` },
-            }),
-            fetch(apiUrl(`lending/chama/${chamaId}/summary`), {
-              headers: { Authorization: `Bearer ${accessToken}` },
-            }),
-          ]);
-
-        if (balanceRes.ok) {
-          const balanceData = await balanceRes.json();
-          setTotalCash(parseFloat(balanceData.balance || 0));
-        } else if (initialBalance !== undefined) {
-          // Fallback to prop if API fails
-          setTotalCash(initialBalance);
-        }
-
-        if (contributionsRes.ok) {
-          const contributionsData = await contributionsRes.json();
-          setContributions(
-            parseFloat(contributionsData.totalContributions || 0)
-          );
-        }
-
-        if (interestRes.ok) {
-          const interestData = await interestRes.json();
-          setInterestIncome(parseFloat(interestData.data?.interestIncome || 0));
-        }
-
-        if (summaryRes.ok) {
-          const summaryData = await summaryRes.json();
-          setActiveLoans(summaryData.data?.activeLoans || 0);
-          setOverdueLoans(summaryData.data?.overdueLoans || 0);
-        }
-      } catch (error) {
-        console.error("Failed to fetch wallet data:", error);
-        // Use initial balance as fallback
-        if (initialBalance !== undefined) {
-          setTotalCash(initialBalance);
-        }
-      } finally {
-        setLoading(false);
+      if (balanceRes.ok) {
+        const balanceData = await balanceRes.json();
+        setTotalCash(parseFloat(balanceData.balance || 0));
+      } else if (initialBalance !== undefined) {
+        // Fallback to prop if API fails
+        setTotalCash(initialBalance);
       }
-    };
 
+      if (contributionsRes.ok) {
+        const contributionsData = await contributionsRes.json();
+        setContributions(parseFloat(contributionsData.totalContributions || 0));
+      }
+
+      if (interestRes.ok) {
+        const interestData = await interestRes.json();
+        setInterestIncome(parseFloat(interestData.data?.interestIncome || 0));
+      }
+
+      if (summaryRes.ok) {
+        const summaryData = await summaryRes.json();
+        setActiveLoans(summaryData.data?.activeLoans || 0);
+        setOverdueLoans(summaryData.data?.overdueLoans || 0);
+      }
+
+      if (chamaRes.ok) {
+        const chamaData = await chamaRes.json();
+        setUserRole(chamaData.user_role || null);
+      }
+    } catch (error) {
+      console.error("Failed to fetch wallet data:", error);
+      // Use initial balance as fallback
+      if (initialBalance !== undefined) {
+        setTotalCash(initialBalance);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch wallet data on mount
+  useEffect(() => {
     fetchWalletData();
   }, [chamaId, initialBalance]);
 
@@ -734,6 +748,16 @@ export default function LoanDashboard({
               }`}
             >
               Analytics
+            </button>
+            <button
+              onClick={() => setActiveTab("Applications")}
+              className={`text-sm font-semibold pb-2 transition-colors ${
+                activeTab === "Applications"
+                  ? "text-gray-900 border-b-2 border-blue-600"
+                  : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              Applications
             </button>
           </div>
           <div className="flex gap-3">
@@ -1525,6 +1549,60 @@ export default function LoanDashboard({
                       </CardContent>
                     </Card>
                   </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Applications Tab */}
+          {activeTab === "Applications" && chamaId && (
+            <div className="grid grid-cols-12 gap-6">
+              <div className="col-span-12">
+                <div className="space-y-6">
+                  {/* Lending Type Tabs */}
+                  <div className="flex gap-2 border-b border-gray-200">
+                    <button
+                      onClick={() => setApplicationsLendingType("internal")}
+                      className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                        applicationsLendingType === "internal"
+                          ? "border-blue-600 text-blue-600"
+                          : "border-transparent text-gray-600 hover:text-gray-900"
+                      }`}
+                    >
+                      Internal
+                    </button>
+                    <button
+                      onClick={() => setApplicationsLendingType("external")}
+                      className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                        applicationsLendingType === "external"
+                          ? "border-blue-600 text-blue-600"
+                          : "border-transparent text-gray-600 hover:text-gray-900"
+                      }`}
+                    >
+                      External
+                    </button>
+                    <button
+                      onClick={() => setApplicationsLendingType("inter-chama")}
+                      className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                        applicationsLendingType === "inter-chama"
+                          ? "border-blue-600 text-blue-600"
+                          : "border-transparent text-gray-600 hover:text-gray-900"
+                      }`}
+                    >
+                      Inter-Chama
+                    </button>
+                  </div>
+
+                  {/* Applications Review Component */}
+                  <LoanApplicationsReview
+                    chamaId={chamaId}
+                    lendingType={applicationsLendingType}
+                    userRole={userRole || undefined}
+                    onApplicationUpdated={() => {
+                      // Refresh data when application is updated
+                      fetchWalletData();
+                    }}
+                  />
                 </div>
               </div>
             </div>

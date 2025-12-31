@@ -177,7 +177,7 @@ export class RotationController {
   private async validateChamaAdmin(chamaId: string, userId: string) {
     const result = await this.db.query(
       `SELECT id FROM chama_members 
-       WHERE chama_id = $1 AND user_id = $2 AND role IN ('admin', 'chairperson') AND status = 'active'`,
+       WHERE chama_id = $1 AND user_id = $2 AND role = 'admin' AND status = 'active'`,
       [chamaId, userId],
     );
 

@@ -382,7 +382,7 @@ export class MeetingsService {
     const isHost = meeting.host_user_id === userId;
     const isAdmin = await this.db.query(
       `SELECT 1 FROM chama_members 
-       WHERE chama_id = $1 AND user_id = $2 AND role IN ('admin', 'chairperson') AND status = 'active'`,
+       WHERE chama_id = $1 AND user_id = $2 AND role = 'admin' AND status = 'active'`,
       [meeting.chama_id, userId],
     );
 
@@ -628,7 +628,7 @@ export class MeetingsService {
     const isHost = meeting.host_user_id === userId;
     const isAdmin = await this.db.query(
       `SELECT 1 FROM chama_members 
-       WHERE chama_id = $1 AND user_id = $2 AND role IN ('admin', 'chairperson', 'secretary') AND status = 'active'`,
+       WHERE chama_id = $1 AND user_id = $2 AND role IN ('admin', 'secretary') AND status = 'active'`,
       [meeting.chama_id, userId],
     );
 

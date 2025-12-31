@@ -210,7 +210,7 @@ export function ChamaSettings({
               </Label>
               <p className="text-sm text-gray-600">
                 Allow regular members to invite new people to join the chama.
-                When disabled, only admins and chairpersons can send invites.
+                When disabled, only admins can send invites.
               </p>
               {settings.members_can_invite && (
                 <div className="flex items-center gap-2 mt-2 text-sm text-blue-700 bg-blue-50 px-3 py-2 rounded">
@@ -242,7 +242,7 @@ export function ChamaSettings({
               </Label>
               <p className="text-sm text-gray-600">
                 Require admin approval for invites sent by regular members.
-                Admin and chairperson invites are always sent immediately.
+                Admin invites are always sent immediately.
               </p>
               {!settings.members_can_invite && (
                 <p className="text-xs text-gray-500 italic mt-1">

@@ -8,8 +8,8 @@ import { Crown, Calculator, FileText, User, Settings } from "lucide-react";
 
 const DEMO_ROLES = [
   {
-    id: "chairperson",
-    label: "Chairperson",
+    id: "admin",
+    label: "Admin",
     icon: Crown,
     color: "bg-purple-100 text-purple-800 border-purple-200",
     description: "Full control over chama operations",
@@ -148,7 +148,7 @@ export default function RoleSystemDemo() {
                 How Role Assignment Works
               </h4>
               <ul className="text-sm text-blue-700 space-y-1">
-                <li>• Only chairpersons can assign roles to other members</li>
+                <li>• Only admins can assign roles to other members</li>
                 <li>• Role changes are logged for audit purposes</li>
                 <li>• Members receive notifications when their role changes</li>
                 <li>

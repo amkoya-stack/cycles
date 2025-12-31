@@ -807,7 +807,7 @@ export class GovernanceService {
 
     const proposal = proposalResult.rows[0];
 
-    // Verify user is admin or chairperson
+    // Verify user is admin
     const memberCheck = await this.db.query(
       `SELECT role FROM chama_members 
        WHERE chama_id = $1 AND user_id = $2 AND status = 'active'`,
@@ -820,10 +820,10 @@ export class GovernanceService {
     }
 
     const userRole = memberCheck.rows[0].role;
-    if (!['admin', 'chairperson'].includes(userRole)) {
+    if (userRole !== 'admin') {
       await this.db.clearContext();
       throw new BadRequestException(
-        'Only admin or chairperson can close proposals',
+        'Only admin can close proposals',
       );
     }
 
@@ -898,7 +898,7 @@ export class GovernanceService {
       throw new BadRequestException('Only passed proposals can be executed');
     }
 
-    // Verify user is admin or chairperson
+    // Verify user is admin
     const memberCheck = await this.db.query(
       `SELECT role FROM chama_members 
        WHERE chama_id = $1 AND user_id = $2 AND status = 'active'`,
@@ -911,10 +911,10 @@ export class GovernanceService {
     }
 
     const userRole = memberCheck.rows[0].role;
-    if (!['admin', 'chairperson'].includes(userRole)) {
+    if (userRole !== 'admin') {
       await this.db.clearContext();
       throw new BadRequestException(
-        'Only admin or chairperson can execute proposals',
+        'Only admin can execute proposals',
       );
     }
 
@@ -1293,7 +1293,7 @@ export class GovernanceService {
 
     const proposal = proposalResult.rows[0];
     const isCreator = proposal.created_by === userId;
-    const isAdmin = ['chairperson', 'secretary', 'treasurer'].includes(
+    const isAdmin = ['admin', 'secretary', 'treasurer'].includes(
       proposal.role,
     );
 
@@ -1355,7 +1355,7 @@ export class GovernanceService {
   }
 
   /**
-   * Toggle pin status of a proposal (admin/chairperson only)
+   * Toggle pin status of a proposal (admin only)
    */
   async toggleProposalPin(proposalId: string, userId: string) {
     try {
@@ -1378,8 +1378,8 @@ export class GovernanceService {
 
       const proposal = proposalResult.rows[0];
 
-      // Only admin, chairperson, or treasurer can pin/unpin
-      if (!['admin', 'chairperson', 'treasurer'].includes(proposal.role)) {
+      // Only admin or treasurer can pin/unpin
+      if (!['admin', 'treasurer'].includes(proposal.role)) {
         throw new BadRequestException(
           'Only administrators can pin/unpin proposals',
         );

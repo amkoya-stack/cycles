@@ -560,7 +560,7 @@ export class ChamaController {
   }
 
   /**
-   * Assign role to member (chairperson only)
+   * Assign role to member (admin only)
    * POST /api/chama/:chamaId/members/:userId/assign-role
    */
   @Post(':chamaId/members/:userId/assign-role')
@@ -571,7 +571,7 @@ export class ChamaController {
     @Param('userId') userId: string,
     @Body()
     dto: {
-      role: 'chairperson' | 'treasurer' | 'secretary' | 'member';
+      role: 'admin' | 'treasurer' | 'secretary' | 'member';
       reason?: string;
     },
   ) {
@@ -599,7 +599,7 @@ export class ChamaController {
   }
 
   /**
-   * Respond to join request (chairperson only)
+   * Respond to join request (admin only)
    * POST /api/chama/:chamaId/join-requests/:requestId/respond
    */
   @Post(':chamaId/join-requests/:requestId/respond')
@@ -620,7 +620,7 @@ export class ChamaController {
   }
 
   /**
-   * Expel member from chama (chairperson only)
+   * Expel member from chama (admin only)
    * POST /api/chama/:chamaId/members/:userId/expel
    */
   @Post(':chamaId/members/:userId/expel')

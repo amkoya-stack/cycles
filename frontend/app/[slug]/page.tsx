@@ -796,7 +796,7 @@ export default function CycleBySlugPage() {
           <RotationPayoutPage
             chamaId={chama.id}
             isAdmin={
-              chama.user_role === "chairperson" || chama.user_role === "admin"
+              chama.user_role === "admin"
             }
           />
         );

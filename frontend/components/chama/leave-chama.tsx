@@ -64,7 +64,7 @@ export function LeaveChamaComponent({
   );
 
   const hasOutstandingBalance = memberBalance > 0 || totalContributions > 0;
-  const canLeave = userRole !== "chairperson"; // Chairperson must transfer role first
+  const canLeave = userRole !== "admin"; // Admin must transfer role first
 
   const handleInitiateLeave = () => {
     setShowLeaveDialog(true);
@@ -316,7 +316,7 @@ export function LeaveChamaComponent({
             Cannot Leave Chama
           </h3>
           <p className="text-gray-600 max-w-md">
-            As the chairperson, you must transfer your role to another member
+            As the admin, you must transfer your role to another member
             before leaving the chama.
           </p>
           <Badge variant="secondary" className="bg-purple-100 text-purple-800">

@@ -804,7 +804,7 @@ export class WalletService {
         (fr.request_type = 'member' AND fr.recipient_id = $1) OR
         (fr.request_type = 'chama' AND fr.chama_id IN (
           SELECT chama_id FROM chama_members 
-          WHERE user_id = $1 AND status = 'active' AND role IN ('admin', 'treasurer', 'chairperson')
+          WHERE user_id = $1 AND status = 'active' AND role IN ('admin', 'treasurer')
         ))
       )
     `;

@@ -71,7 +71,7 @@ interface Member {
   name: string;
   email: string;
   phone: string;
-  role: "admin" | "chairperson" | "treasurer" | "secretary" | "member";
+  role: "admin" | "treasurer" | "secretary" | "member";
   status: "active" | "inactive" | "suspended";
   joined_at: string;
   activity_score: number;
@@ -110,12 +110,6 @@ interface MemberDirectoryProps {
 const ROLE_CONFIG = {
   admin: {
     label: "Admin",
-    icon: Crown,
-    color: "bg-purple-100 text-purple-800 border-purple-200",
-    description: "Full control over chama operations (legacy)",
-  },
-  chairperson: {
-    label: "Chairperson",
     icon: Crown,
     color: "bg-purple-100 text-purple-800 border-purple-200",
     description: "Full control over chama operations",
@@ -169,7 +163,7 @@ export function MemberDirectory({
 
   useEffect(() => {
     fetchMembers();
-    if (userRole === "admin" || userRole === "chairperson") {
+    if (userRole === "admin") {
       fetchJoinRequests();
     }
   }, [chamaId, userRole]);
@@ -291,7 +285,7 @@ export function MemberDirectory({
         // If it's a 403 (forbidden), the user might not have permission - that's expected
         if (response.status === 403) {
           console.log(
-            "User doesn't have permission to view join requests - this is expected for non-admin/non-chairperson roles"
+            "User doesn't have permission to view join requests - this is expected for non-admin roles"
           );
           setJoinRequests([]);
           return;
@@ -503,8 +497,8 @@ export function MemberDirectory({
       }
     });
 
-  const canManageMembers = userRole === "chairperson" || userRole === "admin";
-  const canAssignRoles = userRole === "chairperson" || userRole === "admin";
+  const canManageMembers = userRole === "admin";
+  const canAssignRoles = userRole === "admin";
 
   if (loading) {
     return (
@@ -521,7 +515,7 @@ export function MemberDirectory({
   return (
     <div className="space-y-6 w-full" style={{ maxWidth: '100%', overflow: 'hidden' }}>
       {/* Pending Join Requests - Admin/Chairperson Only */}
-      {(userRole === "admin" || userRole === "chairperson") &&
+      {userRole === "admin" &&
         joinRequests.length > 0 && (
           <Card className="p-6 border-[#f64d52] border-2">
             <div className="flex items-center justify-between mb-4">
@@ -629,7 +623,6 @@ export function MemberDirectory({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Roles</SelectItem>
-                    <SelectItem value="chairperson">Chairperson</SelectItem>
                     <SelectItem value="treasurer">Treasurer</SelectItem>
                     <SelectItem value="secretary">Secretary</SelectItem>
                     <SelectItem value="member">Member</SelectItem>

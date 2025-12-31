@@ -473,7 +473,7 @@ export function GovernanceSection({
             ← Back to Proposals
           </Button>
           <div className="flex gap-2">
-            {(userRole === "admin" || userRole === "chairperson") &&
+            {userRole === "admin" &&
               activeProposal.status === "active" && (
                 <Button
                   onClick={() => closeProposal(activeProposal.id)}
@@ -482,7 +482,7 @@ export function GovernanceSection({
                   Close Voting
                 </Button>
               )}
-            {(userRole === "admin" || userRole === "chairperson") &&
+            {userRole === "admin" &&
               activeProposal.status === "passed" && (
                 <Button
                   onClick={() => executeProposal(activeProposal.id)}

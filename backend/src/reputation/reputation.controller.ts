@@ -42,7 +42,7 @@ export class ReputationController {
 
       if (
         memberCheckResult.rows.length === 0 ||
-        !['admin', 'chairperson'].includes(memberCheckResult.rows[0].role)
+        memberCheckResult.rows[0].role !== 'admin'
       ) {
         throw new BadRequestException(
           'Only admins can calculate reputation for other users',
@@ -196,7 +196,7 @@ export class ReputationController {
 
     if (
       memberCheckResult.rows.length === 0 ||
-      !['admin', 'chairperson'].includes(memberCheckResult.rows[0].role)
+      memberCheckResult.rows[0].role !== 'admin'
     ) {
       throw new BadRequestException(
         'Only admins can calculate reputation for all members',

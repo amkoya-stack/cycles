@@ -20,7 +20,6 @@ import type {
 } from './external-lending.service';
 
 @Controller({ path: 'lending/external', version: '1' })
-@UseGuards(JwtAuthGuard)
 export class ExternalLendingController {
   constructor(private readonly externalLendingService: ExternalLendingService) {}
 
@@ -30,7 +29,6 @@ export class ExternalLendingController {
 
   /**
    * Browse marketplace (public, no auth required for viewing)
-   * TODO: Make this endpoint public or create separate public controller
    */
   @Get('marketplace')
   async browseMarketplace(
@@ -65,7 +63,7 @@ export class ExternalLendingController {
   }
 
   /**
-   * Get listing details
+   * Get listing details (public)
    */
   @Get('listings/:id')
   async getListingDetails(@Param('id') id: string) {
@@ -81,6 +79,7 @@ export class ExternalLendingController {
    * Create a loan listing (chama offering loans)
    */
   @Post('listings')
+  @UseGuards(JwtAuthGuard)
   @RateLimit({ max: 5, window: 3600 }) // 5 listings per hour
   async createListing(@Request() req: any, @Body() dto: CreateListingDto) {
     const listing = await this.externalLendingService.createListing(
@@ -96,7 +95,7 @@ export class ExternalLendingController {
   }
 
   /**
-   * Get chama's listings
+   * Get chama's listings (public)
    */
   @Get('chama/:chamaId/listings')
   async getChamaListings(@Param('chamaId') chamaId: string) {
@@ -117,6 +116,7 @@ export class ExternalLendingController {
    * Apply for an external loan
    */
   @Post('applications')
+  @UseGuards(JwtAuthGuard)
   @RateLimit({ max: 5, window: 3600 }) // 5 applications per hour
   async applyForExternalLoan(
     @Request() req: any,
@@ -138,6 +138,7 @@ export class ExternalLendingController {
    * Get my external loan applications
    */
   @Get('applications/me')
+  @UseGuards(JwtAuthGuard)
   async getMyExternalApplications(@Request() req: any) {
     const applications = await this.externalLendingService.getUserExternalApplications(
       req.user.id,
@@ -153,6 +154,7 @@ export class ExternalLendingController {
    * Get external applications for a chama (admin/treasurer)
    */
   @Get('chama/:chamaId/applications')
+  @UseGuards(JwtAuthGuard)
   async getChamaExternalApplications(
     @Param('chamaId') chamaId: string,
     @Query('status') status?: ExternalApplicationStatus,
@@ -176,6 +178,7 @@ export class ExternalLendingController {
    * Approve external loan application
    */
   @Put('applications/:id/approve')
+  @UseGuards(JwtAuthGuard)
   @RateLimit({ max: 20, window: 60 })
   async approveExternalApplication(
     @Request() req: any,
@@ -184,6 +187,7 @@ export class ExternalLendingController {
     body: {
       finalInterestRate?: number;
       finalRepaymentPeriodMonths?: number;
+      repaymentFrequency?: 'daily' | 'weekly' | 'biweekly' | 'monthly';
     },
   ) {
     const application = await this.externalLendingService.approveExternalApplication(
@@ -191,6 +195,7 @@ export class ExternalLendingController {
       req.user.id,
       body.finalInterestRate,
       body.finalRepaymentPeriodMonths,
+      body.repaymentFrequency,
     );
 
     return {
@@ -204,6 +209,7 @@ export class ExternalLendingController {
    * Reject external loan application
    */
   @Put('applications/:id/reject')
+  @UseGuards(JwtAuthGuard)
   @RateLimit({ max: 20, window: 60 })
   async rejectExternalApplication(
     @Request() req: any,
@@ -231,9 +237,10 @@ export class ExternalLendingController {
    * Create escrow account for approved application
    */
   @Post('applications/:id/escrow')
+  @UseGuards(JwtAuthGuard)
   @RateLimit({ max: 10, window: 60 })
-  async createEscrow(@Param('id') applicationId: string) {
-    const escrow = await this.externalLendingService.createEscrowAccount(applicationId);
+  async createEscrow(@Request() req: any, @Param('id') applicationId: string) {
+    const escrow = await this.externalLendingService.createEscrowAccount(applicationId, req.user.id);
 
     return {
       success: true,
@@ -246,6 +253,7 @@ export class ExternalLendingController {
    * Fund escrow account
    */
   @Put('escrow/:id/fund')
+  @UseGuards(JwtAuthGuard)
   @RateLimit({ max: 10, window: 60 })
   async fundEscrow(@Request() req: any, @Param('id') escrowId: string) {
     const escrow = await this.externalLendingService.fundEscrowAccount(
@@ -264,6 +272,7 @@ export class ExternalLendingController {
    * Release escrow funds to borrower
    */
   @Put('escrow/:id/release')
+  @UseGuards(JwtAuthGuard)
   @RateLimit({ max: 10, window: 60 })
   async releaseEscrow(@Request() req: any, @Param('id') escrowId: string) {
     const escrow = await this.externalLendingService.releaseEscrow(
@@ -282,6 +291,7 @@ export class ExternalLendingController {
    * Get escrow account details
    */
   @Get('escrow/:id')
+  @UseGuards(JwtAuthGuard)
   async getEscrowDetails(@Param('id') escrowId: string) {
     const escrow = await this.externalLendingService.getEscrowAccount(escrowId);
 
@@ -299,6 +309,7 @@ export class ExternalLendingController {
    * Create or update risk sharing agreement
    */
   @Post('applications/:id/risk-sharing')
+  @UseGuards(JwtAuthGuard)
   @RateLimit({ max: 10, window: 60 })
   async createRiskSharing(
     @Request() req: any,
@@ -328,6 +339,7 @@ export class ExternalLendingController {
    * Get risk sharing agreement for an application
    */
   @Get('applications/:id/risk-sharing')
+  @UseGuards(JwtAuthGuard)
   async getRiskSharing(@Param('id') applicationId: string) {
     const agreement = await this.externalLendingService.getRiskSharingAgreement(
       applicationId,

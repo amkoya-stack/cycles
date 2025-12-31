@@ -151,11 +151,11 @@ export class ChamaService {
           ],
         );
 
-        // Add chairperson as first member
+        // Add admin as first member (chama creator)
         await client.query(
           `INSERT INTO chama_members (
           chama_id, user_id, role, status, payout_position
-        ) VALUES ($1, $2, 'chairperson', 'active', 1)`,
+        ) VALUES ($1, $2, 'admin', 'active', 1)`,
           [chamaId, adminUserId],
         );
 
@@ -326,10 +326,10 @@ export class ChamaService {
     chamaId: string,
     dto: UpdateChamaDto,
   ): Promise<any> {
-    // Check if user is chairperson
+    // Check if user is admin
     const member = await this.getMemberRole(userId, chamaId);
-    if (member.role !== 'chairperson') {
-      throw new ForbiddenException('Only chairperson can update chama details');
+    if (member.role !== 'admin') {
+      throw new ForbiddenException('Only admin can update chama details');
     }
 
     const updates: string[] = [];
@@ -410,8 +410,8 @@ export class ChamaService {
    */
   async deleteChama(userId: string, chamaId: string): Promise<any> {
     const member = await this.getMemberRole(userId, chamaId);
-    if (member.role !== 'chairperson') {
-      throw new ForbiddenException('Only chairperson can delete chama');
+    if (member.role !== 'admin') {
+      throw new ForbiddenException('Only admin can delete chama');
     }
 
     // Check if chama has balance
@@ -606,9 +606,9 @@ export class ChamaService {
     const chama = await this.getChamaDetails(userId, chamaId);
     const settings = chama.settings || {};
 
-    // Check permissions: admin/chairperson/treasurer OR members if allowed
+    // Check permissions: admin/treasurer OR members if allowed
     const member = await this.getMemberRole(userId, chamaId);
-    const isAdmin = ['chairperson', 'treasurer', 'admin'].includes(member.role);
+    const isAdmin = ['admin', 'treasurer'].includes(member.role);
     const membersCanInvite = settings.members_can_invite === true;
 
     if (!isAdmin && !membersCanInvite) {
@@ -911,13 +911,13 @@ export class ChamaService {
         `[listJoinRequests] Checking permissions for user ${userId} in chama ${chamaId}`,
       );
 
-      // Check if user is chairperson or admin of this chama
+      // Check if user is admin of this chama
       const member = await this.getMemberRole(userId, chamaId);
       console.log(`[listJoinRequests] User role: ${member.role}`);
 
-      if (member.role !== 'chairperson' && member.role !== 'admin') {
+      if (member.role !== 'admin') {
         throw new ForbiddenException(
-          'Only chairperson or admin can view join requests',
+          'Only admin can view join requests',
         );
       }
 
@@ -964,6 +964,7 @@ export class ChamaService {
     memberUserId: string,
   ): Promise<any> {
     const requester = await this.getMemberRole(userId, chamaId);
+    // Only admin can remove members
     if (requester.role !== 'admin') {
       throw new ForbiddenException('Only admin can remove members');
     }
@@ -977,9 +978,9 @@ export class ChamaService {
       throw new NotFoundException('Member not found');
     }
 
-    // Cannot remove chairperson
-    if (member.rows[0].role === 'chairperson') {
-      throw new BadRequestException('Cannot remove chama chairperson');
+    // Cannot remove admin (chama creator)
+    if (member.rows[0].role === 'admin') {
+      throw new BadRequestException('Cannot remove chama admin');
     }
 
     const memberData = member.rows[0];
@@ -999,7 +1000,7 @@ export class ChamaService {
       category: ActivityCategory.MEMBERSHIP,
       activityType: ActivityType.MEMBER_REMOVED,
       title: `${memberData.full_name} removed from chama`,
-      description: 'Member was removed by admin',
+      description: `Member was removed by admin`,
       metadata: { memberId: memberData.id, memberName: memberData.full_name },
       entityType: 'member',
       entityId: memberData.id,
@@ -1031,12 +1032,12 @@ export class ChamaService {
     newRole: string,
   ): Promise<any> {
     const requester = await this.getMemberRole(userId, chamaId);
-    if (requester.role !== 'chairperson') {
-      throw new ForbiddenException('Only chairperson can update roles');
+    if (requester.role !== 'admin') {
+      throw new ForbiddenException('Only admin can update roles');
     }
 
     if (
-      !['chairperson', 'treasurer', 'secretary', 'member'].includes(newRole)
+      !['admin', 'treasurer', 'secretary', 'member'].includes(newRole)
     ) {
       throw new BadRequestException('Invalid role');
     }
@@ -1097,16 +1098,16 @@ export class ChamaService {
    * Assign role to member with permission validation
    */
   async assignRole(
-    chairpersonId: string,
+    adminId: string,
     chamaId: string,
     memberUserId: string,
-    newRole: 'chairperson' | 'treasurer' | 'secretary' | 'member',
+    newRole: 'admin' | 'treasurer' | 'secretary' | 'member',
     reason?: string,
   ): Promise<any> {
-    // Only chairperson can assign roles
-    const requester = await this.getMemberRole(chairpersonId, chamaId);
-    if (requester.role !== 'chairperson') {
-      throw new ForbiddenException('Only chairperson can assign roles');
+    // Only admin can assign roles
+    const requester = await this.getMemberRole(adminId, chamaId);
+    if (requester.role !== 'admin') {
+      throw new ForbiddenException('Only admin can assign roles');
     }
 
     // Get member details
@@ -1127,16 +1128,16 @@ export class ChamaService {
     }
 
     // Check role limits from chama settings
-    if (newRole === 'chairperson') {
-      const existingChairpersons = await this.db.query(
-        "SELECT COUNT(*) as count FROM chama_members WHERE chama_id = $1 AND role = 'chairperson' AND status = 'active'",
+    if (newRole === 'admin') {
+      const existingAdmins = await this.db.query(
+        "SELECT COUNT(*) as count FROM chama_members WHERE chama_id = $1 AND role = 'admin' AND status = 'active'",
         [chamaId],
       );
       if (
-        parseInt(existingChairpersons.rows[0].count) >= 1 &&
-        oldRole !== 'chairperson'
+        parseInt(existingAdmins.rows[0].count) >= 1 &&
+        oldRole !== 'admin'
       ) {
-        throw new BadRequestException('Only one chairperson allowed per chama');
+        throw new BadRequestException('Only one admin allowed per chama');
       }
     }
 
@@ -1144,14 +1145,14 @@ export class ChamaService {
       // Update member role
       await client.query(
         'UPDATE chama_members SET role = $1, assigned_by = $2, role_assigned_at = NOW() WHERE chama_id = $3 AND user_id = $4',
-        [newRole, chairpersonId, chamaId, memberUserId],
+        [newRole, adminId, chamaId, memberUserId],
       );
     });
 
     // Log activity
     const activityId = await this.activityService.createActivityLog({
       chamaId,
-      userId: chairpersonId,
+      userId: adminId,
       category: ActivityCategory.MEMBERSHIP,
       activityType: ActivityType.ROLE_CHANGED,
       title: `${member.full_name} assigned as ${newRole}`,
@@ -1177,7 +1178,7 @@ export class ChamaService {
         message: `${member.full_name} has been assigned the role of ${newRole}`,
         activityLogId: activityId,
       },
-      chairpersonId,
+      adminId,
     );
 
     return { message: 'Role assigned successfully', oldRole, newRole };
@@ -1257,7 +1258,7 @@ export class ChamaService {
       entityId: requestId,
     });
 
-    // Notify chairperson
+    // Notify admin
     await this.activityNotification.notifyChamaMembers(
       chamaId,
       {
@@ -1277,17 +1278,17 @@ export class ChamaService {
    * Respond to join request (approve/reject)
    */
   async respondToJoinRequest(
-    chairpersonId: string,
+    adminId: string,
     chamaId: string,
     requestId: string,
     action: 'approve' | 'reject',
     response?: string,
   ): Promise<any> {
-    // Only chairperson can respond to join requests
-    const requester = await this.getMemberRole(chairpersonId, chamaId);
-    if (requester.role !== 'chairperson') {
+    // Only admin can respond to join requests
+    const requester = await this.getMemberRole(adminId, chamaId);
+    if (requester.role !== 'admin') {
       throw new ForbiddenException(
-        'Only chairperson can respond to join requests',
+        'Only admin can respond to join requests',
       );
     }
 
@@ -1315,7 +1316,7 @@ export class ChamaService {
         [
           action === 'approve' ? 'approved' : 'rejected',
           response,
-          chairpersonId,
+          adminId,
           requestId,
         ],
       );
@@ -1340,7 +1341,7 @@ export class ChamaService {
     // Log activity
     const activityId = await this.activityService.createActivityLog({
       chamaId,
-      userId: chairpersonId,
+      userId: adminId,
       category: ActivityCategory.MEMBERSHIP,
       activityType:
         action === 'approve'
@@ -1384,7 +1385,7 @@ export class ChamaService {
           message: `Welcome ${request.requester_name} to the chama!`,
           activityLogId: activityId,
         },
-        chairpersonId,
+        adminId,
       );
     }
 
@@ -1396,22 +1397,22 @@ export class ChamaService {
   }
 
   /**
-   * Expel member from chama (chairperson only)
+   * Expel member from chama (admin only)
    */
   async expelMember(
-    chairpersonId: string,
+    adminId: string,
     chamaId: string,
     memberUserId: string,
     reason: string,
   ): Promise<any> {
-    // Only chairperson can expel members
-    const requester = await this.getMemberRole(chairpersonId, chamaId);
-    if (requester.role !== 'chairperson') {
-      throw new ForbiddenException('Only chairperson can expel members');
+    // Only admin can expel members
+    const requester = await this.getMemberRole(adminId, chamaId);
+    if (requester.role !== 'admin') {
+      throw new ForbiddenException('Only admin can expel members');
     }
 
     // Cannot expel self
-    if (chairpersonId === memberUserId) {
+    if (adminId === memberUserId) {
       throw new BadRequestException('Chairperson cannot expel themselves');
     }
 
@@ -1452,11 +1453,11 @@ export class ChamaService {
     // Log activity
     const activityId = await this.activityService.createActivityLog({
       chamaId,
-      userId: chairpersonId,
+      userId: adminId,
       category: ActivityCategory.MEMBERSHIP,
       activityType: ActivityType.MEMBER_EXPELLED,
       title: `${member.full_name} expelled from chama`,
-      description: `Member expelled by chairperson. Reason: ${reason}`,
+      description: `Member expelled by admin. Reason: ${reason}`,
       metadata: {
         memberId: member.id,
         memberName: member.full_name,
@@ -1488,7 +1489,7 @@ export class ChamaService {
         message: `${member.full_name} has been removed from the chama`,
         activityLogId: activityId,
       },
-      chairpersonId,
+      adminId,
     );
 
     return {
@@ -2146,9 +2147,9 @@ export class ChamaService {
     const { role } = membership.rows[0];
 
     // Chairperson must transfer role before leaving
-    if (role === 'chairperson') {
+    if (role === 'admin') {
       throw new BadRequestException(
-        'Chairperson must transfer role before leaving the chama',
+        'Admin must transfer role before leaving the chama',
       );
     }
 

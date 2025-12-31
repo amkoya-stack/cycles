@@ -515,7 +515,7 @@ export class CommunityService {
     }
 
     const { user_id: authorId, role } = postResult.rows[0];
-    const isAdmin = ['chairperson', 'secretary', 'treasurer'].includes(role);
+    const isAdmin = ['admin', 'secretary', 'treasurer'].includes(role);
 
     if (authorId !== userId && !isAdmin) {
       throw new ForbiddenException('You can only delete your own posts');
@@ -547,7 +547,7 @@ export class CommunityService {
     }
 
     const { user_id: authorId, role } = replyResult.rows[0];
-    const isAdmin = ['chairperson', 'secretary', 'treasurer'].includes(role);
+    const isAdmin = ['admin', 'secretary', 'treasurer'].includes(role);
 
     if (authorId !== userId && !isAdmin) {
       throw new ForbiddenException('You can only delete your own replies');
@@ -579,7 +579,7 @@ export class CommunityService {
     }
 
     const { role } = memberResult.rows[0];
-    const isAdmin = ['chairperson', 'secretary', 'treasurer'].includes(role);
+    const isAdmin = ['admin', 'secretary', 'treasurer'].includes(role);
 
     if (!isAdmin) {
       throw new ForbiddenException('Only admins can pin/unpin posts');
