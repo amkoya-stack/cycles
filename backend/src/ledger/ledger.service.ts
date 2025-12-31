@@ -231,6 +231,309 @@ export class LedgerService {
   }
 
   /**
+   * Create an escrow account for external lending
+   */
+  async createEscrowAccount(
+    escrowId: string,
+    escrowName: string,
+    metadata?: Record<string, any>,
+  ): Promise<any> {
+    const client = await this.db.getClient();
+
+    try {
+      await client.query('BEGIN');
+
+      const ledgerResult = await client.query(
+        'SELECT id FROM ledgers WHERE is_active = true LIMIT 1',
+      );
+      if (ledgerResult.rows.length === 0) {
+        throw new BadRequestException(
+          'No active ledger found. Please run migrations.',
+        );
+      }
+      const ledgerId = ledgerResult.rows[0].id;
+
+      const accountTypeResult = await client.query(
+        "SELECT id FROM account_types WHERE code = 'ESCROW'",
+      );
+      if (accountTypeResult.rows.length === 0) {
+        throw new BadRequestException(
+          'ESCROW account type not found. Please run migration 035_add_escrow_account_type.sql',
+        );
+      }
+      const accountTypeId = accountTypeResult.rows[0].id;
+
+      const accountNumber = `ESC${Date.now()}${Math.floor(Math.random() * 1000)}`;
+
+      const result = await client.query(
+        `INSERT INTO accounts (
+          ledger_id, account_type_id, account_number, name, status, metadata
+        ) VALUES ($1, $2, $3, $4, 'active', $5)
+        RETURNING *`,
+        [
+          ledgerId,
+          accountTypeId,
+          accountNumber,
+          escrowName,
+          metadata ? JSON.stringify(metadata) : null,
+        ],
+      );
+
+      await client.query('COMMIT');
+      return result.rows[0];
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * Get escrow account by ID
+   */
+  async getEscrowAccount(accountId: string): Promise<any> {
+    const result = await this.db.query(
+      `SELECT a.*, at.normality 
+       FROM accounts a
+       JOIN account_types at ON a.account_type_id = at.id
+       WHERE a.id = $1 AND at.code = 'ESCROW' AND a.status = 'active'`,
+      [accountId],
+    );
+
+    if (result.rows.length === 0) {
+      throw new BadRequestException('Escrow account not found');
+    }
+
+    return result.rows[0];
+  }
+
+  /**
+   * Fund escrow account (transfer from chama wallet to escrow)
+   */
+  async fundEscrow(
+    escrowAccountId: string,
+    chamaId: string,
+    amount: number,
+    description: string,
+    externalReference?: string,
+  ): Promise<any> {
+    const client = await this.db.getClient();
+
+    try {
+      await client.query('BEGIN');
+
+      // Get accounts
+      const escrowAccount = await this.getEscrowAccount(escrowAccountId);
+      const chamaAccount = await this.getChamaAccount(chamaId);
+
+      // Validate chama balance
+      const chamaBalance = await this.getAccountBalance(chamaAccount.id);
+      if (chamaBalance < amount) {
+        throw new BadRequestException(
+          `Insufficient chama balance. Required: ${amount}, Available: ${chamaBalance}`,
+        );
+      }
+
+      // Create transaction
+      const transactionCode = 'ESCROW_FUND';
+      const reference = externalReference || `ESC-FUND-${uuidv4()}`;
+
+      const transactionResult = await client.query(
+        `INSERT INTO transactions (reference, description, status, external_reference)
+         VALUES ($1, $2, 'completed', $3)
+         RETURNING id`,
+        [reference, description, externalReference || null],
+      );
+
+      const transactionId = transactionResult.rows[0].id;
+
+      // Get transaction code ID
+      const codeResult = await client.query(
+        "SELECT id FROM transaction_codes WHERE code = $1",
+        [transactionCode],
+      );
+      let codeId = codeResult.rows[0]?.id;
+      if (!codeId) {
+        // Create transaction code if it doesn't exist
+        const newCodeResult = await client.query(
+          `INSERT INTO transaction_codes (code, name, description)
+           VALUES ($1, 'Escrow Fund', 'Funding escrow account')
+           RETURNING id`,
+          [transactionCode],
+        );
+        codeId = newCodeResult.rows[0].id;
+      }
+
+      await client.query(
+        `UPDATE transactions SET transaction_code_id = $1 WHERE id = $2`,
+        [codeId, transactionId],
+      );
+
+      // Create entries: DR Chama Wallet, CR Escrow
+      const entries = [
+        {
+          accountId: chamaAccount.id,
+          direction: EntryDirection.DEBIT,
+          amount,
+        },
+        {
+          accountId: escrowAccount.id,
+          direction: EntryDirection.CREDIT,
+          amount,
+        },
+      ];
+
+      for (const entry of entries) {
+        const balanceBefore = await this.getAccountBalance(entry.accountId);
+        const balanceAfter =
+          entry.direction === EntryDirection.DEBIT
+            ? balanceBefore - entry.amount
+            : balanceBefore + entry.amount;
+
+        await client.query(
+          `INSERT INTO transaction_entries (
+            transaction_id, account_id, direction, amount, balance_before, balance_after
+          ) VALUES ($1, $2, $3, $4, $5, $6)`,
+          [
+            transactionId,
+            entry.accountId,
+            entry.direction,
+            entry.amount,
+            balanceBefore,
+            balanceAfter,
+          ],
+        );
+
+        await client.query(
+          `UPDATE accounts SET balance = $1, updated_at = NOW() WHERE id = $2`,
+          [balanceAfter, entry.accountId],
+        );
+      }
+
+      await client.query('COMMIT');
+      return { transactionId, reference, amount };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * Release escrow funds (transfer from escrow to borrower wallet)
+   */
+  async releaseEscrow(
+    escrowAccountId: string,
+    borrowerUserId: string,
+    amount: number,
+    description: string,
+    externalReference?: string,
+  ): Promise<any> {
+    const client = await this.db.getClient();
+
+    try {
+      await client.query('BEGIN');
+
+      // Get accounts
+      const escrowAccount = await this.getEscrowAccount(escrowAccountId);
+      const borrowerAccount = await this.getUserAccount(borrowerUserId);
+
+      // Validate escrow balance
+      const escrowBalance = await this.getAccountBalance(escrowAccount.id);
+      if (escrowBalance < amount) {
+        throw new BadRequestException(
+          `Insufficient escrow balance. Required: ${amount}, Available: ${escrowBalance}`,
+        );
+      }
+
+      // Create transaction
+      const transactionCode = 'ESCROW_RELEASE';
+      const reference = externalReference || `ESC-REL-${uuidv4()}`;
+
+      const transactionResult = await client.query(
+        `INSERT INTO transactions (reference, description, status, external_reference)
+         VALUES ($1, $2, 'completed', $3)
+         RETURNING id`,
+        [reference, description, externalReference || null],
+      );
+
+      const transactionId = transactionResult.rows[0].id;
+
+      // Get transaction code ID
+      const codeResult = await client.query(
+        "SELECT id FROM transaction_codes WHERE code = $1",
+        [transactionCode],
+      );
+      let codeId = codeResult.rows[0]?.id;
+      if (!codeId) {
+        const newCodeResult = await client.query(
+          `INSERT INTO transaction_codes (code, name, description)
+           VALUES ($1, 'Escrow Release', 'Releasing escrow funds to borrower')
+           RETURNING id`,
+          [transactionCode],
+        );
+        codeId = newCodeResult.rows[0].id;
+      }
+
+      await client.query(
+        `UPDATE transactions SET transaction_code_id = $1 WHERE id = $2`,
+        [codeId, transactionId],
+      );
+
+      // Create entries: DR Escrow, CR User Wallet
+      const entries = [
+        {
+          accountId: escrowAccount.id,
+          direction: EntryDirection.DEBIT,
+          amount,
+        },
+        {
+          accountId: borrowerAccount.id,
+          direction: EntryDirection.CREDIT,
+          amount,
+        },
+      ];
+
+      for (const entry of entries) {
+        const balanceBefore = await this.getAccountBalance(entry.accountId);
+        const balanceAfter =
+          entry.direction === EntryDirection.DEBIT
+            ? balanceBefore - entry.amount
+            : balanceBefore + entry.amount;
+
+        await client.query(
+          `INSERT INTO transaction_entries (
+            transaction_id, account_id, direction, amount, balance_before, balance_after
+          ) VALUES ($1, $2, $3, $4, $5, $6)`,
+          [
+            transactionId,
+            entry.accountId,
+            entry.direction,
+            entry.amount,
+            balanceBefore,
+            balanceAfter,
+          ],
+        );
+
+        await client.query(
+          `UPDATE accounts SET balance = $1, updated_at = NOW() WHERE id = $2`,
+          [balanceAfter, entry.accountId],
+        );
+      }
+
+      await client.query('COMMIT');
+      return { transactionId, reference, amount };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
    * Get chama transaction history
    * Returns all transactions involving the chama wallet (contributions, payouts, transfers, deposits)
    */

@@ -12,7 +12,8 @@ const isTokenExpired = (token: string): boolean => {
 };
 
 export function useAuth() {
-  // Always start as false to match server-side rendering
+  // Always start with false to match server-side rendering
+  // This prevents hydration mismatches
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   // Check localStorage after component mounts (client-side only)
@@ -53,6 +54,8 @@ export function useAuth() {
     window.location.href = "/";
   }, []);
 
+  // Return isAuthenticated directly - it starts as false on both server and client
+  // This prevents hydration mismatch, then useEffect updates it on client
   return { isAuthenticated, validateToken, logout };
 }
 

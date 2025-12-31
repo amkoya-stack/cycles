@@ -17,10 +17,11 @@ import { useState } from "react";
 
 interface Transaction {
   id: string;
-  description: string;
+  description?: string;
   amount: number;
-  transaction_type: string;
-  reference: string;
+  transaction_type?: string; // snake_case (old API)
+  transactionType?: string; // camelCase (new mapper)
+  reference?: string;
   direction: string;
   status: string;
   created_at: string;
@@ -46,12 +47,16 @@ export function TransactionHistory({
     }).format(amount);
   };
 
-  const getTransactionIcon = (type: string) => {
-    if (type.toLowerCase().includes("deposit")) {
+  const getTransactionIcon = (type: string | null | undefined) => {
+    if (!type) {
+      return <ArrowRight className="w-5 h-5 text-gray-600" />;
+    }
+    const lowerType = type.toLowerCase();
+    if (lowerType.includes("deposit")) {
       return <TrendingUp className="w-5 h-5 text-green-600" />;
-    } else if (type.toLowerCase().includes("withdrawal")) {
+    } else if (lowerType.includes("withdrawal")) {
       return <TrendingDown className="w-5 h-5 text-red-600" />;
-    } else if (type.toLowerCase().includes("contribution")) {
+    } else if (lowerType.includes("contribution")) {
       return <Coins className="w-5 h-5 text-blue-600" />;
     }
     return <ArrowRight className="w-5 h-5 text-gray-600" />;
@@ -70,10 +75,12 @@ export function TransactionHistory({
 
   const filteredTransactions = transactions.filter((tx) => {
     const matchesSearch =
-      tx.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      tx.reference.toLowerCase().includes(searchQuery.toLowerCase());
+      (tx.description?.toLowerCase() || "").includes(searchQuery.toLowerCase()) ||
+      (tx.reference?.toLowerCase() || "").includes(searchQuery.toLowerCase());
+    // Handle both snake_case (from old API) and camelCase (from new mapper)
+    const txType = (tx.transaction_type || tx.transactionType || "").toLowerCase();
     const matchesType =
-      filterType === "all" || tx.transaction_type.toLowerCase() === filterType;
+      filterType === "all" || txType === filterType;
     return matchesSearch && matchesType;
   });
 
@@ -151,13 +158,13 @@ export function TransactionHistory({
             >
               <div className="flex items-center gap-4">
                 <div className="p-2 bg-gray-100 rounded-full">
-                  {getTransactionIcon(tx.transaction_type)}
+                  {getTransactionIcon(tx.transaction_type || tx.transactionType)}
                 </div>
                 <div>
-                  <p className="font-medium">{tx.description}</p>
+                  <p className="font-medium">{tx.description || "Transaction"}</p>
                   <p className="text-sm text-gray-500">
-                    {new Date(tx.created_at).toLocaleString()} •{" "}
-                    {tx.reference.slice(0, 8)}
+                    {new Date(tx.created_at).toLocaleString()}
+                    {tx.reference && ` • ${tx.reference.slice(0, 8)}`}
                   </p>
                 </div>
               </div>

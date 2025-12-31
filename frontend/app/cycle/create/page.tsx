@@ -6,6 +6,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthGuard } from "@/hooks/use-auth";
+import { apiUrl } from "@/lib/api-config";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -198,7 +199,7 @@ export default function CreateChamaPage() {
         JSON.stringify(payload, null, 2)
       );
 
-      const response = await fetch("http://localhost:3001/api/chama", {
+      const response = await fetch(apiUrl("chama"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

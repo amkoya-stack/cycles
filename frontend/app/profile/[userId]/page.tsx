@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { HomeNavbar } from "@/components/home/home-navbar";
 import { Footer } from "@/components/footer";
 import { useAuth } from "@/hooks/use-auth";
+import { apiUrl } from "@/lib/api-config";
 import {
   User,
   Mail,
@@ -95,7 +96,7 @@ export default function UserProfilePage() {
 
       console.log("Fetching profile for userId:", userId);
       const response = await fetch(
-        `http://localhost:3001/api/users/${userId}`,
+        apiUrl(`users/${userId}`),
         {
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -128,7 +129,7 @@ export default function UserProfilePage() {
       const accessToken = localStorage.getItem("accessToken");
       if (!accessToken) return;
 
-      const response = await fetch("http://localhost:3001/api/chama", {
+      const response = await fetch(apiUrl("chama"), {
         headers: {
           Authorization: `Bearer ${accessToken}`,
         },
@@ -155,7 +156,7 @@ export default function UserProfilePage() {
       if (!chamaId) return;
 
       const response = await fetch(
-        `http://localhost:3001/api/reputation/${chamaId}/user/${userId}`,
+        apiUrl(`reputation/${chamaId}/user/${userId}`),
         {
           headers: {
             Authorization: `Bearer ${accessToken}`,

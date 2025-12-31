@@ -164,7 +164,7 @@ export function mapRows<T = any>(
 /**
  * Convert a TypeScript object to database row format (camelCase to snake_case)
  */
-export function toRow<T = any>(
+export function toRow<T extends Record<string, any> = any>(
   obj: T,
   options: {
     /**

@@ -8,6 +8,7 @@ import { Footer } from "@/components/footer";
 import { HomeNavbar } from "@/components/home/home-navbar";
 import { useChamas } from "@/hooks/use-chamas";
 import { useAuth } from "@/hooks/use-auth";
+import { apiUrl } from "@/lib/api-config";
 import { io, Socket } from "socket.io-client";
 import { BalanceCard } from "@/components/wallet/BalanceCard";
 import { QuickSendSection } from "@/components/wallet/QuickSendSection";
@@ -424,7 +425,7 @@ export default function WalletPage() {
       const chamaId = chamas[0].id;
 
       const response = await fetch(
-        `http://localhost:3001/api/governance/proposals`,
+        apiUrl("governance/proposals"),
         {
           method: "POST",
           headers: {

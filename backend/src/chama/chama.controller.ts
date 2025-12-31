@@ -279,6 +279,17 @@ export class ChamaController {
   }
 
   /**
+   * Get total contributions for a chama
+   * GET /api/chama/:id/contributions/total
+   */
+  @Get(':id/contributions/total')
+  @UseGuards(JwtAuthGuard)
+  async getTotalContributions(@Req() req: any, @Param('id') chamaId: string) {
+    const totalContributions = await this.chamaService.getTotalContributions(chamaId);
+    return { totalContributions };
+  }
+
+  /**
    * Create contribution cycle
    * POST /api/chama/:id/cycles
    */

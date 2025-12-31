@@ -892,10 +892,8 @@ export class WalletService {
         [userId, fundRequest.chama_id, 'active'],
       );
 
-      if (
-        membership.rowCount > 0 &&
-        ['admin', 'treasurer'].includes(membership.rows[0].role)
-      ) {
+      const member = mapQueryRow<{ role: string }>(membership);
+      if (member && ['admin', 'treasurer'].includes(member.role)) {
         canRespond = true;
       }
     }

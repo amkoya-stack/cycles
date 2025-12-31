@@ -54,7 +54,7 @@ export class AuthService {
       [tokenizedEmailForCheck, tokenizedPhoneForCheck],
     );
 
-    const existingUser = mapQueryRow<{ emailVerified: boolean; phoneVerified: boolean }>(existing, {
+    const existingUser = mapQueryRow<{ id: string; emailVerified: boolean; phoneVerified: boolean }>(existing, {
       booleanFields: ['emailVerified', 'phoneVerified'],
     });
     if (existingUser) {
@@ -67,7 +67,7 @@ export class AuthService {
       }
 
       // User exists but not verified - resend OTP and allow them to verify
-      const userId = user.id as string;
+      const userId = existingUser.id;
 
       // Update password in case they forgot what they used before
       const passwordHash = await hashPassword(password);
@@ -185,7 +185,11 @@ export class AuthService {
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
     }
-    const ok = await verifyPassword(password, user.password_hash);
+    // mapQueryRow converts password_hash to passwordHash (camelCase)
+    if (!user.passwordHash) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+    const ok = await verifyPassword(password, user.passwordHash);
     if (!ok) {
       throw new UnauthorizedException('Invalid credentials');
     }
@@ -195,7 +199,8 @@ export class AuthService {
     const detokenizedEmail = user.email ? await this.tokenization.detokenize(user.email, 'email') : null;
     
     // Check if 2FA is enabled
-    if (user.two_factor_enabled) {
+    // mapQueryRow converts two_factor_enabled to twoFactorEnabled (camelCase)
+    if (user.twoFactorEnabled) {
       const destination = detokenizedPhone || detokenizedEmail;
       if (!destination) {
         throw new BadRequestException('Phone or email required for 2FA');

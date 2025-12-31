@@ -3,6 +3,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { apiUrl } from "@/lib/api-config";
 import { Bell } from "lucide-react";
 import {
   DropdownMenu,
@@ -75,7 +76,7 @@ export function NotificationBell() {
       if (!accessToken) return;
 
       const response = await fetch(
-        "http://localhost:3001/api/activity/notifications/me?channel=in_app&limit=20",
+        `${apiUrl("activity/notifications/me")}?channel=in_app&limit=20`,
         {
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -101,7 +102,7 @@ export function NotificationBell() {
       if (!accessToken) return;
 
       const response = await fetch(
-        "http://localhost:3001/api/activity/notifications/mark-all-read",
+        apiUrl("activity/notifications/mark-all-read"),
         {
           method: "POST",
           headers: {

@@ -1574,6 +1574,19 @@ export class ChamaService {
     return parseFloat(result.rows[0].balance) || 0;
   }
 
+  /**
+   * Get total contributions for a chama
+   */
+  async getTotalContributions(chamaId: string): Promise<number> {
+    const result = await this.db.query(
+      `SELECT COALESCE(SUM(amount), 0)::DECIMAL as total_contributions
+       FROM contributions
+       WHERE chama_id = $1 AND status = 'completed'`,
+      [chamaId],
+    );
+    return parseFloat(result.rows[0]?.total_contributions || '0');
+  }
+
   // ==========================================
   // CONTRIBUTION CYCLES
   // ==========================================

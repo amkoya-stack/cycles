@@ -264,10 +264,14 @@ export class BadgeService {
     );
 
     if (existingResult.rows.length > 0) {
-      return mapQueryRow<BadgeAward>(existingResult, {
+      const existing = mapQueryRow<BadgeAward>(existingResult, {
         dateFields: ['awardedAt', 'revokedAt'],
         booleanFields: ['isActive', 'awardedBySystem'],
       });
+      if (!existing) {
+        throw new Error('Failed to map existing badge award');
+      }
+      return existing;
     }
 
     // Award the badge

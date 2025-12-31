@@ -135,7 +135,7 @@ export class MpesaReconciliationService {
         if (balance) {
           this.walletGateway.emitBalanceUpdate(
             userId,
-            balance.balance,
+            balance.balance.toString(),
           );
           this.walletGateway.emitDepositStatusUpdate(
             userId,
@@ -179,8 +179,8 @@ export class MpesaReconciliationService {
         const user = mapQueryRow<{ email: string | null; phone: string | null }>(userResult);
         if (user) {
           await this.notification.sendWithdrawalReceipt(
-            user.email,
-            user.phone,
+            user.email || '',
+            user.phone || '',
             amount,
             checkoutRequestId,
             mpesaReceiptNumber,
@@ -209,7 +209,7 @@ export class MpesaReconciliationService {
         if (balance) {
           this.walletGateway.emitBalanceUpdate(
             userId,
-            balance.balance,
+            balance.balance.toString(),
           );
         }
       } catch (error) {

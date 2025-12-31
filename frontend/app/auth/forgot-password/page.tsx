@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { ArrowLeft, Mail, Phone } from "lucide-react";
+import { apiUrl } from "@/lib/api-config";
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
@@ -28,7 +29,7 @@ export default function ForgotPasswordPage() {
     setError("");
 
     try {
-      const response = await fetch("http://localhost:3001/api/auth/otp/send", {
+      const response = await fetch(apiUrl("auth/otp/send"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

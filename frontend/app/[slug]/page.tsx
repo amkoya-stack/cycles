@@ -27,6 +27,7 @@ import { ChamaTransferModal } from "@/components/chama/chama-transfer-modal";
 import { DocumentVault } from "@/components/chama/document-vault";
 import { InviteMemberModal } from "@/components/chama/invite-member-modal";
 import { useNotifications } from "@/hooks/use-notifications";
+import { apiUrl } from "@/lib/api-config";
 import {
   Users,
   Calendar,
@@ -178,7 +179,7 @@ export default function CycleBySlugPage() {
           // For authenticated users, first try to get the chama ID from public list, then get full details
           try {
             const response = await fetch(
-              "http://localhost:3001/api/chama/public"
+              apiUrl("chama/public")
             );
             if (!response.ok) {
               throw new Error("Failed to load chamas");
@@ -206,7 +207,7 @@ export default function CycleBySlugPage() {
 
             // Get authenticated user details
             const detailResponse = await fetch(
-              `http://localhost:3001/api/chama/${matchedChama.id}`,
+              apiUrl(`chama/${matchedChama.id}`),
               {
                 headers: {
                   Authorization: `Bearer ${accessToken}`,
@@ -232,9 +233,7 @@ export default function CycleBySlugPage() {
           } catch (authError) {
             // If authenticated call fails, fall back to public endpoint
             const publicResponse = await fetch(
-              `http://localhost:3001/api/chama/public/slug/${encodeURIComponent(
-                slug
-              )}`
+              apiUrl(`chama/public/slug/${encodeURIComponent(slug)}`)
             );
 
             if (!publicResponse.ok) {
@@ -248,9 +247,7 @@ export default function CycleBySlugPage() {
         } else {
           // Non-authenticated users use public endpoint by slug
           const publicResponse = await fetch(
-            `http://localhost:3001/api/chama/public/slug/${encodeURIComponent(
-              slug
-            )}`
+            apiUrl(`chama/public/slug/${encodeURIComponent(slug)}`)
           );
 
           if (!publicResponse.ok) {
@@ -280,7 +277,7 @@ export default function CycleBySlugPage() {
         const accessToken = localStorage.getItem("accessToken");
         if (!accessToken) return;
 
-        const response = await fetch("http://localhost:3001/api/chama", {
+        const response = await fetch(apiUrl("chama"), {
           headers: { Authorization: `Bearer ${accessToken}` },
         });
 
@@ -305,7 +302,7 @@ export default function CycleBySlugPage() {
         if (!accessToken) return;
 
         const response = await fetch(
-          `http://localhost:3001/api/chama/${chama.id}/members`,
+          apiUrl(`chama/${chama.id}/members`),
           {
             headers: { Authorization: `Bearer ${accessToken}` },
           }
@@ -335,7 +332,7 @@ export default function CycleBySlugPage() {
     try {
       const accessToken = localStorage.getItem("accessToken");
       const response = await fetch(
-        `http://localhost:3001/api/chama/${chama.id}`,
+        apiUrl(`chama/${chama.id}`),
         {
           headers: { Authorization: `Bearer ${accessToken}` },
         }
@@ -360,7 +357,7 @@ export default function CycleBySlugPage() {
       if (!accessToken) return;
 
       const response = await fetch(
-        `http://localhost:3001/api/ledger/chama/${chama.id}/transactions?limit=20`,
+        `${apiUrl(`ledger/chama/${chama.id}/transactions`)}?limit=20`,
         {
           headers: { Authorization: `Bearer ${accessToken}` },
         }
@@ -413,7 +410,7 @@ export default function CycleBySlugPage() {
         setIsJoining(true);
         // Join public chama directly
         const response = await fetch(
-          `http://localhost:3001/api/chama/${chama.id}/invite/accept-public`,
+          apiUrl(`chama/${chama.id}/invite/accept-public`),
           {
             method: "POST",
             headers: {
@@ -433,7 +430,7 @@ export default function CycleBySlugPage() {
         setIsJoining(true);
         // Request to join private chama
         const response = await fetch(
-          `http://localhost:3001/api/chama/${chama.id}/invite/request`,
+          apiUrl(`chama/${chama.id}/invite/request`),
           {
             method: "POST",
             headers: {
@@ -516,7 +513,7 @@ export default function CycleBySlugPage() {
         // Upload to backend
         console.log("Uploading image, length:", base64String.length);
         const response = await fetch(
-          `http://localhost:3001/api/chama/${chama?.id}`,
+          apiUrl(`chama/${chama?.id}`),
           {
             method: "PUT",
             headers: {
@@ -541,7 +538,7 @@ export default function CycleBySlugPage() {
 
         // Refresh chama data
         const detailResponse = await fetch(
-          `http://localhost:3001/api/chama/${chama?.id}`,
+          apiUrl(`chama/${chama?.id}`),
           {
             headers: {
               Authorization: `Bearer ${accessToken}`,
@@ -577,7 +574,7 @@ export default function CycleBySlugPage() {
       }
 
       const response = await fetch(
-        `http://localhost:3001/api/chama/${chama.id}`,
+        apiUrl(`chama/${chama.id}`),
         {
           method: "DELETE",
           headers: {
@@ -626,7 +623,7 @@ export default function CycleBySlugPage() {
       // Join the meeting to get Livekit token
       // Backend will fetch user details (name, avatar) from database
       const joinResponse = await fetch(
-        `http://localhost:3001/api/meetings/${meetingId}/join`,
+        apiUrl(`meetings/${meetingId}/join`),
         {
           method: "POST",
           headers: {
@@ -721,7 +718,7 @@ export default function CycleBySlugPage() {
         );
 
       case "loans":
-        return <LoanDashboard />;
+        return <LoanDashboard chamaId={chama.id} chamaBalance={chama.current_balance} />;
 
       case "classroom":
         return (
@@ -1174,7 +1171,7 @@ export default function CycleBySlugPage() {
                   const accessToken = localStorage.getItem("accessToken");
                   if (accessToken) {
                     const response = await fetch(
-                      `http://localhost:3001/api/chama/${chama.id}`,
+                      apiUrl(`chama/${chama.id}`),
                       {
                         headers: {
                           Authorization: `Bearer ${accessToken}`,
@@ -1432,7 +1429,7 @@ export default function CycleBySlugPage() {
 
       {/* Tabs Navigation */}
       <div className="bg-white border-b sticky top-16 z-10 shadow-sm mt-16">
-        <div className="max-w-[1085px] mx-auto px-4" ref={tabContainerRef}>
+        <div className="mx-auto px-4" style={{ width: '1085px', minWidth: '1085px', maxWidth: '1085px' }} ref={tabContainerRef}>
           <div className="flex items-center gap-1">
             {tabs.map((tab, index) => {
               const isActive = activeTab === tab.id;
@@ -1470,7 +1467,7 @@ export default function CycleBySlugPage() {
       </div>
 
       {/* Content */}
-      <div className="max-w-[1085px] mx-auto px-4 py-8 flex-1">
+      <div className="w-[1085px] mx-auto px-4 py-8 flex-1" style={{ width: '1085px', minWidth: '1085px', maxWidth: '1085px' }}>
         {renderTabContent()}
       </div>
 

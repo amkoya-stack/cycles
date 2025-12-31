@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { apiUrl } from "@/lib/api-config";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -91,7 +92,7 @@ export function GovernanceSection({
     try {
       setLoading(true);
       const accessToken = localStorage.getItem("accessToken");
-      const url = `http://localhost:3001/api/governance/chama/${chamaId}/proposals${
+      const url = `${apiUrl(`governance/chama/${chamaId}/proposals`)}${
         filter !== "all" ? `?status=${filter}` : ""
       }`;
 
@@ -116,7 +117,7 @@ export function GovernanceSection({
     try {
       const accessToken = localStorage.getItem("accessToken");
       const response = await fetch(
-        `http://localhost:3001/api/governance/chama/${chamaId}/stats`,
+        apiUrl(`governance/chama/${chamaId}/stats`),
         {
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -137,7 +138,7 @@ export function GovernanceSection({
     try {
       const accessToken = localStorage.getItem("accessToken");
       const response = await fetch(
-        `http://localhost:3001/api/governance/proposals/${proposalId}`,
+        apiUrl(`governance/proposals/${proposalId}`),
         {
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -158,7 +159,7 @@ export function GovernanceSection({
     try {
       const accessToken = localStorage.getItem("accessToken");
       const response = await fetch(
-        `http://localhost:3001/api/governance/proposals`,
+        apiUrl("governance/proposals"),
         {
           method: "POST",
           headers: {
@@ -200,7 +201,7 @@ export function GovernanceSection({
     try {
       const accessToken = localStorage.getItem("accessToken");
       const response = await fetch(
-        `http://localhost:3001/api/governance/proposals/${proposalId}/vote`,
+        apiUrl(`governance/proposals/${proposalId}/vote`),
         {
           method: "POST",
           headers: {
@@ -226,7 +227,7 @@ export function GovernanceSection({
     try {
       const accessToken = localStorage.getItem("accessToken");
       const response = await fetch(
-        `http://localhost:3001/api/governance/proposals/${proposalId}/close`,
+        apiUrl(`governance/proposals/${proposalId}/close`),
         {
           method: "POST",
           headers: {
@@ -248,7 +249,7 @@ export function GovernanceSection({
     try {
       const accessToken = localStorage.getItem("accessToken");
       const response = await fetch(
-        `http://localhost:3001/api/governance/proposals/${proposalId}/execute`,
+        apiUrl(`governance/proposals/${proposalId}/execute`),
         {
           method: "POST",
           headers: {

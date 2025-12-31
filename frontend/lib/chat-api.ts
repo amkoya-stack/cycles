@@ -45,16 +45,17 @@ class ChatApiClient {
   private baseUrl: string;
   
   constructor() {
-    // Explicitly ensure v1 is in the URL
-    const envUrl = process.env.NEXT_PUBLIC_API_URL;
-    if (envUrl) {
-      // If env URL is set, ensure it has /v1
-      this.baseUrl = envUrl.includes('/v1') 
-        ? envUrl 
-        : envUrl.replace('/api', '/api/v1');
-    } else {
-      this.baseUrl = "http://localhost:3001/api/v1";
+    // Use the centralized API config
+    const envUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+    // Normalize: extract just the base URL (host + port)
+    let base = envUrl.trim().replace(/\/+$/, ''); // Remove trailing slashes
+    // Remove /api/v1 or /api if present
+    if (base.includes('/api/v1')) {
+      base = base.split('/api/v1')[0];
+    } else if (base.includes('/api')) {
+      base = base.split('/api')[0];
     }
+    this.baseUrl = `${base}/api/v1`;
     console.log('[ChatAPI] Base URL initialized to:', this.baseUrl);
   }
 

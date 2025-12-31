@@ -86,7 +86,7 @@ export class StatementService {
     // User details
     doc.fontSize(10);
     doc.text(
-      `Account Holder: ${user.first_name || ''} ${user.last_name || ''}`.trim(),
+      `Account Holder: ${user.firstName || ''} ${user.lastName || ''}`.trim(),
     );
     doc.text(`Email: ${user.email || 'N/A'}`);
     doc.text(`Phone: ${user.phone || 'N/A'}`);

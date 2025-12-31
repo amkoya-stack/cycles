@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/hooks/use-auth";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -65,6 +66,7 @@ type TabType =
 
 export default function ProfilePage() {
   const router = useRouter();
+  const { isAuthenticated } = useAuth();
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -155,7 +157,7 @@ export default function ProfilePage() {
       if (!accessToken) return;
 
       const response = await fetch(
-        "http://localhost:3001/api/chama/my-chamas",
+        apiUrl("chama/my-chamas"),
         {
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -185,7 +187,7 @@ export default function ProfilePage() {
     for (const chama of chamas) {
       try {
         const repResponse = await fetch(
-          `http://localhost:3001/api/reputation/${chama.id}/me`,
+          apiUrl(`reputation/${chama.id}/me`),
           {
             headers: {
               Authorization: `Bearer ${accessToken}`,
@@ -203,7 +205,7 @@ export default function ProfilePage() {
         }
 
         const badgesResponse = await fetch(
-          `http://localhost:3001/api/reputation/${chama.id}/badges/${profile.id}`,
+          apiUrl(`reputation/${chama.id}/badges/${profile.id}`),
           {
             headers: {
               Authorization: `Bearer ${accessToken}`,

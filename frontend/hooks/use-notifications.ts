@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
+import { apiUrl } from "@/lib/api-config";
 
 export interface FundRequestNotification {
   id: string;
@@ -51,7 +52,7 @@ export function useNotifications() {
       }
 
       const response = await fetch(
-        "http://localhost:3001/api/wallet/notifications",
+        apiUrl("wallet/notifications"),
         {
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -83,7 +84,7 @@ export function useNotifications() {
 
       const queryString = status ? `?status=${status}` : "";
       const response = await fetch(
-        `http://localhost:3001/api/wallet/requests/received${queryString}`,
+        `${apiUrl("wallet/requests/received")}${queryString}`,
         {
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -109,7 +110,7 @@ export function useNotifications() {
       }
 
       const response = await fetch(
-        `http://localhost:3001/api/wallet/notifications/${notificationId}/read`,
+        apiUrl(`wallet/notifications/${notificationId}/read`),
         {
           method: "POST",
           headers: {
@@ -141,7 +142,7 @@ export function useNotifications() {
         }
 
         const response = await fetch(
-          `http://localhost:3001/api/wallet/requests/${requestId}/respond`,
+          apiUrl(`wallet/requests/${requestId}/respond`),
           {
             method: "POST",
             headers: {

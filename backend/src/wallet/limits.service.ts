@@ -107,14 +107,14 @@ export class LimitsService {
 
     return {
       daily: {
-        deposits: parseFloat(daily.total_deposits),
-        withdrawals: parseFloat(daily.total_withdrawals),
-        transfers: parseFloat(daily.total_transfers),
+        deposits: daily.totalDeposits,
+        withdrawals: daily.totalWithdrawals,
+        transfers: daily.totalTransfers,
       },
       monthly: {
-        deposits: parseFloat(monthly.total_deposits),
-        withdrawals: parseFloat(monthly.total_withdrawals),
-        transfers: parseFloat(monthly.total_transfers),
+        deposits: monthly.totalDeposits,
+        withdrawals: monthly.totalWithdrawals,
+        transfers: monthly.totalTransfers,
       },
     };
   }

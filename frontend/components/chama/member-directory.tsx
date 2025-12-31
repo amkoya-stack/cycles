@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { apiUrl } from "@/lib/api-config";
 import { useToast } from "@/hooks/use-toast";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -179,7 +180,7 @@ export function MemberDirectory({
       if (!accessToken) return;
 
       const response = await fetch(
-        `http://localhost:3001/api/chama/${chamaId}/members`,
+        apiUrl(`chama/${chamaId}/members`),
         {
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -198,7 +199,7 @@ export function MemberDirectory({
         data.map(async (member: Member) => {
           try {
             const repResponse = await fetch(
-              `http://localhost:3001/api/reputation/${chamaId}/user/${member.user_id}`,
+              apiUrl(`reputation/${chamaId}/user/${member.user_id}`),
               {
                 headers: {
                   Authorization: `Bearer ${accessToken}`,
@@ -240,7 +241,7 @@ export function MemberDirectory({
       if (!accessToken) return;
 
       const response = await fetch(
-        `http://localhost:3001/api/reputation/${chamaId}/calculate`,
+        apiUrl(`reputation/${chamaId}/calculate`),
         {
           method: "POST",
           headers: {
@@ -271,7 +272,7 @@ export function MemberDirectory({
 
       console.log("Fetching join requests for chama:", chamaId);
       const response = await fetch(
-        `http://localhost:3001/api/chama/${chamaId}/invite/requests`,
+        apiUrl(`chama/${chamaId}/invite/requests`),
         {
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -328,7 +329,7 @@ export function MemberDirectory({
       if (!accessToken) return;
 
       const response = await fetch(
-        `http://localhost:3001/api/chama/invite/${inviteId}/respond`,
+        apiUrl(`chama/invite/${inviteId}/respond`),
         {
           method: "POST",
           headers: {
@@ -370,7 +371,7 @@ export function MemberDirectory({
       if (!accessToken) return;
 
       const response = await fetch(
-        `http://localhost:3001/api/chama/${chamaId}/members/${selectedMember.user_id}/assign-role`,
+        apiUrl(`chama/${chamaId}/members/${selectedMember.user_id}/assign-role`),
         {
           method: "POST",
           headers: {
@@ -420,7 +421,7 @@ export function MemberDirectory({
       if (!accessToken) return;
 
       const response = await fetch(
-        `http://localhost:3001/api/chama/${chamaId}/members/${selectedMember.user_id}`,
+        apiUrl(`chama/${chamaId}/members/${selectedMember.user_id}`),
         {
           method: "DELETE",
           headers: {
@@ -518,7 +519,7 @@ export function MemberDirectory({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full" style={{ maxWidth: '100%', overflow: 'hidden' }}>
       {/* Pending Join Requests - Admin/Chairperson Only */}
       {(userRole === "admin" || userRole === "chairperson") &&
         joinRequests.length > 0 && (
@@ -584,9 +585,9 @@ export function MemberDirectory({
         )}
 
       {/* Main layout with sidebar */}
-      <div className="flex gap-6">
+      <div className="flex gap-6 w-full" style={{ maxWidth: '100%' }}>
         {/* Left side - Main content */}
-        <div className="flex-1 space-y-4">
+        <div className="flex-1 space-y-4 min-w-0 overflow-hidden">
           {/* Header with invite button */}
           <Card className="p-4">
             <div className="flex items-center justify-between mb-4">
@@ -841,7 +842,7 @@ export function MemberDirectory({
         </div>
 
         {/* Right side - Reputation Sidebar */}
-        <div className="w-80 space-y-4">
+        <div className="w-80 space-y-4 flex-shrink-0">
           {/* My Reputation Card */}
           <Card className="p-6">
             <div className="flex items-center gap-2 mb-4">
