@@ -8,6 +8,9 @@ import { AppModule } from './app.module';
 import { IdempotencyInterceptor } from './common/interceptors/idempotency.interceptor';
 import { HttpMetricsInterceptor } from './common/interceptors/http-metrics.interceptor';
 import { RedisService } from './cache/redis.service';
+import * as express from 'express';
+import * as path from 'path';
+import * as fs from 'fs';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -48,6 +51,14 @@ async function bootstrap() {
     defaultVersion: '1',
     prefix: 'v',
   });
+
+  // Serve static files (uploads) - before API prefix to avoid /api prefix
+  const uploadDir = process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads');
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+  }
+  app.use('/uploads', express.static(uploadDir));
+  console.log(`📁 Serving static files from: ${uploadDir}`);
 
   // API prefix
   app.setGlobalPrefix(process.env.API_PREFIX || 'api');

@@ -22,6 +22,8 @@ import { DocumentModule } from './document/document.module';
 import { MeetingsModule } from './meetings/meetings.module';
 import { LendingModule } from './lending/lending.module';
 import { InvestmentModule } from './investment/investment.module';
+import { DisputeModule } from './dispute/dispute.module';
+import { AnalyticsModule } from './analytics/analytics.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { RateLimitGuard } from './common/guards/rate-limit.guard';
@@ -57,6 +59,8 @@ import { RateLimitGuard } from './common/guards/rate-limit.guard';
     MeetingsModule,
     LendingModule,
     InvestmentModule,
+    DisputeModule,
+    AnalyticsModule,
   ],
   controllers: [AppController],
   providers: [

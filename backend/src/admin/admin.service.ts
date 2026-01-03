@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-return */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 
 export interface TransactionFilter {
@@ -21,6 +21,8 @@ export interface PaginationFilter {
 
 @Injectable()
 export class AdminService {
+  private readonly logger = new Logger(AdminService.name);
+
   constructor(private readonly db: DatabaseService) {}
 
   /**
@@ -340,5 +342,246 @@ export class AdminService {
       kycCompletionRate: kycRate.toFixed(2),
       totalUsers: parseInt(totalUsersResult.rows[0].count),
     };
+  }
+
+  // ============================================================================
+  // USER MANAGEMENT
+  // ============================================================================
+
+  /**
+   * Suspend a user
+   */
+  async suspendUser(adminUserId: string, userId: string, reason: string, ipAddress?: string, userAgent?: string): Promise<void> {
+    await this.db.query(
+      `UPDATE users SET status = 'suspended', updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+      [userId],
+    );
+
+    await this.logAdminAction(adminUserId, 'user_suspend', 'user', userId, { reason }, reason, ipAddress, userAgent);
+    this.logger.log(`User ${userId} suspended by admin ${adminUserId}`);
+  }
+
+  /**
+   * Verify a user (KYC approval)
+   */
+  async verifyUser(adminUserId: string, userId: string, reason: string, ipAddress?: string, userAgent?: string): Promise<void> {
+    await this.db.query(
+      `UPDATE users SET kyc_status = 'verified', verified_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+      [userId],
+    );
+
+    await this.logAdminAction(adminUserId, 'user_verify', 'user', userId, { reason }, reason, ipAddress, userAgent);
+    this.logger.log(`User ${userId} verified by admin ${adminUserId}`);
+  }
+
+  /**
+   * Reject KYC for a user
+   */
+  async rejectKYC(adminUserId: string, userId: string, reason: string, ipAddress?: string, userAgent?: string): Promise<void> {
+    await this.db.query(
+      `UPDATE users SET kyc_status = 'rejected', kyc_rejection_reason = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+      [reason, userId],
+    );
+
+    await this.logAdminAction(adminUserId, 'user_kyc_reject', 'user', userId, { reason }, reason, ipAddress, userAgent);
+    this.logger.log(`KYC rejected for user ${userId} by admin ${adminUserId}`);
+  }
+
+  // ============================================================================
+  // CHAMA MANAGEMENT
+  // ============================================================================
+
+  /**
+   * Feature a chama (highlight on platform)
+   */
+  async featureChama(adminUserId: string, chamaId: string, reason: string, ipAddress?: string, userAgent?: string): Promise<void> {
+    await this.db.query(
+      `UPDATE chamas SET is_featured = TRUE, featured_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+      [chamaId],
+    );
+
+    await this.logAdminAction(adminUserId, 'chama_feature', 'chama', chamaId, { reason }, reason, ipAddress, userAgent);
+    this.logger.log(`Chama ${chamaId} featured by admin ${adminUserId}`);
+  }
+
+  /**
+   * Unfeature a chama
+   */
+  async unfeatureChama(adminUserId: string, chamaId: string, reason: string, ipAddress?: string, userAgent?: string): Promise<void> {
+    await this.db.query(
+      `UPDATE chamas SET is_featured = FALSE, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+      [chamaId],
+    );
+
+    await this.logAdminAction(adminUserId, 'chama_unfeature', 'chama', chamaId, { reason }, reason, ipAddress, userAgent);
+    this.logger.log(`Chama ${chamaId} unfeatured by admin ${adminUserId}`);
+  }
+
+  /**
+   * Suspend a chama
+   */
+  async suspendChama(adminUserId: string, chamaId: string, reason: string, ipAddress?: string, userAgent?: string): Promise<void> {
+    await this.db.query(
+      `UPDATE chamas SET status = 'suspended', suspended_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+      [chamaId],
+    );
+
+    await this.logAdminAction(adminUserId, 'chama_suspend', 'chama', chamaId, { reason }, reason, ipAddress, userAgent);
+    this.logger.log(`Chama ${chamaId} suspended by admin ${adminUserId}`);
+  }
+
+  // ============================================================================
+  // FRAUD DETECTION
+  // ============================================================================
+
+  /**
+   * Get fraud alerts
+   */
+  async getFraudAlerts(status?: string, severity?: string, limit = 50, offset = 0): Promise<any> {
+    let query = `SELECT fa.*, u.email as user_email, c.name as chama_name
+                 FROM fraud_alerts fa
+                 LEFT JOIN users u ON fa.user_id = u.id
+                 LEFT JOIN chamas c ON fa.chama_id = c.id
+                 WHERE 1=1`;
+    const params: any[] = [];
+    let paramIndex = 1;
+
+    if (status) {
+      query += ` AND fa.status = $${paramIndex}`;
+      params.push(status);
+      paramIndex++;
+    }
+
+    if (severity) {
+      query += ` AND fa.severity = $${paramIndex}`;
+      params.push(severity);
+      paramIndex++;
+    }
+
+    query += ` ORDER BY fa.created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    params.push(limit, offset);
+
+    const result = await this.db.query(query, params);
+    return result.rows;
+  }
+
+  /**
+   * Resolve fraud alert
+   */
+  async resolveFraudAlert(adminUserId: string, alertId: string, status: string, resolutionNotes: string): Promise<void> {
+    await this.db.query(
+      `UPDATE fraud_alerts 
+       SET status = $1, resolved_by_user_id = $2, resolution_notes = $3, resolved_at = CURRENT_TIMESTAMP
+       WHERE id = $4`,
+      [status, adminUserId, resolutionNotes, alertId],
+    );
+
+    this.logger.log(`Fraud alert ${alertId} resolved by admin ${adminUserId}`);
+  }
+
+  // ============================================================================
+  // CONTENT MODERATION
+  // ============================================================================
+
+  /**
+   * Get content moderation queue
+   */
+  async getContentModerationQueue(status?: string, limit = 50, offset = 0): Promise<any> {
+    let query = `SELECT cm.*, u1.email as reported_by_email, u2.email as reviewed_by_email
+                 FROM content_moderation cm
+                 LEFT JOIN users u1 ON cm.reported_by_user_id = u1.id
+                 LEFT JOIN users u2 ON cm.reviewed_by_user_id = u2.id
+                 WHERE 1=1`;
+    const params: any[] = [];
+    let paramIndex = 1;
+
+    if (status) {
+      query += ` AND cm.status = $${paramIndex}`;
+      params.push(status);
+      paramIndex++;
+    }
+
+    query += ` ORDER BY cm.created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    params.push(limit, offset);
+
+    const result = await this.db.query(query, params);
+    return result.rows;
+  }
+
+  /**
+   * Review content moderation item
+   */
+  async reviewContent(adminUserId: string, moderationId: string, status: string, reviewNotes: string): Promise<void> {
+    await this.db.query(
+      `UPDATE content_moderation 
+       SET status = $1, reviewed_by_user_id = $2, review_notes = $3, reviewed_at = CURRENT_TIMESTAMP
+       WHERE id = $4`,
+      [status, adminUserId, reviewNotes, moderationId],
+    );
+
+    this.logger.log(`Content moderation ${moderationId} reviewed by admin ${adminUserId}`);
+  }
+
+  // ============================================================================
+  // ADMIN ACTION LOGGING
+  // ============================================================================
+
+  /**
+   * Log admin action for audit trail
+   */
+  private async logAdminAction(
+    adminUserId: string,
+    actionType: string,
+    targetType: string,
+    targetId: string,
+    actionDetails: Record<string, any>,
+    reason?: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<void> {
+    await this.db.query(
+      `INSERT INTO admin_actions (admin_user_id, action_type, target_type, target_id, action_details, reason, ip_address, user_agent)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [
+        adminUserId,
+        actionType,
+        targetType,
+        targetId,
+        JSON.stringify(actionDetails),
+        reason || null,
+        ipAddress || null,
+        userAgent || null,
+      ],
+    );
+  }
+
+  /**
+   * Get admin action log
+   */
+  async getAdminActionLog(adminUserId?: string, actionType?: string, limit = 50, offset = 0): Promise<any> {
+    let query = `SELECT aa.*, u.email as admin_email
+                 FROM admin_actions aa
+                 LEFT JOIN users u ON aa.admin_user_id = u.id
+                 WHERE 1=1`;
+    const params: any[] = [];
+    let paramIndex = 1;
+
+    if (adminUserId) {
+      query += ` AND aa.admin_user_id = $${paramIndex}`;
+      params.push(adminUserId);
+      paramIndex++;
+    }
+
+    if (actionType) {
+      query += ` AND aa.action_type = $${paramIndex}`;
+      params.push(actionType);
+      paramIndex++;
+    }
+
+    query += ` ORDER BY aa.created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    params.push(limit, offset);
+
+    const result = await this.db.query(query, params);
+    return result.rows;
   }
 }

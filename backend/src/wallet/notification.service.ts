@@ -40,6 +40,8 @@ export class NotificationService {
   private readonly logger = new Logger(NotificationService.name);
   private transporter: nodemailer.Transporter | null = null;
   private vapidKeys: { publicKey: string; privateKey: string } | null = null;
+  private lastEmailSentAt = 0;
+  private readonly minEmailInterval = 1000; // Minimum 1 second between emails to prevent rate limiting
 
   constructor(
     private readonly config: ConfigService,
@@ -280,6 +282,7 @@ export class NotificationService {
 
   /**
    * Send generic email (for reminders, notifications, etc.)
+   * Includes retry logic for rate limits
    */
   async sendEmail(options: {
     to: string;
@@ -292,19 +295,65 @@ export class NotificationService {
       return;
     }
 
-    try {
-      const mailOptions = {
-        from: this.config.get<string>('SMTP_FROM') || 'noreply@cycle.app',
-        to: options.to,
-        subject: options.subject,
-        html: options.html,
-        text: options.text,
-      };
+    // Rate limit: ensure minimum interval between emails
+    const now = Date.now();
+    const timeSinceLastEmail = now - this.lastEmailSentAt;
+    if (timeSinceLastEmail < this.minEmailInterval) {
+      await new Promise((resolve) =>
+        setTimeout(resolve, this.minEmailInterval - timeSinceLastEmail),
+      );
+    }
 
-      await this.transporter.sendMail(mailOptions);
-      this.logger.log(`Email sent to ${options.to}`);
-    } catch (error: any) {
-      this.logger.error(`Failed to send email: ${error.message}`, error.stack);
+    const maxRetries = 3;
+    let retryCount = 0;
+    let lastError: any;
+
+    while (retryCount < maxRetries) {
+      try {
+        const mailOptions = {
+          from: this.config.get<string>('SMTP_FROM') || 'noreply@cycle.app',
+          to: options.to,
+          subject: options.subject,
+          html: options.html,
+          text: options.text,
+        };
+
+        await this.transporter.sendMail(mailOptions);
+        this.lastEmailSentAt = Date.now();
+        this.logger.log(`Email sent to ${options.to}`);
+        return;
+      } catch (error: any) {
+        lastError = error;
+        const errorMessage = error.message || '';
+        const isRateLimit = errorMessage.includes('429') || errorMessage.includes('Rate limited') || errorMessage.includes('rate limit');
+
+        if (isRateLimit && retryCount < maxRetries - 1) {
+          // Exponential backoff: wait 2^retryCount seconds
+          const waitTime = Math.pow(2, retryCount) * 1000;
+          this.logger.warn(
+            `Email rate limited. Retrying in ${waitTime / 1000}s (attempt ${retryCount + 1}/${maxRetries})`,
+          );
+          await new Promise((resolve) => setTimeout(resolve, waitTime));
+          retryCount++;
+        } else {
+          // Not a rate limit error, or max retries reached
+          if (isRateLimit) {
+            this.logger.error(
+              `Failed to send email after ${maxRetries} attempts due to rate limiting. Consider reducing email frequency.`,
+            );
+          } else {
+            this.logger.error(`Failed to send email: ${error.message}`, error.stack);
+          }
+          break;
+        }
+      }
+    }
+
+    // If we get here, all retries failed
+    if (lastError) {
+      this.logger.error(
+        `Email sending failed permanently for ${options.to}: ${lastError.message}`,
+      );
     }
   }
 
@@ -392,23 +441,12 @@ export class NotificationService {
       </html>
     `;
 
-    try {
-      await this.transporter.sendMail({
-        from:
-          this.config.get<string>('SMTP_FROM') ||
-          '"Cycle Platform" <noreply@cycle.co.ke>',
-        to: receipt.to,
-        subject: receipt.subject,
-        html: htmlContent,
-      });
-
-      this.logger.log(`Email receipt sent to ${receipt.to}`);
-    } catch (error) {
-      this.logger.error(
-        `Failed to send email receipt: ${error.message}`,
-        error.stack,
-      );
-    }
+    // Use the improved sendEmail method which handles rate limits
+    await this.sendEmail({
+      to: receipt.to,
+      subject: receipt.subject,
+      html: htmlContent,
+    });
   }
 
   /**

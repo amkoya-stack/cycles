@@ -66,22 +66,31 @@ export function useAuth() {
  */
 export function useAuthGuard() {
   const router = useRouter();
-  const { isAuthenticated } = useAuth();
-  const [hasRedirected, setHasRedirected] = useState(false);
+  const [hasChecked, setHasChecked] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
-    // Only redirect once after hydration completes
-    if (!hasRedirected && isAuthenticated === false) {
-      setHasRedirected(true);
+    // Wait for client-side hydration before checking
+    if (typeof window === "undefined") return;
+
+    // Check authentication status synchronously
+    const accessToken = localStorage.getItem("accessToken");
+    const authenticated = accessToken ? !isTokenExpired(accessToken) : false;
+
+    setIsAuthenticated(authenticated);
+    setHasChecked(true);
+
+    // Only redirect once if not authenticated
+    if (!authenticated) {
       // Save intended destination for redirect after login
       const currentPath = window.location.pathname + window.location.search;
       if (currentPath !== "/auth/login") {
         localStorage.setItem("redirectAfterLogin", currentPath);
       }
-      // Redirect to login
-      router.push("/auth/login");
+      // Use replace instead of push to avoid adding to history
+      router.replace("/auth/login");
     }
-  }, [isAuthenticated, router, hasRedirected]);
+  }, [router]); // Only depend on router, run once
 
   return { isAuthenticated };
 }

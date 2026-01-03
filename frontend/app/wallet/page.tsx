@@ -19,7 +19,8 @@ import { TransferModal } from "@/components/wallet/TransferModal";
 import { RequestModal } from "@/components/wallet/RequestModal";
 import { AutoDebitForm } from "@/components/chama/auto-debit-form";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { History, Calendar } from "lucide-react";
+import { History, Calendar, PieChart } from "lucide-react";
+import { InvestmentPortfolio } from "@/components/investment/investment-portfolio";
 
 interface Transaction {
   id: string;
@@ -686,6 +687,39 @@ export default function WalletPage() {
               setShowTransfer(true);
             }}
           />
+
+          {/* Investments Section */}
+          <Card className="mt-6">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <PieChart className="h-5 w-5 text-[#083232]" />
+                  <h2 className="text-xl font-semibold">My Investments</h2>
+                </div>
+                <Link href="/investment/marketplace">
+                  <Button variant="outline" size="sm">
+                    Browse Investments
+                  </Button>
+                </Link>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {chamas.length === 0 ? (
+                <p className="text-gray-600 text-center py-8">
+                  Join a chama to start investing
+                </p>
+              ) : (
+                <div className="space-y-4">
+                  {chamas.map((chama) => (
+                    <div key={chama.id} className="border rounded-lg p-4">
+                      <h3 className="font-semibold mb-2">{chama.name}</h3>
+                      <InvestmentPortfolio chamaId={chama.id} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           {/* Contributions Section can be added here if needed for chama-specific functionality */}
 

@@ -30,7 +30,14 @@
     "check:queue-workers": "ts-node scripts/check-queue-workers.ts",
     "cleanup:duplicates": "ts-node src/scripts/delete-duplicate-chamas.ts",
     "cleanup:meetings": "ts-node src/scripts/cleanup-duplicate-meetings.ts",
-    "end:meetings": "ts-node src/scripts/end-all-meetings.ts"
+    "end:meetings": "ts-node src/scripts/end-all-meetings.ts",
+    "test:dispute-uploads": "ts-node scripts/test-dispute-uploads.ts",
+    "test:dispute-notifications": "ts-node scripts/test-dispute-notifications.ts",
+    "test:dispute-admin": "ts-node scripts/test-dispute-admin.ts",
+    "check:dispute-reminders": "ts-node scripts/check-dispute-reminders.ts",
+    "verify:cron-jobs": "ts-node scripts/verify-cron-jobs.ts",
+    "configure:dispute": "ts-node scripts/configure-dispute-env.ts",
+    "get:test-token": "ts-node scripts/get-test-token.ts"
   },
   "dependencies": {
     "@nestjs/bull": "^11.0.4",
@@ -88,6 +95,7 @@
     "eslint": "^9.18.0",
     "eslint-config-prettier": "^10.0.1",
     "eslint-plugin-prettier": "^5.2.2",
+    "form-data": "^4.0.5",
     "globals": "^16.0.0",
     "jest": "^30.0.0",
     "prettier": "^3.4.2",

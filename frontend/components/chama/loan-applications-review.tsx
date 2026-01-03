@@ -34,9 +34,12 @@ import {
   AlertCircle,
   Eye,
   Percent,
+  Shield,
 } from "lucide-react";
 import { apiUrl } from "@/lib/api-config";
 import { useToast } from "@/hooks/use-toast";
+import { EscrowManagement } from "@/components/lending/escrow-management";
+import { RiskSharingManagement } from "@/components/lending/risk-sharing-management";
 
 interface LoanApplication {
   id: string;
@@ -54,6 +57,8 @@ interface LoanApplication {
   rejectionReason?: string;
   finalInterestRate?: number;
   finalRepaymentPeriodMonths?: number;
+  escrowAccountId?: string | null;
+  repaymentFrequency?: string;
 }
 
 interface LoanApplicationsReviewProps {
@@ -61,6 +66,53 @@ interface LoanApplicationsReviewProps {
   lendingType: "internal" | "external" | "inter-chama";
   userRole?: string;
   onApplicationUpdated?: () => void;
+}
+
+// Helper component to show risk sharing badge
+function RiskSharingBadge({ applicationId }: { applicationId: string }) {
+  const [hasRiskSharing, setHasRiskSharing] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchRiskSharing = async () => {
+      try {
+        const accessToken = localStorage.getItem("accessToken");
+        if (!accessToken) {
+          setLoading(false);
+          return;
+        }
+
+        const response = await fetch(
+          apiUrl(`lending/external/applications/${applicationId}/risk-sharing`),
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          setHasRiskSharing(data.success && data.data !== null);
+        }
+      } catch (error) {
+        console.error("Failed to fetch risk sharing:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchRiskSharing();
+  }, [applicationId]);
+
+  if (loading || !hasRiskSharing) return null;
+
+  return (
+    <Badge className="bg-purple-100 text-purple-700 hover:bg-purple-100">
+      <Shield className="w-3 h-3 mr-1" />
+      Risk Shared
+    </Badge>
+  );
 }
 
 export function LoanApplicationsReview({
@@ -148,6 +200,7 @@ export function LoanApplicationsReview({
               rejectionReason: app.rejectionReason,
               finalInterestRate: app.finalInterestRate,
               finalRepaymentPeriodMonths: app.finalRepaymentPeriodMonths,
+              escrowAccountId: app.escrowAccountId || null,
             };
           }
           // Internal and inter-chama applications should already match
@@ -401,6 +454,27 @@ export function LoanApplicationsReview({
           Pending
         </Badge>
       );
+    } else if (statusLower === "escrow_pending") {
+      return (
+        <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">
+          <DollarSign className="w-3 h-3 mr-1" />
+          Escrow Pending
+        </Badge>
+      );
+    } else if (statusLower === "escrow_funded") {
+      return (
+        <Badge className="bg-indigo-100 text-indigo-700 hover:bg-indigo-100">
+          <DollarSign className="w-3 h-3 mr-1" />
+          Escrow Funded
+        </Badge>
+      );
+    } else if (statusLower === "escrow_released") {
+      return (
+        <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
+          <CheckCircle className="w-3 h-3 mr-1" />
+          Escrow Released
+        </Badge>
+      );
     } else {
       return (
         <Badge className="bg-gray-100 text-gray-700">
@@ -462,6 +536,13 @@ export function LoanApplicationsReview({
                 <SelectItem value="pending">Pending</SelectItem>
                 <SelectItem value="under_review">Under Review</SelectItem>
                 <SelectItem value="approved">Approved</SelectItem>
+                {lendingType === "external" && (
+                  <>
+                    <SelectItem value="escrow_pending">Escrow Pending</SelectItem>
+                    <SelectItem value="escrow_funded">Escrow Funded</SelectItem>
+                    <SelectItem value="escrow_released">Escrow Released</SelectItem>
+                  </>
+                )}
                 <SelectItem value="rejected">Rejected</SelectItem>
               </SelectContent>
             </Select>
@@ -501,11 +582,14 @@ export function LoanApplicationsReview({
                     {/* Header */}
                     <div className="flex items-start justify-between">
                       <div>
-                        <div className="flex items-center gap-3 mb-2">
+                        <div className="flex items-center gap-3 mb-2 flex-wrap">
                           <h3 className="text-lg font-semibold text-gray-900">
                             {application.applicantName || "Unknown Applicant"}
                           </h3>
                           {getStatusBadge(application.status)}
+                          {lendingType === "external" && (
+                            <RiskSharingBadge applicationId={application.id} />
+                          )}
                         </div>
                         {application.applicantEmail && (
                           <p className="text-sm text-gray-600 flex items-center gap-1">
@@ -606,6 +690,37 @@ export function LoanApplicationsReview({
                         </p>
                       </div>
                     )}
+
+                    {/* Risk Sharing Management - For all external loans */}
+                    {lendingType === "external" && (
+                      <div className="mt-4 pt-4 border-t border-gray-200">
+                        <RiskSharingManagement
+                          applicationId={application.id}
+                          chamaId={chamaId}
+                          amountRequested={application.amountRequested}
+                          onRiskSharingUpdated={fetchApplications}
+                          userRole={userRole}
+                        />
+                      </div>
+                    )}
+
+                    {/* Escrow Management - Only for approved external loans */}
+                    {lendingType === "external" &&
+                      (application.status === "approved" ||
+                        application.status === "escrow_pending" ||
+                        application.status === "escrow_funded" ||
+                        application.status === "escrow_released") && (
+                        <div className="mt-4 pt-4 border-t border-gray-200">
+                          <EscrowManagement
+                            applicationId={application.id}
+                            chamaId={chamaId}
+                            amountRequested={application.amountRequested}
+                            escrowAccountId={application.escrowAccountId}
+                            onEscrowUpdated={fetchApplications}
+                            userRole={userRole}
+                          />
+                        </div>
+                      )}
                   </div>
 
                   {/* Actions */}

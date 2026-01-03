@@ -19,7 +19,7 @@ export default function MarketplacePage() {
       />
 
       <main className="flex-1">
-        <div className="max-w-7xl mx-auto px-4 py-8">
+        <div className="mx-auto px-4 py-8" style={{ maxWidth: '1085px' }}>
           <ExternalMarketplace />
         </div>
       </main>

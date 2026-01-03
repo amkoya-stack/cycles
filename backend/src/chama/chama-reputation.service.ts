@@ -85,11 +85,12 @@ export class ChamaReputationService {
     const loanPerformanceScore = this.calculateLoanPerformanceScore(metrics);
     const contributionScore = this.calculateContributionScore(metrics);
     const activityScore = this.calculateActivityScore(metrics, ageMonths);
+    const disputeScore = await this.calculateDisputeScore(chamaId, ageMonths);
 
     // Calculate total reputation score (0-1000)
-    const reputationScore = Math.round(
-      retentionScore + loanPerformanceScore + contributionScore + activityScore,
-    );
+    // Dispute score is a penalty (subtracted from base score)
+    const baseScore = retentionScore + loanPerformanceScore + contributionScore + activityScore;
+    const reputationScore = Math.max(0, Math.round(baseScore - disputeScore));
 
     // Determine tier
     const tier = this.getTierFromScore(reputationScore, ageMonths);
@@ -231,6 +232,76 @@ export class ChamaReputationService {
     }
 
     return Math.max(0, Math.min(150, Math.round(score)));
+  }
+
+  /**
+   * Calculate dispute score penalty (0-200 points penalty)
+   * More disputes = higher penalty
+   * Resolved disputes = lower penalty than unresolved
+   * Escalated disputes = severe penalty
+   */
+  private async calculateDisputeScore(
+    chamaId: string,
+    ageMonths: number,
+  ): Promise<number> {
+    // Get dispute statistics
+    const disputeStats = await this.db.query(
+      `SELECT 
+        COUNT(*) as total_disputes,
+        COUNT(*) FILTER (WHERE status = 'resolved') as resolved_disputes,
+        COUNT(*) FILTER (WHERE status IN ('filed', 'under_review', 'discussion', 'voting')) as active_disputes,
+        COUNT(*) FILTER (WHERE escalated_to_platform = TRUE) as escalated_disputes,
+        COUNT(*) FILTER (WHERE dispute_type = 'loan_default') as loan_default_disputes,
+        COUNT(*) FILTER (WHERE dispute_type = 'rule_violation') as rule_violation_disputes
+       FROM disputes
+       WHERE chama_id = $1`,
+      [chamaId],
+    );
+
+    if (disputeStats.rows.length === 0) {
+      return 0; // No disputes = no penalty
+    }
+
+    const stats = disputeStats.rows[0];
+    const totalDisputes = parseInt(stats.total_disputes || '0');
+    const resolvedDisputes = parseInt(stats.resolved_disputes || '0');
+    const activeDisputes = parseInt(stats.active_disputes || '0');
+    const escalatedDisputes = parseInt(stats.escalated_disputes || '0');
+    const loanDefaultDisputes = parseInt(stats.loan_default_disputes || '0');
+    const ruleViolationDisputes = parseInt(stats.rule_violation_disputes || '0');
+
+    if (totalDisputes === 0) {
+      return 0;
+    }
+
+    let penalty = 0;
+
+    // Base penalty for any dispute (scaled by chama age - newer chamas penalized more)
+    const ageMultiplier = ageMonths < 6 ? 1.5 : ageMonths < 12 ? 1.2 : 1.0;
+    penalty += totalDisputes * 10 * ageMultiplier; // 10 points per dispute (more for new chamas)
+
+    // Active disputes are worse than resolved ones
+    penalty += activeDisputes * 20; // Additional 20 points per active dispute
+
+    // Escalated disputes are very bad (platform intervention needed)
+    penalty += escalatedDisputes * 50; // 50 points per escalated dispute
+
+    // Loan defaults are serious (financial integrity issue)
+    penalty += loanDefaultDisputes * 30; // 30 points per loan default dispute
+
+    // Rule violations indicate governance issues
+    penalty += ruleViolationDisputes * 15; // 15 points per rule violation
+
+    // Bonus for resolving disputes (shows good conflict resolution)
+    const resolutionRate = totalDisputes > 0 ? resolvedDisputes / totalDisputes : 0;
+    if (resolutionRate > 0.8) {
+      penalty -= 20; // Good resolution rate reduces penalty
+    } else if (resolutionRate < 0.5 && totalDisputes > 3) {
+      penalty += 30; // Poor resolution rate increases penalty
+    }
+
+    // Cap penalty at 200 points (20% of max reputation score)
+    return Math.min(200, Math.round(penalty));
   }
 
   /**

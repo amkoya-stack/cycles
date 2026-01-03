@@ -43,6 +43,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { apiUrl } from "@/lib/api-config";
 import { LoanApplicationsReview } from "./loan-applications-review";
+import { LoanRepaymentPayment } from "@/components/lending/loan-repayment-payment";
 
 interface LoanDashboardProps {
   chamaId?: string;
@@ -76,6 +77,8 @@ export default function LoanDashboard({
   const [repayments, setRepayments] = useState<any[]>([]);
   const [loadingRepayments, setLoadingRepayments] = useState(false);
   const [paymentFilter, setPaymentFilter] = useState<string>("all");
+  const [selectedRepaymentLoanId, setSelectedRepaymentLoanId] = useState<string | null>(null);
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
 
   // Analytics tab state
   const [analytics, setAnalytics] = useState<any>(null);
@@ -775,20 +778,20 @@ export default function LoanDashboard({
         {/* Main Content - Conditional Rendering Based on Active Tab */}
         <div className="min-h-[600px]">
           {activeTab === "Overview" && (
-            <div className="grid grid-cols-12 gap-6">
-              {/* Active Loans - Takes up 8 columns (wider) */}
-              <div className="col-span-8">
-                <div className="bg-white rounded-lg border border-gray-200 p-6">
-                  <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-lg font-semibold text-gray-900">
-                      Active & Overdue Loans
-                    </h2>
-                    <button className="text-sm text-blue-600 hover:text-blue-700">
-                      View All
-                    </button>
-                  </div>
+        <div className="grid grid-cols-12 gap-6">
+          {/* Active Loans - Takes up 8 columns (wider) */}
+          <div className="col-span-8">
+            <div className="bg-white rounded-lg border border-gray-200 p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-lg font-semibold text-gray-900">
+                  Active & Overdue Loans
+                </h2>
+                <button className="text-sm text-blue-600 hover:text-blue-700">
+                  View All
+                </button>
+              </div>
 
-                  <div className="space-y-4">
+              <div className="space-y-4">
                     {loadingLoans ? (
                       <div className="text-center py-8 text-gray-500">
                         Loading loans...
@@ -799,123 +802,123 @@ export default function LoanDashboard({
                       </div>
                     ) : (
                       loansList.map((loan) => (
-                        <Card
-                          key={loan.id}
-                          className="border-l-4"
-                          style={{
-                            borderLeftColor:
+                  <Card
+                    key={loan.id}
+                    className="border-l-4"
+                    style={{
+                      borderLeftColor:
                               loan.status === "Active" ? "#083232" : "#f64d52",
-                          }}
-                        >
-                          <CardContent className="p-6">
-                            <div className="flex items-start justify-between mb-4">
-                              <div className="flex items-center gap-3">
-                                <span className="text-lg font-semibold text-gray-900">
-                                  {loan.id}
-                                </span>
-                                <Badge
-                                  variant={
-                                    loan.status === "Active"
-                                      ? "default"
-                                      : "destructive"
-                                  }
-                                  className={
-                                    loan.status === "Active"
-                                      ? "bg-green-100 text-green-700 hover:bg-green-100"
-                                      : ""
-                                  }
-                                >
-                                  {loan.status}
-                                </Badge>
-                              </div>
-                              <button>
-                                <MoreHorizontal className="w-5 h-5 text-gray-400" />
-                              </button>
-                            </div>
+                    }}
+                  >
+                    <CardContent className="p-6">
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <span className="text-lg font-semibold text-gray-900">
+                            {loan.id}
+                          </span>
+                          <Badge
+                            variant={
+                              loan.status === "Active"
+                                ? "default"
+                                : "destructive"
+                            }
+                            className={
+                              loan.status === "Active"
+                                ? "bg-green-100 text-green-700 hover:bg-green-100"
+                                : ""
+                            }
+                          >
+                            {loan.status}
+                          </Badge>
+                        </div>
+                        <button>
+                          <MoreHorizontal className="w-5 h-5 text-gray-400" />
+                        </button>
+                      </div>
 
-                            <div className="flex items-center gap-2 mb-4 text-gray-600">
-                              <Users className="w-4 h-4" />
-                              <span className="text-sm">{loan.borrower}</span>
-                            </div>
+                      <div className="flex items-center gap-2 mb-4 text-gray-600">
+                        <Users className="w-4 h-4" />
+                        <span className="text-sm">{loan.borrower}</span>
+                      </div>
 
-                            <div className="mb-4">
-                              <div className="flex items-center justify-between text-sm mb-2">
+                      <div className="mb-4">
+                        <div className="flex items-center justify-between text-sm mb-2">
                                 <span className="text-gray-600">
                                   Loan Progress
                                 </span>
-                                <span className="font-medium text-gray-900">
-                                  {loan.progress}% paid
-                                </span>
-                              </div>
-                              <Progress value={loan.progress} className="h-2" />
-                            </div>
+                          <span className="font-medium text-gray-900">
+                            {loan.progress}% paid
+                          </span>
+                        </div>
+                        <Progress value={loan.progress} className="h-2" />
+                      </div>
 
-                            <div className="flex items-center justify-between text-sm mb-4">
-                              <span className="text-gray-600">
-                                Remaining:{" "}
-                                <span className="font-semibold text-gray-900">
+                      <div className="flex items-center justify-between text-sm mb-4">
+                        <span className="text-gray-600">
+                          Remaining:{" "}
+                          <span className="font-semibold text-gray-900">
                                   Ksh {formatAmount(loan.remaining)}
-                                </span>
-                              </span>
-                              <span className="text-gray-600">
-                                Total:{" "}
-                                <span className="font-semibold text-gray-900">
+                          </span>
+                        </span>
+                        <span className="text-gray-600">
+                          Total:{" "}
+                          <span className="font-semibold text-gray-900">
                                   Ksh {formatAmount(loan.total)}
-                                </span>
-                              </span>
-                            </div>
+                          </span>
+                        </span>
+                      </div>
 
-                            <div className="grid grid-cols-3 gap-4 pt-4 border-t border-gray-200">
-                              <div className="flex items-start gap-2">
-                                <Percent className="w-4 h-4 text-gray-400 mt-0.5" />
-                                <div>
-                                  <p className="text-xs text-gray-600">
-                                    Interest Rate
-                                  </p>
-                                  <p className="text-sm font-medium text-gray-900">
-                                    {loan.interestRate}
-                                  </p>
-                                </div>
-                              </div>
-                              <div className="flex items-start gap-2">
-                                <DollarSign className="w-4 h-4 text-gray-400 mt-0.5" />
-                                <div>
-                                  <p className="text-xs text-gray-600">
-                                    Monthly Payment
-                                  </p>
-                                  <p className="text-sm font-medium text-gray-900">
+                      <div className="grid grid-cols-3 gap-4 pt-4 border-t border-gray-200">
+                        <div className="flex items-start gap-2">
+                          <Percent className="w-4 h-4 text-gray-400 mt-0.5" />
+                          <div>
+                            <p className="text-xs text-gray-600">
+                              Interest Rate
+                            </p>
+                            <p className="text-sm font-medium text-gray-900">
+                              {loan.interestRate}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <DollarSign className="w-4 h-4 text-gray-400 mt-0.5" />
+                          <div>
+                            <p className="text-xs text-gray-600">
+                              Monthly Payment
+                            </p>
+                            <p className="text-sm font-medium text-gray-900">
                                     Ksh {formatAmount(loan.monthlyPayment)}
-                                  </p>
-                                </div>
-                              </div>
-                              <div className="flex items-start gap-2">
-                                <Calendar className="w-4 h-4 text-gray-400 mt-0.5" />
-                                <div>
-                                  <p className="text-xs text-gray-600">
-                                    Next Payment
-                                  </p>
-                                  <p className="text-sm font-medium text-gray-900">
-                                    {loan.nextPayment}
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <Calendar className="w-4 h-4 text-gray-400 mt-0.5" />
+                          <div>
+                            <p className="text-xs text-gray-600">
+                              Next Payment
+                            </p>
+                            <p className="text-sm font-medium text-gray-900">
+                              {loan.nextPayment}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
                       ))
                     )}
-                  </div>
-                </div>
               </div>
+            </div>
+          </div>
 
-              {/* Recent Activity - Takes up 4 columns (narrower) */}
-              <div className="col-span-4">
-                <div className="bg-white rounded-lg border border-gray-200 p-6">
-                  <h2 className="text-lg font-semibold text-gray-900 mb-6">
-                    Recent Activity
-                  </h2>
+          {/* Recent Activity - Takes up 4 columns (narrower) */}
+          <div className="col-span-4">
+            <div className="bg-white rounded-lg border border-gray-200 p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-6">
+                Recent Activity
+              </h2>
 
-                  <div className="space-y-3">
+              <div className="space-y-3">
                     {loadingActivities ? (
                       <div className="text-center py-4 text-gray-500 text-sm">
                         Loading activities...
@@ -926,43 +929,43 @@ export default function LoanDashboard({
                       </div>
                     ) : (
                       activities.map((activity, index) => (
-                        <div
-                          key={index}
+                  <div
+                    key={index}
                           className={`${activity.bg} rounded-lg p-3 border border-gray-100`}
-                        >
+                  >
                           <div className="flex items-start gap-2">
-                            <div
+                      <div
                               className={`w-8 h-8 ${activity.bg} rounded-lg flex items-center justify-center flex-shrink-0`}
-                            >
-                              <activity.icon
+                      >
+                        <activity.icon
                                 className={`w-4 h-4 ${activity.iconColor}`}
-                              />
-                            </div>
-                            <div className="flex-1 min-w-0">
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
                               <p className="text-sm font-medium text-gray-900 whitespace-nowrap truncate mb-1">
-                                {activity.title}
-                              </p>
+                          {activity.title}
+                        </p>
                               <div className="flex items-center justify-between gap-2">
                                 <p className="text-sm font-semibold text-gray-900 whitespace-nowrap">
-                                  {activity.amount}
-                                </p>
+                          {activity.amount}
+                        </p>
                                 <p className="text-xs text-gray-500 whitespace-nowrap">
                                   {activity.time}
                                 </p>
-                              </div>
-                            </div>
-                          </div>
+                      </div>
+                    </div>
+                  </div>
                         </div>
                       ))
                     )}
-                  </div>
-
-                  <button className="w-full mt-6 text-sm text-blue-600 hover:text-blue-700 font-medium">
-                    View All Activity
-                  </button>
-                </div>
               </div>
+
+              <button className="w-full mt-6 text-sm text-blue-600 hover:text-blue-700 font-medium">
+                View All Activity
+              </button>
             </div>
+          </div>
+        </div>
           )}
 
           {/* Loans Tab */}
@@ -1609,6 +1612,79 @@ export default function LoanDashboard({
           )}
         </div>
       </div>
+
+      {/* Manual Payment Dialog */}
+      {selectedRepaymentLoanId && (
+        <LoanRepaymentPayment
+          loanId={selectedRepaymentLoanId}
+          isOpen={showPaymentDialog}
+          onClose={() => {
+            setShowPaymentDialog(false);
+            setSelectedRepaymentLoanId(null);
+          }}
+          onSuccess={() => {
+            // Refresh repayments
+            if (activeTab === "Payments") {
+              const fetchRepayments = async () => {
+                if (!chamaId) return;
+                setLoadingRepayments(true);
+                try {
+                  const accessToken = localStorage.getItem("accessToken");
+                  if (!accessToken) return;
+
+                  const statusParam =
+                    paymentFilter !== "all" ? `&status=${paymentFilter}` : "";
+                  const response = await fetch(
+                    apiUrl(`lending/chama/${chamaId}/repayments?limit=100${statusParam}`),
+                    {
+                      headers: { Authorization: `Bearer ${accessToken}` },
+                    }
+                  );
+
+                  if (response.ok) {
+                    const data = await response.json();
+                    const repaymentsData = data.data || [];
+
+                    const formatDate = (date: string | null) => {
+                      if (!date) return "N/A";
+                      return new Date(date).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      });
+                    };
+
+                    const transformed = repaymentsData.map((repayment: any) => {
+                      const status = repayment.status || "pending";
+                      return {
+                        id: repayment.id,
+                        loanId: repayment.loan_id_full || repayment.loan_id,
+                        installmentNumber: repayment.installmentNumber || 0,
+                        borrowerName: repayment.borrower_name || "Unknown",
+                        amountDue: repayment.amountDue || 0,
+                        amountPaid: repayment.amountPaid || 0,
+                        dueDate: formatDate(repayment.dueDate),
+                        paidAt: formatDate(repayment.paidAt),
+                        status: status.charAt(0).toUpperCase() + status.slice(1),
+                        paymentMethod: repayment.paymentMethod || "N/A",
+                        repaymentData: repayment,
+                      };
+                    });
+
+                    setRepayments(transformed);
+                  }
+                } catch (error) {
+                  console.error("Failed to fetch repayments:", error);
+                } finally {
+                  setLoadingRepayments(false);
+                }
+              };
+              fetchRepayments();
+            }
+          }}
+          userRole={userRole || undefined}
+        />
+      )}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
+import Image from "next/image";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -33,6 +34,12 @@ import {
   ArrowRight,
   Filter,
   X,
+  Award,
+  UserCheck,
+  Building2,
+  MapPin,
+  Star,
+  Clock,
 } from "lucide-react";
 import { apiUrl } from "@/lib/api-config";
 import { useToast } from "@/hooks/use-toast";
@@ -52,6 +59,8 @@ interface ExternalLoanListing {
   id: string;
   chamaId: string;
   chamaName: string;
+  chamaCoverImage?: string | null;
+  chamaIcon?: string | null;
   title: string;
   description: string | null;
   minAmount: number;
@@ -102,8 +111,63 @@ export function ExternalMarketplace() {
   const [totalPages, setTotalPages] = useState(1);
   const itemsPerPage = 12;
 
+  // Marketplace stats
+  const [stats, setStats] = useState({
+    verifiedChamas: 0,
+    activeMembers: 0,
+    loansDisbursed: 0,
+    approvalRate: 0,
+  });
+  const [loadingStats, setLoadingStats] = useState(true);
+
+  const fetchStats = async () => {
+    try {
+      setLoadingStats(true);
+      const response = await fetch(apiUrl('lending/external/marketplace/stats'));
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.data) {
+          setStats(data.data);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch marketplace stats:", error);
+    } finally {
+      setLoadingStats(false);
+    }
+  };
+
+  const formatAmount = (amount: number) => {
+    return new Intl.NumberFormat("en-KE", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  };
+
+  const formatLargeNumber = (num: number): string => {
+    if (num >= 1000000) {
+      return `${(num / 1000000).toFixed(1)}M+`;
+    } else if (num >= 1000) {
+      return `${(num / 1000).toFixed(0)}K+`;
+    }
+    return num.toString();
+  };
+
+  const formatCurrency = (amount: number): string => {
+    if (amount >= 1000000000) {
+      return `KSh ${(amount / 1000000000).toFixed(1)}B+`;
+    } else if (amount >= 1000000) {
+      return `KSh ${(amount / 1000000).toFixed(1)}M+`;
+    } else if (amount >= 1000) {
+      return `KSh ${(amount / 1000).toFixed(0)}K+`;
+    }
+    return `KSh ${formatAmount(amount)}`;
+  };
+
   useEffect(() => {
     fetchListings();
+    fetchStats();
   }, [currentPage, minAmount, maxAmount, minInterestRate, maxInterestRate, minPeriodMonths, maxPeriodMonths, allowsRiskSharing]);
 
   const fetchListings = async () => {
@@ -164,7 +228,9 @@ export function ExternalMarketplace() {
 
         setListings(listingsWithReputation);
       } else {
-        throw new Error("Failed to fetch listings");
+        const errorData = await response.json().catch(() => ({ message: "Unknown error" }));
+        console.error("Failed to fetch listings:", response.status, errorData);
+        throw new Error(errorData.message || `Failed to fetch listings: ${response.status}`);
       }
     } catch (error) {
       console.error("Failed to fetch listings:", error);
@@ -176,13 +242,6 @@ export function ExternalMarketplace() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const formatAmount = (amount: number) => {
-    return new Intl.NumberFormat("en-KE", {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
   };
 
   const handleApply = (listing: ExternalLoanListing) => {
@@ -293,10 +352,85 @@ export function ExternalMarketplace() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Loan Marketplace</h1>
-        <p className="text-gray-600 mt-2">
+        <h1 className="text-2xl font-bold text-gray-900">Loan Marketplace</h1>
+        <p className="text-sm text-gray-600 mt-1">
           Browse and apply for loans from trusted chamas
         </p>
+      </div>
+
+      {/* Stats Section */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+        <Card className="bg-white border-gray-200">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-gray-600 mb-1">
+                  Verified Chamas
+                </p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {loadingStats ? "..." : `${stats.verifiedChamas}%`}
+                </p>
+              </div>
+              <div className="bg-gray-100 rounded-full p-2">
+                <Shield className="w-5 h-5 text-gray-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-white border-gray-200">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-gray-600 mb-1">
+                  Active Members
+                </p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {loadingStats ? "..." : formatLargeNumber(stats.activeMembers)}
+                </p>
+              </div>
+              <div className="bg-gray-100 rounded-full p-2">
+                <UserCheck className="w-5 h-5 text-gray-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-white border-gray-200">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-gray-600 mb-1">
+                  Loans Disbursed
+                </p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {loadingStats ? "..." : formatCurrency(stats.loansDisbursed)}
+                </p>
+              </div>
+              <div className="bg-gray-100 rounded-full p-2">
+                <DollarSign className="w-5 h-5 text-gray-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-white border-gray-200">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-gray-600 mb-1">
+                  Approval Rate
+                </p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {loadingStats ? "..." : `${stats.approvalRate}%`}
+                </p>
+              </div>
+              <div className="bg-gray-100 rounded-full p-2">
+                <Award className="w-5 h-5 text-gray-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Search and Filters */}
@@ -496,135 +630,102 @@ export function ExternalMarketplace() {
         </Card>
       ) : (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {paginatedListings.map((listing) => (
-            <Card
-              key={listing.id}
-              className="hover:shadow-lg transition-shadow cursor-pointer"
-            >
-              <CardHeader>
-                <div className="flex items-start justify-between mb-2">
-                  <CardTitle className="text-lg">{listing.title}</CardTitle>
-                  {listing.allowsRiskSharing && (
-                    <Badge className="bg-blue-100 text-blue-700">
-                      <Shield className="w-3 h-3 mr-1" />
-                      Risk Sharing
-                    </Badge>
-                  )}
-                </div>
-                <div className="flex items-center justify-between">
-                  <Link
-                    href={`/${encodeURIComponent(listing.chamaName.toLowerCase().replace(/\s+/g, "-"))}`}
-                    className="text-sm text-gray-600 flex items-center gap-1 hover:text-[#083232] transition-colors"
-                  >
-                    <Users className="w-4 h-4" />
-                    {listing.chamaName}
-                  </Link>
-                  {listing.chamaReputation && (
-                    <div className="flex items-center gap-1">
-                      <ReputationBadge
-                        tier={listing.chamaReputation.tier}
-                        name=""
-                        size="sm"
-                        showLabel={false}
-                      />
-                      <span className="text-xs text-gray-500">
-                        {listing.chamaReputation.totalScore}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Description */}
-                {listing.description && (
-                  <p className="text-sm text-gray-700 line-clamp-2">
-                    {listing.description}
-                  </p>
-                )}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {paginatedListings.map((listing) => {
+              const reputationScore = listing.chamaReputation?.totalScore || listing.totalApplications;
+              const averageInterestRate = listing.averageInterestRate || 
+                ((listing.interestRateMin + listing.interestRateMax) / 2);
 
-                {/* Loan Details Grid */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="flex items-start gap-2">
-                    <DollarSign className="w-4 h-4 text-gray-400 mt-0.5" />
-                    <div>
-                      <p className="text-xs text-gray-600">Amount Range</p>
-                      <p className="text-sm font-semibold text-gray-900">
-                        Ksh {formatAmount(listing.minAmount)} -{" "}
-                        {formatAmount(listing.maxAmount)}
-                      </p>
+              return (
+                <Card
+                  key={listing.id}
+                  className="hover:shadow-lg transition-shadow"
+                >
+                  <CardContent className="p-5">
+                    {/* Header with Icon, Name, Location, Reputation */}
+                    <div className="mb-4">
+                      <div className="flex items-start gap-3 mb-2">
+                        <div className="relative w-12 h-12 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
+                          {listing.chamaCoverImage ? (
+                            <Image
+                              src={listing.chamaCoverImage}
+                              alt={listing.chamaName}
+                              fill
+                              className="object-cover"
+                            />
+                          ) : listing.chamaIcon ? (
+                            <div className="w-full h-full flex items-center justify-center text-lg">
+                              {listing.chamaIcon}
+                            </div>
+                          ) : (
+                            <Building2 className="w-6 h-6 text-gray-700 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" />
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="text-base font-semibold text-gray-900 mb-1">
+                            {listing.chamaName}
+                          </h3>
+                          <div className="flex items-center gap-3 text-sm text-gray-600">
+                            <div className="flex items-center gap-1">
+                              <MapPin className="w-3 h-3" />
+                              <span>Nairobi</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              {listing.chamaReputation ? (
+                                <>
+                                  <ReputationBadge
+                                    tier={listing.chamaReputation.tier}
+                                    name=""
+                                    size="sm"
+                                    showLabel={false}
+                                  />
+                                  <span className="text-gray-500">
+                                    Reputation {reputationScore > 0 ? reputationScore : ''}
+                                  </span>
+                                </>
+                              ) : (
+                                <span className="text-gray-500">Reputation</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <Percent className="w-4 h-4 text-gray-400 mt-0.5" />
-                    <div>
-                      <p className="text-xs text-gray-600">Interest Rate</p>
-                      <p className="text-sm font-semibold text-gray-900">
-                        {listing.interestRateMin}% - {listing.interestRateMax}%
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <Calendar className="w-4 h-4 text-gray-400 mt-0.5" />
-                    <div>
-                      <p className="text-xs text-gray-600">Repayment Period</p>
-                      <p className="text-sm font-semibold text-gray-900">
-                        {listing.minRepaymentPeriodMonths} -{" "}
-                        {listing.maxRepaymentPeriodMonths} months
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <TrendingUp className="w-4 h-4 text-gray-400 mt-0.5" />
-                    <div>
-                      <p className="text-xs text-gray-600">Applications</p>
-                      <p className="text-sm font-semibold text-gray-900">
-                        {listing.totalApplications}
-                      </p>
-                    </div>
-                  </div>
-                </div>
 
-                {/* Requirements */}
-                <div className="flex flex-wrap gap-2 pt-2 border-t">
-                  {listing.requiresEmploymentVerification && (
-                    <Badge variant="outline" className="text-xs">
-                      Employment Required
-                    </Badge>
-                  )}
-                  {listing.requiresIncomeProof && (
-                    <Badge variant="outline" className="text-xs">
-                      Income Proof Required
-                    </Badge>
-                  )}
-                  {listing.minMonthlyIncome && (
-                    <Badge variant="outline" className="text-xs">
-                      Min Income: Ksh {formatAmount(listing.minMonthlyIncome)}
-                    </Badge>
-                  )}
-                </div>
+                    {/* Key Details */}
+                    <div className="space-y-3 mb-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-600">Interest Rate</span>
+                        <span className="text-sm font-semibold text-gray-900">
+                          {averageInterestRate.toFixed(1)}%
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-600">Max Loan</span>
+                        <span className="text-sm font-semibold text-gray-900">
+                          KSh {formatAmount(listing.maxAmount)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-600">Processing Time</span>
+                        <span className="text-sm font-semibold text-gray-900">
+                          2-3 days
+                        </span>
+                      </div>
+                    </div>
 
-                {/* Actions */}
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() => router.push(`/lending/listings/${listing.id}`)}
-                  >
-                    <FileText className="w-4 h-4 mr-2" />
-                    View Details
-                  </Button>
-                  <Button
-                    className="flex-1 bg-[#083232] hover:bg-[#2e856e]"
-                    onClick={() => handleApply(listing)}
-                  >
-                    Apply Now
-                    <ArrowRight className="w-4 h-4 ml-2" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                    {/* Apply Button */}
+                    <Button
+                      className="w-full bg-[#083232] hover:bg-[#2e856e]"
+                      onClick={() => handleApply(listing)}
+                    >
+                      Apply Now
+                      <ArrowRight className="w-4 h-4 ml-2" />
+                    </Button>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
 
           {/* Pagination */}

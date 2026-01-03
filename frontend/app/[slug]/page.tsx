@@ -8,6 +8,7 @@ import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import LoanDashboard from "@/components/chama/loan-dashboard";
+import { InvestmentPortfolio } from "@/components/investment/investment-portfolio";
 import { Footer } from "@/components/footer";
 import { HomeNavbar } from "@/components/home/home-navbar";
 import { MemberDirectory } from "@/components/chama/member-directory";
@@ -26,6 +27,8 @@ import { ChamaDepositModal } from "@/components/chama/chama-deposit-modal";
 import { ChamaTransferModal } from "@/components/chama/chama-transfer-modal";
 import { DocumentVault } from "@/components/chama/document-vault";
 import { InviteMemberModal } from "@/components/chama/invite-member-modal";
+import { DisputeList } from "@/components/dispute/dispute-list";
+import { FileDisputeForm } from "@/components/dispute/file-dispute-form";
 import { useNotifications } from "@/hooks/use-notifications";
 import { apiUrl } from "@/lib/api-config";
 import {
@@ -52,6 +55,8 @@ import {
   Send,
   Check,
   X,
+  PieChart,
+  AlertCircle,
 } from "lucide-react";
 
 interface ChamaDetails {
@@ -88,6 +93,8 @@ type TabType =
   | "rotation"
   | "financials"
   | "loans"
+  | "investments"
+  | "disputes"
   | "activity"
   | "documents"
   | "settings"
@@ -666,6 +673,8 @@ export default function CycleBySlugPage() {
     { id: "rotation" as TabType, label: "Rotation", icon: Repeat },
     { id: "financials" as TabType, label: "Financials", icon: TrendingUp },
     { id: "loans" as TabType, label: "Loans", icon: HandCoins },
+    { id: "investments" as TabType, label: "Investments", icon: PieChart },
+    { id: "disputes" as TabType, label: "Disputes", icon: AlertCircle },
     { id: "activity" as TabType, label: "Activity", icon: Activity },
     { id: "documents" as TabType, label: "Documents", icon: FileText },
     { id: "settings" as TabType, label: "Settings", icon: LogOut },
@@ -719,6 +728,26 @@ export default function CycleBySlugPage() {
 
       case "loans":
         return <LoanDashboard chamaId={chama.id} chamaBalance={chama.current_balance} />;
+
+      case "investments":
+        return <InvestmentPortfolio chamaId={chama.id} />;
+
+      case "disputes":
+        return (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold">Disputes</h2>
+              <FileDisputeForm
+                chamaId={chama.id}
+                onDisputeFiled={() => {
+                  // Refresh dispute list
+                  window.location.reload();
+                }}
+              />
+            </div>
+            <DisputeList chamaId={chama.id} showActions={true} />
+          </div>
+        );
 
       case "classroom":
         return (
