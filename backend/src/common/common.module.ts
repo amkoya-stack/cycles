@@ -11,6 +11,8 @@ import { RollbackService } from './services/rollback.service';
 import { ChaosTestingService } from './services/chaos-testing.service';
 import { MetricsService } from './services/metrics.service';
 import { MetricsController } from './controllers/metrics.controller';
+import { HttpMetricsInterceptor } from './interceptors/http-metrics.interceptor';
+import { HealthMonitorService } from './services/health-monitor.service';
 import { RedisModule } from '../cache/redis.module';
 import { DatabaseModule } from '../database/database.module';
 

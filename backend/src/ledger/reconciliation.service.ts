@@ -5,6 +5,7 @@
 
 import { Injectable, Logger } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
+import { MetricsService } from '../common/services/metrics.service';
 import { v4 as uuidv4 } from 'uuid';
 
 export interface ReconciliationResult {

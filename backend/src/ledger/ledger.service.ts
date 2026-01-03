@@ -644,6 +644,8 @@ export class LedgerService {
     externalReference: string,
     description: string,
   ): Promise<any> {
+    const startTime = Date.now();
+    
     // Idempotency: if an external reference has already been processed for DEPOSIT, return existing
     if (externalReference) {
       const existing = await this.db.query(
@@ -655,6 +657,8 @@ export class LedgerService {
         [externalReference],
       );
       if (existing.rows.length > 0) {
+        const duration = Date.now() - startTime;
+        this.metrics.recordLedgerTransaction('deposit', 'success', duration);
         return existing.rows[0];
       }
     }

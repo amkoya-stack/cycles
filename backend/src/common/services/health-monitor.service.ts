@@ -96,7 +96,11 @@ export class HealthMonitorService implements OnModuleInit {
     redis: { connected: boolean; latency?: number };
     timestamp: Date;
   }> {
-    const results = {
+    const results: {
+      database: { connected: boolean; latency?: number };
+      redis: { connected: boolean; latency?: number };
+      timestamp: Date;
+    } = {
       database: { connected: false },
       redis: { connected: false },
       timestamp: new Date(),

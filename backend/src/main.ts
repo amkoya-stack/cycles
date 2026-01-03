@@ -6,6 +6,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { IdempotencyInterceptor } from './common/interceptors/idempotency.interceptor';
+import { HttpMetricsInterceptor } from './common/interceptors/http-metrics.interceptor';
 import { RedisService } from './cache/redis.service';
 
 async function bootstrap() {
