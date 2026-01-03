@@ -337,7 +337,8 @@ export class ExternalLendingService {
     } = filters;
 
     let query = `
-      SELECT el.*, c.name as chama_name
+      SELECT el.*, c.name as chama_name, c.cover_image as chama_cover_image, 
+             COALESCE(c.settings->>'icon', NULL) as chama_icon
       FROM external_loan_listings el
       JOIN chamas c ON el.chama_id = c.id
       WHERE el.status = $1
@@ -399,11 +400,71 @@ export class ExternalLendingService {
   }
 
   /**
+   * Get marketplace statistics
+   */
+  async getMarketplaceStats(): Promise<{
+    verifiedChamas: number;
+    activeMembers: number;
+    loansDisbursed: number;
+    approvalRate: number;
+  }> {
+    // Verified Chamas: Percentage (100% means all chamas with listings are verified)
+    // For now, we'll show 100% if there are any active listings, otherwise 0%
+    const verifiedChamasResult = await this.db.query(
+      `SELECT COUNT(DISTINCT chama_id) as count
+       FROM external_loan_listings
+       WHERE status = $1`,
+      [ExternalListingStatus.ACTIVE],
+    );
+    const verifiedChamasCount = parseInt(verifiedChamasResult.rows[0]?.count || '0');
+    // Show 100% if there are verified chamas, 0% otherwise
+    const verifiedChamas = verifiedChamasCount > 0 ? 100 : 0;
+
+    // Active Members: Total active members across all chamas
+    const activeMembersResult = await this.db.query(
+      `SELECT COUNT(*) as count
+       FROM chama_members
+       WHERE status = 'active'`,
+    );
+    const activeMembers = parseInt(activeMembersResult.rows[0]?.count || '0');
+
+    // Loans Disbursed: Total amount from external loans that have been disbursed
+    // This includes both internal and external loans that are active or completed
+    const loansDisbursedResult = await this.db.query(
+      `SELECT COALESCE(SUM(amount_disbursed), 0) as total
+       FROM loans
+       WHERE status IN ('active', 'completed')
+         AND amount_disbursed IS NOT NULL`,
+    );
+    const loansDisbursed = parseFloat(loansDisbursedResult.rows[0]?.total || '0');
+
+    // Approval Rate: Percentage of approved external loan applications
+    const approvalRateResult = await this.db.query(
+      `SELECT 
+        COUNT(*) FILTER (WHERE status = 'approved')::DECIMAL as approved,
+        COUNT(*) FILTER (WHERE status IN ('approved', 'rejected'))::DECIMAL as total
+       FROM external_loan_applications
+       WHERE status IN ('approved', 'rejected')`,
+    );
+    const approved = parseFloat(approvalRateResult.rows[0]?.approved || '0');
+    const total = parseFloat(approvalRateResult.rows[0]?.total || '0');
+    const approvalRate = total > 0 ? Math.round((approved / total) * 100) : 0;
+
+    return {
+      verifiedChamas,
+      activeMembers,
+      loansDisbursed,
+      approvalRate,
+    };
+  }
+
+  /**
    * Get listing details
    */
   async getListingDetails(listingId: string): Promise<ExternalLoanListing & { chamaName: string }> {
     const result = await this.db.query(
-      `SELECT el.*, c.name as chama_name
+      `SELECT el.*, c.name as chama_name, c.cover_image as chama_cover_image,
+              COALESCE(c.settings->>'icon', NULL) as chama_icon
        FROM external_loan_listings el
        JOIN chamas c ON el.chama_id = c.id
        WHERE el.id = $1`,

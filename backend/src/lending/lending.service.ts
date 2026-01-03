@@ -10,6 +10,7 @@ import {
 import { DatabaseService } from '../database/database.service';
 import { LedgerService } from '../ledger/ledger.service';
 import { ReputationService } from '../reputation/reputation.service';
+import { MetricsService } from '../common/services/metrics.service';
 import { mapQueryRow, mapQueryResult } from '../database/mapper.util';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -192,6 +193,7 @@ export class LendingService {
     private readonly db: DatabaseService,
     private readonly ledgerService: LedgerService,
     private readonly reputationService: ReputationService,
+    private readonly metrics: MetricsService,
   ) {}
 
   // ============================================================================
@@ -705,6 +707,7 @@ export class LendingService {
    * Disburse a loan (transfer funds from chama to borrower)
    */
   async disburseLoan(loanId: string, disbursedBy: string): Promise<Loan> {
+    const startTime = Date.now();
     const loanResult = await this.db.query(
       `SELECT * FROM loans WHERE id = $1`,
       [loanId],
@@ -787,6 +790,8 @@ export class LendingService {
 
     this.logger.log(`Loan disbursed: ${loanId} - ${loan.principalAmount} to user ${loan.borrowerId}`);
 
+    const duration = Date.now() - startTime;
+    this.metrics.recordLendingOperation('disburse_loan', 'success', duration);
     return updatedLoan;
   }
 
@@ -835,6 +840,7 @@ export class LendingService {
    * Make a loan repayment
    */
   async makeRepayment(userId: string, dto: MakeRepaymentDto): Promise<LoanRepayment> {
+    const startTime = Date.now();
     const { loanId, amount, paymentMethod, paymentReference, notes } = dto;
 
     // Get loan and validate
@@ -982,6 +988,8 @@ export class LendingService {
 
     this.logger.log(`Loan repayment made: ${amount} for loan ${loanId}`);
 
+    const duration = Date.now() - startTime;
+    this.metrics.recordLendingOperation('make_repayment', 'success', duration);
     return updatedRepayment;
   }
 
@@ -1605,6 +1613,91 @@ export class LendingService {
         date.setMonth(date.getMonth() + 1);
         break;
     }
+  }
+
+  // ============================================================================
+  // LOAN PAYMENT REMINDERS
+  // ============================================================================
+
+  /**
+   * Get loan payment reminders for a user
+   */
+  async getUserLoanReminders(
+    userId: string,
+    status?: string,
+    limit = 20,
+  ): Promise<any[]> {
+    let query = `
+      SELECT 
+        r.*,
+        l.id as loan_id,
+        l.chama_id,
+        l.outstanding_balance,
+        lr.installment_number,
+        lr.due_date,
+        lr.amount_due,
+        lr.amount_paid,
+        lr.status as repayment_status,
+        ch.name as chama_name
+      FROM loan_repayment_reminders r
+      JOIN loans l ON r.loan_id = l.id
+      JOIN loan_repayments lr ON r.repayment_id = lr.id
+      JOIN chamas ch ON l.chama_id = ch.id
+      WHERE r.borrower_id = $1
+        AND l.status = 'active'
+    `;
+    const params: any[] = [userId];
+
+    if (status) {
+      query += ` AND r.status = $${params.length + 1}`;
+      params.push(status);
+    }
+
+    query += ` ORDER BY r.scheduled_at DESC LIMIT $${params.length + 1}`;
+    params.push(limit);
+
+    const result = await this.db.query(query, params);
+
+    return mapQueryResult<any>(result, {
+      numberFields: [
+        'daysOffset',
+        'outstandingBalance',
+        'installmentNumber',
+        'amountDue',
+        'amountPaid',
+      ],
+      dateFields: ['dueDate', 'scheduledAt', 'sentAt', 'createdAt', 'updatedAt'],
+    });
+  }
+
+  /**
+   * Get reminders for a specific loan
+   */
+  async getLoanReminders(loanId: string): Promise<any[]> {
+    const result = await this.db.query(
+      `SELECT 
+        r.*,
+        lr.installment_number,
+        lr.due_date,
+        lr.amount_due,
+        lr.amount_paid,
+        lr.status as repayment_status
+      FROM loan_repayment_reminders r
+      JOIN loan_repayments lr ON r.repayment_id = lr.id
+      WHERE r.loan_id = $1
+      ORDER BY r.scheduled_at DESC`,
+      [loanId],
+    );
+
+    return mapQueryResult<any>(result, {
+      numberFields: [
+        'daysOffset',
+        'installmentNumber',
+        'amountDue',
+        'amountPaid',
+      ],
+      dateFields: ['dueDate', 'scheduledAt', 'sentAt', 'createdAt', 'updatedAt'],
+    });
   }
 }
 

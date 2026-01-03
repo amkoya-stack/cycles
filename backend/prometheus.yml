@@ -1,0 +1,43 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'cycles-production'
+    environment: 'production'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - 'alertmanager:9093'
+
+# Load alert rules
+rule_files:
+  - 'prometheus-alerts.yml'
+
+# Scrape configurations
+scrape_configs:
+  # Scrape Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Scrape Cycles Backend
+  - job_name: 'cycles-backend'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['host.docker.internal:3001']
+        labels:
+          service: 'cycles-backend'
+          module: 'investment'
+    scrape_interval: 10s
+    scrape_timeout: 5s
+
+  # Scrape Redis (if exposing metrics)
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['host.docker.internal:6379']
+        labels:
+          service: 'redis'
+

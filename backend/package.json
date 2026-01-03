@@ -26,6 +26,8 @@
     "db:reset": "ts-node src/scripts/reset-database.ts",
     "db:backup": "ts-node src/scripts/backup-database.ts",
     "seed:ledger": "ts-node src/scripts/seed-ledger.ts",
+    "setup:investment-flags": "ts-node scripts/setup-investment-feature-flags.ts",
+    "check:queue-workers": "ts-node scripts/check-queue-workers.ts",
     "cleanup:duplicates": "ts-node src/scripts/delete-duplicate-chamas.ts",
     "cleanup:meetings": "ts-node src/scripts/cleanup-duplicate-meetings.ts",
     "end:meetings": "ts-node src/scripts/end-all-meetings.ts"
@@ -60,11 +62,13 @@
     "passport-jwt": "^4.0.1",
     "pdfkit": "^0.17.2",
     "pg": "^8.16.3",
+    "prom-client": "^15.1.3",
     "redis": "^5.10.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "socket.io": "^4.8.1",
-    "uuid": "^13.0.0"
+    "uuid": "^13.0.0",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",

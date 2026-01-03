@@ -5,6 +5,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 import axios from 'axios';
+import * as webPush from 'web-push';
+import { DatabaseService } from '../database/database.service';
 
 export interface EmailReceipt {
   to: string;
@@ -23,13 +25,28 @@ export interface SMSReceipt {
   message: string;
 }
 
+export interface PushNotificationOptions {
+  title: string;
+  body: string;
+  icon?: string;
+  badge?: string;
+  data?: Record<string, any>;
+  requireInteraction?: boolean;
+  tag?: string;
+}
+
 @Injectable()
 export class NotificationService {
   private readonly logger = new Logger(NotificationService.name);
   private transporter: nodemailer.Transporter | null = null;
+  private vapidKeys: { publicKey: string; privateKey: string } | null = null;
 
-  constructor(private readonly config: ConfigService) {
+  constructor(
+    private readonly config: ConfigService,
+    private readonly db: DatabaseService,
+  ) {
     this.initializeEmailTransporter();
+    this.initializePushNotifications();
   }
 
   /**
@@ -59,6 +76,206 @@ export class NotificationService {
     });
 
     this.logger.log('Email transporter initialized');
+  }
+
+  /**
+   * Initialize Web Push notifications with VAPID keys
+   */
+  private initializePushNotifications() {
+    const publicKey = this.config.get<string>('VAPID_PUBLIC_KEY');
+    const privateKey = this.config.get<string>('VAPID_PRIVATE_KEY');
+    const subject = this.config.get<string>('VAPID_SUBJECT') || 'mailto:admin@cycle.app';
+
+    if (!publicKey || !privateKey) {
+      this.logger.warn(
+        'VAPID keys not configured. Push notifications disabled.',
+      );
+      return;
+    }
+
+    this.vapidKeys = { publicKey, privateKey };
+    webPush.setVapidDetails(subject, publicKey, privateKey);
+    this.logger.log('Web Push notifications initialized');
+  }
+
+  /**
+   * Get VAPID public key for client-side subscription
+   */
+  getVapidPublicKey(): string | null {
+    return this.vapidKeys?.publicKey || null;
+  }
+
+  /**
+   * Register a push notification token for a user
+   */
+  async registerPushToken(
+    userId: string,
+    token: string,
+    platform: 'web' | 'android' | 'ios' = 'web',
+    deviceId?: string,
+    deviceName?: string,
+    appVersion?: string,
+    userAgent?: string,
+  ): Promise<void> {
+    try {
+      // Check if token already exists
+      const existing = await this.db.query(
+        'SELECT id FROM push_notification_tokens WHERE user_id = $1 AND token = $2',
+        [userId, token],
+      );
+
+      if (existing.rows.length > 0) {
+        // Update existing token
+        await this.db.query(
+          `UPDATE push_notification_tokens 
+           SET is_active = true, 
+               last_used_at = NOW(),
+               platform = $3,
+               device_id = $4,
+               device_name = $5,
+               app_version = $6,
+               user_agent = $7,
+               updated_at = NOW()
+           WHERE user_id = $1 AND token = $2`,
+          [userId, token, platform, deviceId, deviceName, appVersion, userAgent],
+        );
+        this.logger.log(`Updated push token for user ${userId}`);
+      } else {
+        // Insert new token
+        await this.db.query(
+          `INSERT INTO push_notification_tokens 
+           (user_id, token, platform, device_id, device_name, app_version, user_agent, is_active, last_used_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, true, NOW())`,
+          [userId, token, platform, deviceId, deviceName, appVersion, userAgent],
+        );
+        this.logger.log(`Registered new push token for user ${userId}`);
+      }
+    } catch (error: any) {
+      this.logger.error(
+        `Failed to register push token: ${error.message}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Unregister a push notification token
+   */
+  async unregisterPushToken(userId: string, token: string): Promise<void> {
+    try {
+      await this.db.query(
+        'UPDATE push_notification_tokens SET is_active = false, updated_at = NOW() WHERE user_id = $1 AND token = $2',
+        [userId, token],
+      );
+      this.logger.log(`Unregistered push token for user ${userId}`);
+    } catch (error: any) {
+      this.logger.error(
+        `Failed to unregister push token: ${error.message}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Get all active push tokens for a user
+   */
+  async getUserPushTokens(userId: string): Promise<any[]> {
+    try {
+      const result = await this.db.query(
+        'SELECT * FROM push_notification_tokens WHERE user_id = $1 AND is_active = true',
+        [userId],
+      );
+      return result.rows;
+    } catch (error: any) {
+      this.logger.error(
+        `Failed to get push tokens: ${error.message}`,
+        error.stack,
+      );
+      return [];
+    }
+  }
+
+  /**
+   * Send push notification to a user
+   */
+  async sendPushNotification(
+    userId: string,
+    options: PushNotificationOptions,
+  ): Promise<void> {
+    if (!this.vapidKeys) {
+      this.logger.warn('Push notifications not configured. Skipping.');
+      return;
+    }
+
+    try {
+      // Get all active tokens for the user
+      const tokens = await this.getUserPushTokens(userId);
+
+      if (tokens.length === 0) {
+        this.logger.debug(`No push tokens found for user ${userId}`);
+        return;
+      }
+
+      const payload = JSON.stringify({
+        title: options.title,
+        body: options.body,
+        icon: options.icon || '/icon-192x192.png',
+        badge: options.badge || '/badge-72x72.png',
+        data: options.data || {},
+        tag: options.tag,
+        requireInteraction: options.requireInteraction || false,
+      });
+
+      // Send to all user's devices
+      const sendPromises = tokens.map(async (tokenRow) => {
+        try {
+          // Parse the subscription object from the stored token
+          const subscription = typeof tokenRow.token === 'string' 
+            ? JSON.parse(tokenRow.token) 
+            : tokenRow.token;
+            
+          await webPush.sendNotification(subscription, payload);
+          // Update last_used_at
+          await this.db.query(
+            'UPDATE push_notification_tokens SET last_used_at = NOW() WHERE id = $1',
+            [tokenRow.id],
+          );
+          return { success: true, tokenId: tokenRow.id };
+        } catch (error: any) {
+          // If token is invalid, mark it as inactive
+          if (error.statusCode === 410 || error.statusCode === 404) {
+            this.logger.warn(
+              `Invalid push token ${tokenRow.id}, marking as inactive`,
+            );
+            await this.db.query(
+              'UPDATE push_notification_tokens SET is_active = false WHERE id = $1',
+              [tokenRow.id],
+            );
+          } else {
+            this.logger.error(
+              `Failed to send push to token ${tokenRow.id}: ${error.message}`,
+            );
+          }
+          return { success: false, tokenId: tokenRow.id, error: error.message };
+        }
+      });
+
+      const results = await Promise.allSettled(sendPromises);
+      const successCount = results.filter(
+        (r) => r.status === 'fulfilled' && r.value.success,
+      ).length;
+
+      this.logger.log(
+        `Sent push notification to ${successCount}/${tokens.length} devices for user ${userId}`,
+      );
+    } catch (error: any) {
+      this.logger.error(
+        `Failed to send push notification: ${error.message}`,
+        error.stack,
+      );
+    }
   }
 
   /**

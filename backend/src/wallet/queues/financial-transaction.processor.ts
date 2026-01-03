@@ -13,6 +13,7 @@ import { MpesaService } from '../../mpesa/mpesa.service';
 import { RedisService } from '../../cache/redis.service';
 import { NotificationService } from '../notification.service';
 import { WalletGateway } from '../wallet.gateway';
+import { MetricsService } from '../../common/services/metrics.service';
 
 export interface DepositJob {
   userId: string;
@@ -67,6 +68,7 @@ export class FinancialTransactionProcessor {
     private readonly mpesa: MpesaService,
     private readonly redis: RedisService,
     private readonly notification: NotificationService,
+    private readonly metrics: MetricsService,
     @Inject(forwardRef(() => WalletGateway))
     private readonly walletGateway: WalletGateway,
   ) {}
@@ -75,6 +77,7 @@ export class FinancialTransactionProcessor {
   async handleDeposit(job: Job<DepositJob>) {
     const { userId, amount, phoneNumber, externalReference, idempotencyKey } =
       job.data;
+    const startTime = Date.now();
 
     this.logger.log(
       `Processing deposit job ${job.id}: ${userId}, ${amount}, ref: ${externalReference}`,
@@ -123,8 +126,19 @@ export class FinancialTransactionProcessor {
       // Mark idempotency
       await this.markIdempotency(idempotencyKey, result);
 
+      // Record success metrics
+      const duration = Date.now() - startTime;
+      this.metrics.recordQueueJobDuration('financial-transactions', 'deposit', duration);
+      this.metrics.updateWalletQueueJobCount('completed', 'deposit', 1);
+
       return result;
     } catch (error) {
+      // Record failure metrics
+      const duration = Date.now() - startTime;
+      this.metrics.recordQueueJobFailure('financial-transactions', 'deposit');
+      this.metrics.recordWalletError(error.constructor?.name || 'UnknownError', 'deposit');
+      this.metrics.updateWalletQueueJobCount('failed', 'deposit', 1);
+      
       this.logger.error(
         `Deposit job ${job.id} failed: ${error.message}`,
         error.stack,
@@ -137,6 +151,7 @@ export class FinancialTransactionProcessor {
   async handleWithdrawal(job: Job<WithdrawalJob>) {
     const { userId, amount, phoneNumber, externalReference, idempotencyKey } =
       job.data;
+    const startTime = Date.now();
 
     this.logger.log(
       `Processing withdrawal job ${job.id}: ${userId}, ${amount}, ref: ${externalReference}`,
@@ -187,8 +202,19 @@ export class FinancialTransactionProcessor {
       // Mark idempotency
       await this.markIdempotency(idempotencyKey, result);
 
+      // Record success metrics
+      const duration = Date.now() - startTime;
+      this.metrics.recordQueueJobDuration('financial-transactions', 'withdrawal', duration);
+      this.metrics.updateWalletQueueJobCount('completed', 'withdrawal', 1);
+
       return result;
     } catch (error) {
+      // Record failure metrics
+      const duration = Date.now() - startTime;
+      this.metrics.recordQueueJobFailure('financial-transactions', 'withdrawal');
+      this.metrics.recordWalletError(error.constructor?.name || 'UnknownError', 'withdrawal');
+      this.metrics.updateWalletQueueJobCount('failed', 'withdrawal', 1);
+      
       this.logger.error(
         `Withdrawal job ${job.id} failed: ${error.message}`,
         error.stack,
@@ -207,6 +233,7 @@ export class FinancialTransactionProcessor {
       externalReference,
       idempotencyKey,
     } = job.data;
+    const startTime = Date.now();
 
     this.logger.log(
       `Processing transfer job ${job.id}: ${senderUserId} -> ${receiverUserId}, ${amount}`,
@@ -311,8 +338,21 @@ export class FinancialTransactionProcessor {
       // Mark idempotency
       await this.markIdempotency(idempotencyKey, result);
 
+      // Record success metrics
+      const duration = Date.now() - startTime;
+      this.metrics.recordQueueJobDuration('financial-transactions', 'transfer', duration);
+      this.metrics.recordWalletTransaction('transfer', 'success', duration, amount);
+      this.metrics.updateWalletQueueJobCount('completed', 'transfer', 1);
+
       return result;
     } catch (error) {
+      // Record failure metrics
+      const duration = Date.now() - startTime;
+      this.metrics.recordQueueJobFailure('financial-transactions', 'transfer');
+      this.metrics.recordWalletError(error.constructor?.name || 'UnknownError', 'transfer');
+      this.metrics.recordWalletTransaction('transfer', 'error', duration, amount);
+      this.metrics.updateWalletQueueJobCount('failed', 'transfer', 1);
+      
       this.logger.error(
         `Transfer job ${job.id} failed: ${error.message}`,
         error.stack,

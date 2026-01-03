@@ -37,6 +37,10 @@ async function bootstrap() {
   const redisService = app.get(RedisService);
   app.useGlobalInterceptors(new IdempotencyInterceptor(redisService));
 
+  // Global HTTP metrics interceptor
+  const httpMetricsInterceptor = app.get(HttpMetricsInterceptor);
+  app.useGlobalInterceptors(httpMetricsInterceptor);
+
   // Enable API versioning
   app.enableVersioning({
     type: VersioningType.URI,

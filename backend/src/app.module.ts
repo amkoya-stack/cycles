@@ -21,6 +21,7 @@ import { ChatModule } from './chat/chat.module';
 import { DocumentModule } from './document/document.module';
 import { MeetingsModule } from './meetings/meetings.module';
 import { LendingModule } from './lending/lending.module';
+import { InvestmentModule } from './investment/investment.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { RateLimitGuard } from './common/guards/rate-limit.guard';
@@ -55,6 +56,7 @@ import { RateLimitGuard } from './common/guards/rate-limit.guard';
     DocumentModule,
     MeetingsModule,
     LendingModule,
+    InvestmentModule,
   ],
   controllers: [AppController],
   providers: [

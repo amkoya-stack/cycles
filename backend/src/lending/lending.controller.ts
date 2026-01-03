@@ -368,5 +368,43 @@ export class LendingController {
       data: analytics,
     };
   }
+
+  // ============================================================================
+  // LOAN PAYMENT REMINDERS
+  // ============================================================================
+
+  /**
+   * Get loan payment reminders for the authenticated user
+   */
+  @Get('reminders/me')
+  async getMyReminders(
+    @Request() req: any,
+    @Query('status') status?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const reminders = await this.lendingService.getUserLoanReminders(
+      req.user.id,
+      status,
+      limit ? parseInt(limit) : 20,
+    );
+
+    return {
+      success: true,
+      data: reminders,
+    };
+  }
+
+  /**
+   * Get reminders for a specific loan
+   */
+  @Get('loans/:loanId/reminders')
+  async getLoanReminders(@Param('loanId') loanId: string) {
+    const reminders = await this.lendingService.getLoanReminders(loanId);
+
+    return {
+      success: true,
+      data: reminders,
+    };
+  }
 }
 

@@ -1,0 +1,309 @@
+groups:
+  - name: investment_module
+    interval: 30s
+    rules:
+      # Critical Alerts
+      - alert: HighInvestmentErrorRate
+        expr: rate(investment_errors_total[5m]) > 10
+        for: 5m
+        labels:
+          severity: critical
+          module: investment
+        annotations:
+          summary: "High error rate in investment module"
+          description: "Error rate is {{ $value }} errors/sec. Check logs for details."
+          runbook_url: "https://docs.cycles.com/runbooks/investment-errors"
+
+      - alert: QueueJobFailures
+        expr: rate(queue_jobs_total{status="failed",queue="investment-executions"}[5m]) > 5
+        for: 5m
+        labels:
+          severity: critical
+          module: investment
+        annotations:
+          summary: "High queue job failure rate"
+          description: "{{ $value }} investment execution jobs failing per second"
+          runbook_url: "https://docs.cycles.com/runbooks/queue-failures"
+
+      - alert: QueueBacklog
+        expr: queue_jobs_total{status="waiting",queue="investment-executions"} > 1000
+        for: 10m
+        labels:
+          severity: warning
+          module: investment
+        annotations:
+          summary: "Large queue backlog"
+          description: "{{ $value }} jobs waiting in investment-executions queue"
+
+      - alert: RateLimitAbuse
+        expr: rate(rate_limit_hits_total{endpoint=~"investment/.*"}[5m]) > 50
+        for: 5m
+        labels:
+          severity: warning
+          module: investment
+        annotations:
+          summary: "High rate limit hits on investment endpoints"
+          description: "{{ $value }} rate limit hits per second. Possible abuse or misconfigured client."
+
+      # Warning Alerts
+      - alert: SlowInvestmentOperations
+        expr: histogram_quantile(0.95, investment_operation_duration_seconds_bucket) > 5
+        for: 10m
+        labels:
+          severity: warning
+          module: investment
+        annotations:
+          summary: "Slow investment operations"
+          description: "p95 operation duration is {{ $value }} seconds (threshold: 5s)"
+
+      - alert: QueueJobStuck
+        expr: queue_jobs_total{status="active",queue="investment-executions"} > 0 and increase(queue_job_duration_seconds_sum[10m]) == 0
+        for: 15m
+        labels:
+          severity: warning
+          module: investment
+        annotations:
+          summary: "Queue jobs appear stuck"
+          description: "Active jobs not progressing for 15+ minutes"
+
+      - alert: LowIdempotencyUsage
+        expr: rate(idempotency_hits_total{endpoint=~"investment/.*"}[5m]) < 0.1 and rate(investment_operations_total[5m]) > 1
+        for: 15m
+        labels:
+          severity: info
+          module: investment
+        annotations:
+          summary: "Low idempotency usage"
+          description: "Clients may not be using idempotency keys. Consider enforcing idempotency."
+
+      # Info Alerts
+      - alert: HighIdempotencyHitRate
+        expr: rate(idempotency_hits_total{endpoint=~"investment/.*"}[5m]) > 10
+        for: 5m
+        labels:
+          severity: info
+          module: investment
+        annotations:
+          summary: "High idempotency hit rate"
+          description: "Many duplicate requests detected. This is good - clients are using idempotency correctly."
+
+      - alert: QueueProcessingLag
+        expr: (queue_jobs_total{status="waiting"} / rate(queue_jobs_total{status="completed"}[5m])) > 300
+        for: 10m
+        labels:
+          severity: warning
+          module: investment
+        annotations:
+          summary: "Queue processing lag"
+          description: "Estimated processing lag: {{ $value }} seconds"
+
+  # Wallet Module Alerts
+  - name: wallet_module
+    interval: 30s
+    rules:
+      - alert: HighWalletTransactionErrors
+        expr: rate(wallet_transaction_errors_total[5m]) > 10
+        for: 5m
+        labels:
+          severity: critical
+          module: wallet
+        annotations:
+          summary: "High error rate in wallet transactions"
+          description: "Error rate is {{ $value }} errors/sec. Check wallet service logs."
+
+      - alert: WalletQueueBacklog
+        expr: queue_jobs_total{status="waiting",queue="financial-transactions"} > 500
+        for: 10m
+        labels:
+          severity: warning
+          module: wallet
+        annotations:
+          summary: "Large wallet transaction queue backlog"
+          description: "{{ $value }} transactions waiting in queue"
+
+      - alert: WalletQueueJobFailures
+        expr: rate(queue_job_failures_total{queue="financial-transactions"}[5m]) > 5
+        for: 5m
+        labels:
+          severity: critical
+          module: wallet
+        annotations:
+          summary: "High wallet queue job failure rate"
+          description: "{{ $value }} wallet transaction jobs failing per second"
+
+      - alert: MpesaReconciliationFailure
+        expr: rate(mpesa_reconciliation_failures_total[5m]) > 1
+        for: 5m
+        labels:
+          severity: critical
+          module: wallet
+        annotations:
+          summary: "M-Pesa reconciliation failures detected"
+          description: "{{ $value }} M-Pesa reconciliation failures per second. Check reconciliation service."
+
+      - alert: SlowWalletTransactions
+        expr: histogram_quantile(0.95, wallet_transaction_duration_seconds_bucket) > 10
+        for: 10m
+        labels:
+          severity: warning
+          module: wallet
+        annotations:
+          summary: "Slow wallet transactions"
+          description: "p95 transaction duration is {{ $value }} seconds (threshold: 10s)"
+
+  # Ledger Module Alerts
+  - name: ledger_module
+    interval: 30s
+    rules:
+      - alert: LedgerReconciliationFailure
+        expr: ledger_reconciliation_status{reconciliation_type="daily"} == 0
+        for: 5m
+        labels:
+          severity: critical
+          module: ledger
+        annotations:
+          summary: "Ledger reconciliation failure"
+          description: "Ledger reconciliation has failed. Check for transaction mismatches."
+
+      - alert: UnbalancedTransactions
+        expr: ledger_unbalanced_transactions_total > 0
+        for: 5m
+        labels:
+          severity: critical
+          module: ledger
+        annotations:
+          summary: "Unbalanced transactions detected"
+          description: "{{ $value }} unbalanced transactions found. Immediate review required."
+
+      - alert: HighLedgerErrorRate
+        expr: rate(ledger_errors_total[5m]) > 5
+        for: 5m
+        labels:
+          severity: critical
+          module: ledger
+        annotations:
+          summary: "High error rate in ledger operations"
+          description: "Error rate is {{ $value }} errors/sec. Check ledger service logs."
+
+      - alert: SlowLedgerTransactions
+        expr: histogram_quantile(0.95, ledger_transaction_duration_seconds_bucket) > 5
+        for: 10m
+        labels:
+          severity: warning
+          module: ledger
+        annotations:
+          summary: "Slow ledger transactions"
+          description: "p95 transaction duration is {{ $value }} seconds (threshold: 5s)"
+
+  # Lending Module Alerts
+  - name: lending_module
+    interval: 30s
+    rules:
+      - alert: HighLoanProcessingErrors
+        expr: rate(lending_errors_total[5m]) > 5
+        for: 5m
+        labels:
+          severity: critical
+          module: lending
+        annotations:
+          summary: "High error rate in loan processing"
+          description: "Error rate is {{ $value }} errors/sec. Check lending service."
+
+      - alert: OverdueLoansHigh
+        expr: loans_by_status{status="overdue"} > 100
+        for: 1h
+        labels:
+          severity: warning
+          module: lending
+        annotations:
+          summary: "High number of overdue loans"
+          description: "{{ $value }} loans are overdue. Review collection process."
+
+      - alert: SlowLoanOperations
+        expr: histogram_quantile(0.95, lending_operation_duration_seconds_bucket) > 10
+        for: 10m
+        labels:
+          severity: warning
+          module: lending
+        annotations:
+          summary: "Slow loan operations"
+          description: "p95 operation duration is {{ $value }} seconds (threshold: 10s)"
+
+  # Chama Module Alerts
+  - name: chama_module
+    interval: 30s
+    rules:
+      - alert: HighContributionErrors
+        expr: rate(chama_contribution_errors_total[5m]) > 5
+        for: 5m
+        labels:
+          severity: warning
+          module: chama
+        annotations:
+          summary: "High error rate in contributions"
+          description: "Error rate is {{ $value }} errors/sec. Check contribution service."
+
+      - alert: PayoutProcessingFailure
+        expr: rate(chama_payout_failures_total[5m]) > 2
+        for: 10m
+        labels:
+          severity: critical
+          module: chama
+        annotations:
+          summary: "Chama payout processing failure"
+          description: "{{ $value }} payout failures per second. Check payout service logs."
+
+  # System-Wide Alerts
+  - name: system_wide
+    interval: 30s
+    rules:
+      - alert: HighSystemErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) > 50
+        for: 5m
+        labels:
+          severity: critical
+          module: system
+        annotations:
+          summary: "High system error rate"
+          description: "{{ $value }} 5xx errors per second. Check application logs."
+
+      - alert: DatabaseConnectionFailure
+        expr: database_connection_status == 0
+        for: 1m
+        labels:
+          severity: critical
+          module: system
+        annotations:
+          summary: "Database connection failure"
+          description: "Cannot connect to database. Check database service."
+
+      - alert: RedisConnectionFailure
+        expr: redis_connection_status == 0
+        for: 1m
+        labels:
+          severity: critical
+          module: system
+        annotations:
+          summary: "Redis connection failure"
+          description: "Cannot connect to Redis. Check Redis service."
+
+      - alert: HighMemoryUsage
+        expr: (nodejs_heap_size_used_bytes / nodejs_heap_size_total_bytes) > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          module: system
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage is {{ $value | humanizePercentage }}. Consider scaling."
+
+      - alert: HighCPUUsage
+        expr: rate(process_cpu_user_seconds_total[5m]) > 0.8
+        for: 10m
+        labels:
+          severity: warning
+          module: system
+        annotations:
+          summary: "High CPU usage"
+          description: "CPU usage is high. Check for performance bottlenecks."
+

@@ -1,0 +1,185 @@
+groups:
+  # Investment Module Alerts (Phase 13)
+  - name: investment_module
+    interval: 30s
+    rules:
+      - alert: HighInvestmentErrorRate
+        expr: rate(investment_errors_total[5m]) > 10
+        for: 5m
+        labels:
+          severity: critical
+          module: investment
+        annotations:
+          summary: "High error rate in investment module"
+          description: "Error rate is {{ $value }} errors/sec. Check logs for details."
+
+      - alert: QueueJobFailures
+        expr: rate(queue_jobs_total{status="failed",queue="investment-executions"}[5m]) > 5
+        for: 5m
+        labels:
+          severity: critical
+          module: investment
+        annotations:
+          summary: "High queue job failure rate"
+          description: "{{ $value }} investment execution jobs failing per second"
+
+  # Wallet Module Alerts
+  - name: wallet_module
+    interval: 30s
+    rules:
+      - alert: HighWalletTransactionErrors
+        expr: rate(wallet_transaction_errors_total[5m]) > 10
+        for: 5m
+        labels:
+          severity: critical
+          module: wallet
+        annotations:
+          summary: "High error rate in wallet transactions"
+          description: "Error rate is {{ $value }} errors/sec. Check wallet service logs."
+
+      - alert: WalletQueueBacklog
+        expr: queue_jobs_total{status="waiting",queue="financial-transactions"} > 500
+        for: 10m
+        labels:
+          severity: warning
+          module: wallet
+        annotations:
+          summary: "Large wallet transaction queue backlog"
+          description: "{{ $value }} transactions waiting in queue"
+
+      - alert: MpesaReconciliationFailure
+        expr: mpesa_reconciliation_failures_total > 0
+        for: 5m
+        labels:
+          severity: critical
+          module: wallet
+        annotations:
+          summary: "M-Pesa reconciliation failure"
+          description: "M-Pesa reconciliation has failed. Check reconciliation service."
+
+  # Lending Module Alerts
+  - name: lending_module
+    interval: 30s
+    rules:
+      - alert: HighLoanProcessingErrors
+        expr: rate(lending_errors_total[5m]) > 5
+        for: 5m
+        labels:
+          severity: critical
+          module: lending
+        annotations:
+          summary: "High error rate in loan processing"
+          description: "Error rate is {{ $value }} errors/sec. Check lending service."
+
+      - alert: OverdueLoansHigh
+        expr: loans_by_status{status="overdue"} > 100
+        for: 1h
+        labels:
+          severity: warning
+          module: lending
+        annotations:
+          summary: "High number of overdue loans"
+          description: "{{ $value }} loans are overdue. Review collection process."
+
+  # Ledger Module Alerts
+  - name: ledger_module
+    interval: 30s
+    rules:
+      - alert: LedgerReconciliationFailure
+        expr: ledger_reconciliation_status{status="failed"} == 1
+        for: 5m
+        labels:
+          severity: critical
+          module: ledger
+        annotations:
+          summary: "Ledger reconciliation failure"
+          description: "Ledger reconciliation has failed. Check for transaction mismatches."
+
+      - alert: UnbalancedTransactions
+        expr: ledger_unbalanced_transactions_total > 0
+        for: 5m
+        labels:
+          severity: critical
+          module: ledger
+        annotations:
+          summary: "Unbalanced transactions detected"
+          description: "{{ $value }} unbalanced transactions found. Immediate review required."
+
+  # Chama Module Alerts
+  - name: chama_module
+    interval: 30s
+    rules:
+      - alert: HighContributionErrors
+        expr: rate(chama_contribution_errors_total[5m]) > 5
+        for: 5m
+        labels:
+          severity: warning
+          module: chama
+        annotations:
+          summary: "High error rate in contributions"
+          description: "Error rate is {{ $value }} errors/sec. Check contribution service."
+
+      - alert: PayoutProcessingFailure
+        expr: chama_payout_failures_total > 0
+        for: 10m
+        labels:
+          severity: critical
+          module: chama
+        annotations:
+          summary: "Chama payout processing failure"
+          description: "Payout processing has failed. Check payout service logs."
+
+  # System-Wide Alerts
+  - name: system_wide
+    interval: 30s
+    rules:
+      - alert: HighSystemErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) > 50
+        for: 5m
+        labels:
+          severity: critical
+          module: system
+        annotations:
+          summary: "High system error rate"
+          description: "{{ $value }} 5xx errors per second. Check application logs."
+
+      - alert: DatabaseConnectionFailure
+        expr: database_connection_status == 0
+        for: 1m
+        labels:
+          severity: critical
+          module: system
+        annotations:
+          summary: "Database connection failure"
+          description: "Cannot connect to database. Check database service."
+
+      - alert: RedisConnectionFailure
+        expr: redis_connection_status == 0
+        for: 1m
+        labels:
+          severity: critical
+          module: system
+        annotations:
+          summary: "Redis connection failure"
+          description: "Cannot connect to Redis. Check Redis service."
+
+      - alert: HighMemoryUsage
+        expr: (nodejs_heap_size_used_bytes / nodejs_heap_size_total_bytes) > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          module: system
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage is {{ $value | humanizePercentage }}. Consider scaling."
+
+      - alert: HighCPUUsage
+        expr: rate(process_cpu_user_seconds_total[5m]) > 0.8
+        for: 10m
+        labels:
+          severity: warning
+          module: system
+        annotations:
+          summary: "High CPU usage"
+          description: "CPU usage is high. Check for performance bottlenecks."
+

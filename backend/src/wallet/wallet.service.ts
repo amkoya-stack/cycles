@@ -16,6 +16,7 @@ import { StatementService } from './statement.service';
 import { NotificationService } from './notification.service';
 import { WalletGateway } from './wallet.gateway';
 import { LimitsService } from './limits.service';
+import { MetricsService } from '../common/services/metrics.service';
 import { v4 as uuidv4 } from 'uuid';
 import { InjectQueue } from '@nestjs/bull';
 import type { Queue } from 'bull';
@@ -59,6 +60,7 @@ export class WalletService {
     private readonly notification: NotificationService,
     private readonly walletGateway: WalletGateway,
     private readonly limits: LimitsService,
+    private readonly metrics: MetricsService,
     @InjectQueue('financial-transactions')
     private readonly financialQueue: Queue,
   ) {}
@@ -69,6 +71,8 @@ export class WalletService {
   async getBalance(userId: string): Promise<number> {
     try {
       console.log(`[getBalance] Getting balance for user: ${userId}`);
+      this.metrics.recordWalletBalanceCheck();
+
       // Get user's account
       const accountResult = await this.db.query(
         "SELECT balance FROM accounts WHERE user_id = $1 AND status = 'active' LIMIT 1",
@@ -154,46 +158,74 @@ export class WalletService {
     mpesaReceiptNumber: string,
     externalReference: string,
   ): Promise<any> {
-    // Process deposit through ledger
-    const result = await this.ledger.processDeposit(
-      userId,
-      amount,
-      externalReference,
-      `Deposit from M-Pesa: ${mpesaReceiptNumber}`,
-    );
+    const startTime = Date.now();
 
-    // Emit balance update via WebSocket
     try {
-      const newBalance = await this.getBalance(userId);
-      this.walletGateway.emitBalanceUpdate(userId, newBalance.toString());
-    } catch (error) {
-      console.error('Failed to emit balance update:', error);
-    }
+      // Process deposit through ledger
+      const result = await this.ledger.processDeposit(
+        userId,
+        amount,
+        externalReference,
+        `Deposit from M-Pesa: ${mpesaReceiptNumber}`,
+      );
 
-    // Send receipt notifications
-    try {
-      const userResult = await this.db.query(
-        'SELECT email, phone FROM users WHERE id = $1',
-        [userId],
+      // Record success metrics
+      const duration = Date.now() - startTime;
+      this.metrics.recordWalletTransaction(
+        'deposit',
+        'success',
+        duration,
+        amount,
       );
-      const user = mapQueryRow<{ email: string | null; phone: string | null }>(
-        userResult,
-      );
-      if (user) {
-        await this.notification.sendDepositReceipt(
-          user.email || '',
-          user.phone || '',
-          amount,
-          externalReference,
-          mpesaReceiptNumber,
-        );
+
+      // Emit balance update via WebSocket
+      try {
+        const newBalance = await this.getBalance(userId);
+        this.walletGateway.emitBalanceUpdate(userId, newBalance.toString());
+      } catch (error) {
+        console.error('Failed to emit balance update:', error);
       }
-    } catch (error) {
-      // Log but don't fail the transaction
-      console.error('Failed to send deposit receipt:', error);
-    }
 
-    return result;
+      // Send receipt notifications
+      try {
+        const userResult = await this.db.query(
+          'SELECT email, phone FROM users WHERE id = $1',
+          [userId],
+        );
+        const user = mapQueryRow<{
+          email: string | null;
+          phone: string | null;
+        }>(userResult);
+        if (user) {
+          await this.notification.sendDepositReceipt(
+            user.email || '',
+            user.phone || '',
+            amount,
+            externalReference,
+            mpesaReceiptNumber,
+          );
+        }
+      } catch (error) {
+        // Log but don't fail the transaction
+        console.error('Failed to send deposit receipt:', error);
+      }
+
+      return result;
+    } catch (error) {
+      // Record error metrics
+      const duration = Date.now() - startTime;
+      this.metrics.recordWalletTransaction(
+        'deposit',
+        'error',
+        duration,
+        amount,
+      );
+      this.metrics.recordWalletError(
+        error.constructor?.name || 'UnknownError',
+        'deposit',
+      );
+      throw error;
+    }
   }
 
   /**
@@ -254,39 +286,66 @@ export class WalletService {
     mpesaReceiptNumber: string,
     externalReference: string,
   ): Promise<any> {
-    // Process withdrawal through ledger
-    const result = await this.ledger.processWithdrawal(
-      userId,
-      amount,
-      externalReference,
-      `Withdrawal to M-Pesa: ${mpesaReceiptNumber}`,
-    );
+    const startTime = Date.now();
 
-    // Send receipt notifications
     try {
-      const userResult = await this.db.query(
-        'SELECT email, phone FROM users WHERE id = $1',
-        [userId],
+      // Process withdrawal through ledger
+      const result = await this.ledger.processWithdrawal(
+        userId,
+        amount,
+        externalReference,
+        `Withdrawal to M-Pesa: ${mpesaReceiptNumber}`,
       );
-      const user = mapQueryRow<{
-        email: string | null;
-        phone: string | null;
-        fullName: string | null;
-      }>(userResult);
-      if (user) {
-        await this.notification.sendWithdrawalReceipt(
-          user.email || '',
-          user.phone || '',
-          amount,
-          externalReference,
-          mpesaReceiptNumber,
-        );
-      }
-    } catch (error) {
-      console.error('Failed to send withdrawal receipt:', error);
-    }
 
-    return result;
+      // Record success metrics
+      const duration = Date.now() - startTime;
+      this.metrics.recordWalletTransaction(
+        'withdrawal',
+        'success',
+        duration,
+        amount,
+      );
+
+      // Send receipt notifications
+      try {
+        const userResult = await this.db.query(
+          'SELECT email, phone FROM users WHERE id = $1',
+          [userId],
+        );
+        const user = mapQueryRow<{
+          email: string | null;
+          phone: string | null;
+          fullName: string | null;
+        }>(userResult);
+        if (user) {
+          await this.notification.sendWithdrawalReceipt(
+            user.email || '',
+            user.phone || '',
+            amount,
+            externalReference,
+            mpesaReceiptNumber,
+          );
+        }
+      } catch (error) {
+        console.error('Failed to send withdrawal receipt:', error);
+      }
+
+      return result;
+    } catch (error) {
+      // Record error metrics
+      const duration = Date.now() - startTime;
+      this.metrics.recordWalletTransaction(
+        'withdrawal',
+        'error',
+        duration,
+        amount,
+      );
+      this.metrics.recordWalletError(
+        error.constructor?.name || 'UnknownError',
+        'withdrawal',
+      );
+      throw error;
+    }
   }
 
   /**

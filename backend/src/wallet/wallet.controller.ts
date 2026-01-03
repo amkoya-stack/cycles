@@ -13,11 +13,15 @@ import {
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { WalletService } from './wallet.service';
+import { NotificationService } from './notification.service';
 
 @Controller({ path: 'wallet', version: '1' })
 @UseGuards(JwtAuthGuard)
 export class WalletController {
-  constructor(private readonly wallet: WalletService) {}
+  constructor(
+    private readonly wallet: WalletService,
+    private readonly notification: NotificationService,
+  ) {}
 
   /**
    * Get wallet balance
@@ -285,5 +289,70 @@ export class WalletController {
       notificationId,
     );
     return result;
+  }
+
+  /**
+   * Get VAPID public key for push notifications
+   * GET /api/wallet/push/vapid-key
+   */
+  @Get('push/vapid-key')
+  getVapidPublicKey() {
+    const publicKey = this.notification.getVapidPublicKey();
+    if (!publicKey) {
+      return { error: 'Push notifications not configured' };
+    }
+    return { publicKey };
+  }
+
+  /**
+   * Register push notification token
+   * POST /api/wallet/push/register
+   */
+  @Post('push/register')
+  async registerPushToken(
+    @Req() req: any,
+    @Body()
+    body: {
+      token: string;
+      platform?: 'web' | 'android' | 'ios';
+      deviceId?: string;
+      deviceName?: string;
+      appVersion?: string;
+      userAgent?: string;
+    },
+  ) {
+    await this.notification.registerPushToken(
+      req.user.id,
+      body.token,
+      body.platform || 'web',
+      body.deviceId,
+      body.deviceName,
+      body.appVersion,
+      body.userAgent || req.headers['user-agent'],
+    );
+    return { message: 'Push token registered successfully' };
+  }
+
+  /**
+   * Unregister push notification token
+   * POST /api/wallet/push/unregister
+   */
+  @Post('push/unregister')
+  async unregisterPushToken(
+    @Req() req: any,
+    @Body() body: { token: string },
+  ) {
+    await this.notification.unregisterPushToken(req.user.id, body.token);
+    return { message: 'Push token unregistered successfully' };
+  }
+
+  /**
+   * Get user's push notification tokens
+   * GET /api/wallet/push/tokens
+   */
+  @Get('push/tokens')
+  async getPushTokens(@Req() req: any) {
+    const tokens = await this.notification.getUserPushTokens(req.user.id);
+    return { tokens };
   }
 }

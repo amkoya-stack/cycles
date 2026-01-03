@@ -16,7 +16,7 @@ import type { Queue } from 'bull';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { ReconciliationService } from './reconciliation.service';
 
-@Controller('reconciliation')
+@Controller({ path: 'reconciliation', version: '1' })
 export class ReconciliationController {
   constructor(
     private readonly reconciliationService: ReconciliationService,
@@ -52,25 +52,6 @@ export class ReconciliationController {
   }
 
   /**
-   * Trigger manual reconciliation
-   * POST /api/reconciliation/run
-   */
-  @Post('run')
-  @UseGuards(JwtAuthGuard)
-  async triggerReconciliation(@Req() req: any) {
-    // Add job to queue
-    const job = await this.reconciliationQueue.add('manual-reconciliation', {
-      userId: req.user.id,
-      triggeredAt: new Date(),
-    });
-
-    return {
-      message: 'Reconciliation job queued',
-      jobId: job.id,
-    };
-  }
-
-  /**
    * Get reconciliation history
    * GET /api/reconciliation/history?limit=30
    */
@@ -81,17 +62,6 @@ export class ReconciliationController {
       limit ? parseInt(limit.toString()) : 30,
     );
     return { runs };
-  }
-
-  /**
-   * Get reconciliation run details
-   * GET /api/reconciliation/:runId
-   */
-  @Get(':runId')
-  async getRunDetails(@Param('runId') runId: string) {
-    const details =
-      await this.reconciliationService.getReconciliationDetails(runId);
-    return details;
   }
 
   /**
@@ -111,6 +81,37 @@ export class ReconciliationController {
       completed,
       failed,
       total: waiting + active + completed + failed,
+    };
+  }
+
+  /**
+   * Get reconciliation run details
+   * GET /api/reconciliation/:runId
+   * NOTE: This must be last to avoid catching specific routes like 'health', 'history', etc.
+   */
+  @Get(':runId')
+  async getRunDetails(@Param('runId') runId: string) {
+    const details =
+      await this.reconciliationService.getReconciliationDetails(runId);
+    return details;
+  }
+
+  /**
+   * Trigger manual reconciliation
+   * POST /api/reconciliation/run
+   */
+  @Post('run')
+  @UseGuards(JwtAuthGuard)
+  async triggerReconciliation(@Req() req: any) {
+    // Add job to queue
+    const job = await this.reconciliationQueue.add('manual-reconciliation', {
+      userId: req.user.id,
+      triggeredAt: new Date(),
+    });
+
+    return {
+      message: 'Reconciliation job queued',
+      jobId: job.id,
     };
   }
 

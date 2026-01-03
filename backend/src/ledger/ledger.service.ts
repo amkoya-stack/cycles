@@ -16,6 +16,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
+import { MetricsService } from '../common/services/metrics.service';
 import { v4 as uuidv4 } from 'uuid';
 
 // Types
@@ -55,7 +56,10 @@ export interface TransactionEntry {
 
 @Injectable()
 export class LedgerService {
-  constructor(private readonly db: DatabaseService) {}
+  constructor(
+    private readonly db: DatabaseService,
+    private readonly metrics: MetricsService,
+  ) {}
 
   // ==========================================
   // ACCOUNT OPERATIONS
@@ -682,17 +686,27 @@ export class LedgerService {
     ];
 
     // Execute transaction
-    return await this.executeTransaction(
-      {
-        transactionCode: 'DEPOSIT',
-        amount: amount,
-        description: description,
-        initiatedBy: userId,
-        externalReference: externalReference,
-        metadata: { userId, method: 'mpesa' },
-      },
-      entries,
-    );
+    try {
+      const result = await this.executeTransaction(
+        {
+          transactionCode: 'DEPOSIT',
+          amount: amount,
+          description: description,
+          initiatedBy: userId,
+          externalReference: externalReference,
+          metadata: { userId, method: 'mpesa' },
+        },
+        entries,
+      );
+      const duration = Date.now() - startTime;
+      this.metrics.recordLedgerTransaction('deposit', 'success', duration);
+      return result;
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      this.metrics.recordLedgerTransaction('deposit', 'error', duration);
+      this.metrics.recordLedgerError(error.constructor?.name || 'UnknownError', 'deposit');
+      throw error;
+    }
   }
 
   /**
@@ -709,6 +723,8 @@ export class LedgerService {
     externalReference: string,
     description: string,
   ): Promise<any> {
+    const startTime = Date.now();
+    
     // Idempotency: if an external reference has already been processed for WITHDRAWAL, return existing
     if (externalReference) {
       const existing = await this.db.query(
@@ -720,6 +736,8 @@ export class LedgerService {
         [externalReference],
       );
       if (existing.rows.length > 0) {
+        const duration = Date.now() - startTime;
+        this.metrics.recordLedgerTransaction('withdrawal', 'success', duration);
         return existing.rows[0];
       }
     }
@@ -759,17 +777,27 @@ export class LedgerService {
     ];
 
     // Execute transaction
-    return await this.executeTransaction(
-      {
-        transactionCode: 'WITHDRAWAL',
-        amount: amount,
-        description: description,
-        initiatedBy: userId,
-        externalReference: externalReference,
-        metadata: { userId, method: 'mpesa' },
-      },
-      entries,
-    );
+    try {
+      const result = await this.executeTransaction(
+        {
+          transactionCode: 'WITHDRAWAL',
+          amount: amount,
+          description: description,
+          initiatedBy: userId,
+          externalReference: externalReference,
+          metadata: { userId, method: 'mpesa' },
+        },
+        entries,
+      );
+      const duration = Date.now() - startTime;
+      this.metrics.recordLedgerTransaction('withdrawal', 'success', duration);
+      return result;
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      this.metrics.recordLedgerTransaction('withdrawal', 'error', duration);
+      this.metrics.recordLedgerError(error.constructor?.name || 'UnknownError', 'withdrawal');
+      throw error;
+    }
   }
 
   /**
@@ -786,6 +814,7 @@ export class LedgerService {
     amount: number,
     description: string,
   ): Promise<any> {
+    const startTime = Date.now();
     const reference = `TRF-${uuidv4()}`;
 
     // Get accounts
@@ -826,16 +855,26 @@ export class LedgerService {
     ];
 
     // Execute transaction
-    return await this.executeTransaction(
-      {
-        transactionCode: 'TRANSFER',
-        amount: amount,
-        description: description,
-        initiatedBy: senderUserId,
-        metadata: { senderUserId, receiverUserId },
-      },
-      entries,
-    );
+    try {
+      const result = await this.executeTransaction(
+        {
+          transactionCode: 'TRANSFER',
+          amount: amount,
+          description: description,
+          initiatedBy: senderUserId,
+          metadata: { senderUserId, receiverUserId },
+        },
+        entries,
+      );
+      const duration = Date.now() - startTime;
+      this.metrics.recordLedgerTransaction('transfer', 'success', duration);
+      return result;
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      this.metrics.recordLedgerTransaction('transfer', 'error', duration);
+      this.metrics.recordLedgerError(error.constructor?.name || 'UnknownError', 'transfer');
+      throw error;
+    }
   }
 
   /**
@@ -854,6 +893,8 @@ export class LedgerService {
     description: string,
     externalReference?: string,
   ): Promise<any> {
+    const startTime = Date.now();
+    
     // Idempotency: Check if contribution already processed
     if (externalReference) {
       const existing = await this.db.query(
@@ -865,6 +906,8 @@ export class LedgerService {
         [externalReference],
       );
       if (existing.rows.length > 0) {
+        const duration = Date.now() - startTime;
+        this.metrics.recordLedgerTransaction('contribution', 'success', duration);
         return existing.rows[0]; // Return existing transaction
       }
     }
@@ -918,24 +961,34 @@ export class LedgerService {
     ];
 
     // Execute transaction
-    return await this.executeTransaction(
-      {
-        transactionCode: 'CONTRIBUTION',
-        amount: totalAmount,
-        description: description,
-        initiatedBy: userId,
-        externalReference: externalReference,
-        metadata: {
-          userId,
-          chamaId,
-          feeAmount,
-          netAmount,
-          chargeFeeTo: 'user',
+    try {
+      const result = await this.executeTransaction(
+        {
+          transactionCode: 'CONTRIBUTION',
+          amount: totalAmount,
+          description: description,
+          initiatedBy: userId,
+          externalReference: externalReference,
+          metadata: {
+            userId,
+            chamaId,
+            feeAmount,
+            netAmount,
+            chargeFeeTo: 'user',
+          },
         },
-      },
-      entries,
-      feeAmount,
-    );
+        entries,
+        feeAmount,
+      );
+      const duration = Date.now() - startTime;
+      this.metrics.recordLedgerTransaction('contribution', 'success', duration);
+      return result;
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      this.metrics.recordLedgerTransaction('contribution', 'error', duration);
+      this.metrics.recordLedgerError(error.constructor?.name || 'UnknownError', 'contribution');
+      throw error;
+    }
   }
 
   /**
@@ -953,6 +1006,8 @@ export class LedgerService {
     description: string,
     externalReference?: string,
   ): Promise<any> {
+    const startTime = Date.now();
+    
     // Idempotency: Check if payout already processed
     if (externalReference) {
       const existing = await this.db.query(
@@ -964,6 +1019,8 @@ export class LedgerService {
         [externalReference],
       );
       if (existing.rows.length > 0) {
+        const duration = Date.now() - startTime;
+        this.metrics.recordLedgerTransaction('payout', 'success', duration);
         return existing.rows[0]; // Return existing transaction
       }
     }
@@ -1002,16 +1059,26 @@ export class LedgerService {
     ];
 
     // Execute transaction
-    return await this.executeTransaction(
-      {
-        transactionCode: 'PAYOUT',
-        amount: amount,
-        description: description,
-        externalReference: externalReference,
-        metadata: { chamaId, userId },
-      },
-      entries,
-    );
+    try {
+      const result = await this.executeTransaction(
+        {
+          transactionCode: 'PAYOUT',
+          amount: amount,
+          description: description,
+          externalReference: externalReference,
+          metadata: { chamaId, userId },
+        },
+        entries,
+      );
+      const duration = Date.now() - startTime;
+      this.metrics.recordLedgerTransaction('payout', 'success', duration);
+      return result;
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      this.metrics.recordLedgerTransaction('payout', 'error', duration);
+      this.metrics.recordLedgerError(error.constructor?.name || 'UnknownError', 'payout');
+      throw error;
+    }
   }
 
   // ==========================================

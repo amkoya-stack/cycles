@@ -1,0 +1,163 @@
+# Alert Manager Configuration Example
+# Copy this file to alertmanager-config.yml and update with your credentials
+
+global:
+  resolve_timeout: 5m
+  
+  # Slack Configuration (Optional)
+  # slack_api_url: 'https://hooks.slack.com/services/YOUR/WEBHOOK/URL'
+  
+  # Email Configuration
+  smtp_from: 'alerts@cycles.com'
+  smtp_smarthost: 'smtp.gmail.com:587'
+  smtp_auth_username: 'alerts@cycles.com'
+  smtp_auth_password: 'YOUR_SMTP_PASSWORD'  # Use app-specific password for Gmail
+  
+  # PagerDuty Configuration (Optional)
+  # pagerduty_url: 'https://events.pagerduty.com/v2/enqueue'
+
+# Route tree
+route:
+  receiver: 'default'
+  group_by: ['alertname', 'severity', 'module']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 12h
+  
+  routes:
+    # Critical alerts - immediate notification
+    - match:
+        severity: critical
+      receiver: 'investment-critical'
+      group_wait: 0s
+      repeat_interval: 1h
+      continue: true
+    
+    # Warning alerts - grouped
+    - match:
+        severity: warning
+        module: investment
+      receiver: 'investment-warning'
+      group_wait: 30s
+      repeat_interval: 6h
+    
+    # Info alerts - daily summary
+    - match:
+        severity: info
+        module: investment
+      receiver: 'investment-info'
+      group_wait: 5m
+      repeat_interval: 24h
+    
+    # All investment module alerts
+    - match:
+        module: investment
+      receiver: 'investment-team'
+
+# Receivers
+receivers:
+  - name: 'default'
+    email_configs:
+      - to: 'ops@cycles.com'
+        headers:
+          Subject: 'Cycles Alert: {{ .GroupLabels.alertname }}'
+        html: |
+          <h2>Alert: {{ .GroupLabels.alertname }}</h2>
+          <p><strong>Severity:</strong> {{ .GroupLabels.severity }}</p>
+          <p><strong>Module:</strong> {{ .GroupLabels.module }}</p>
+          <h3>Alerts:</h3>
+          <ul>
+          {{ range .Alerts }}
+            <li>
+              <strong>{{ .Annotations.summary }}</strong><br/>
+              {{ .Annotations.description }}
+            </li>
+          {{ end }}
+          </ul>
+
+  - name: 'investment-critical'
+    # Uncomment and configure Slack if needed
+    # slack_configs:
+    #   - channel: '#investment-alerts-critical'
+    #     title: '🚨 CRITICAL: Investment Module Alert'
+    #     text: |
+    #       *Alert:* {{ .GroupLabels.alertname }}
+    #       *Severity:* {{ .GroupLabels.severity }}
+    #       
+    #       {{ range .Alerts }}
+    #       *{{ .Annotations.summary }}*
+    #       {{ .Annotations.description }}
+    #       {{ end }}
+    #     color: 'danger'
+    #     send_resolved: true
+    
+    email_configs:
+      - to: 'investment-team@cycles.com'  # Update with your email
+        headers:
+          Subject: '🚨 CRITICAL: {{ .GroupLabels.alertname }}'
+        priority: 'high'
+    
+    # Uncomment and configure PagerDuty if needed
+    # pagerduty_configs:
+    #   - service_key: 'YOUR_PAGERDUTY_SERVICE_KEY'
+    #     description: '{{ .GroupLabels.alertname }}: {{ .CommonAnnotations.description }}'
+    #     severity: 'critical'
+
+  - name: 'investment-warning'
+    # slack_configs:
+    #   - channel: '#investment-alerts'
+    #     title: '⚠️ Investment Module Warning'
+    #     text: |
+    #       *Alert:* {{ .GroupLabels.alertname }}
+    #       
+    #       {{ range .Alerts }}
+    #       *{{ .Annotations.summary }}*
+    #       {{ .Annotations.description }}
+    #       {{ end }}
+    #     color: 'warning'
+    #     send_resolved: true
+    
+    email_configs:
+      - to: 'investment-team@cycles.com'  # Update with your email
+        headers:
+          Subject: '⚠️ WARNING: {{ .GroupLabels.alertname }}'
+
+  - name: 'investment-info'
+    # slack_configs:
+    #   - channel: '#investment-alerts'
+    #     title: 'ℹ️ Investment Module Info'
+    #     text: |
+    #       *Alert:* {{ .GroupLabels.alertname }}
+    #       
+    #       {{ range .Alerts }}
+    #       *{{ .Annotations.summary }}*
+    #       {{ .Annotations.description }}
+    #       {{ end }}
+    #     color: 'good'
+    
+    email_configs:
+      - to: 'investment-team@cycles.com'  # Update with your email
+        headers:
+          Subject: 'ℹ️ INFO: {{ .GroupLabels.alertname }}'
+
+  - name: 'investment-team'
+    # slack_configs:
+    #   - channel: '#investment-alerts'
+    #     title: 'Investment Module Alert'
+    #     text: |
+    #       *{{ .GroupLabels.alertname }}*
+    #       
+    #       {{ range .Alerts }}
+    #       {{ .Annotations.summary }}
+    #       {{ .Annotations.description }}
+    #       {{ end }}
+    #     send_resolved: true
+
+# Inhibition rules (suppress alerts when others are firing)
+inhibit_rules:
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'module']
+

@@ -9,12 +9,15 @@ import { FeatureFlagsService } from './services/feature-flags.service';
 import { CanaryDeploymentService } from './services/canary-deployment.service';
 import { RollbackService } from './services/rollback.service';
 import { ChaosTestingService } from './services/chaos-testing.service';
+import { MetricsService } from './services/metrics.service';
+import { MetricsController } from './controllers/metrics.controller';
 import { RedisModule } from '../cache/redis.module';
 import { DatabaseModule } from '../database/database.module';
 
 @Global()
 @Module({
   imports: [RedisModule, DatabaseModule],
+  controllers: [MetricsController],
   providers: [
     RateLimitGuard,
     IdempotencyInterceptor,
@@ -26,6 +29,9 @@ import { DatabaseModule } from '../database/database.module';
     CanaryDeploymentService,
     RollbackService,
     ChaosTestingService,
+    MetricsService,
+    HttpMetricsInterceptor,
+    HealthMonitorService,
   ],
   exports: [
     RateLimitGuard,
@@ -38,6 +44,9 @@ import { DatabaseModule } from '../database/database.module';
     CanaryDeploymentService,
     RollbackService,
     ChaosTestingService,
+    MetricsService,
+    HttpMetricsInterceptor,
+    HealthMonitorService,
   ],
 })
 export class CommonModule {}

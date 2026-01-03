@@ -25,6 +25,7 @@ import {
   NotificationChannel,
   NotificationPriority,
 } from '../activity/notification.service';
+import { MetricsService } from '../common/services/metrics.service';
 import { v4 as uuidv4 } from 'uuid';
 
 export interface CreateChamaDto {
@@ -83,6 +84,7 @@ export class ChamaService {
     private readonly reputationService: ChamaReputationService,
     private readonly activityService: ActivityService,
     private readonly activityNotification: ActivityNotificationService,
+    private readonly metrics: MetricsService,
   ) {}
 
   // ==========================================
@@ -1688,7 +1690,9 @@ export class ChamaService {
     cycleId: string,
     dto: ContributeDto,
   ): Promise<any> {
-    const member = await this.getMemberRole(userId, chamaId);
+    const startTime = Date.now();
+    try {
+      const member = await this.getMemberRole(userId, chamaId);
 
     // Validate cycle
     const cycle = await this.db.query(
@@ -1797,12 +1801,19 @@ export class ChamaService {
       console.error('Failed to send contribution receipt:', error);
     }
 
-    return {
-      contributionId,
-      message: 'Contribution successful',
-      amount: dto.amount,
-      fee: feeAmount,
-    };
+      const duration = Date.now() - startTime;
+      this.metrics.recordChamaOperation('contribution', 'success');
+      return {
+        contributionId,
+        message: 'Contribution successful',
+        amount: dto.amount,
+        fee: feeAmount,
+      };
+    } catch (error) {
+      this.metrics.recordChamaContributionError(chamaId);
+      this.metrics.recordChamaOperation('contribution', 'error');
+      throw error;
+    }
   }
 
   /**
@@ -1878,7 +1889,9 @@ export class ChamaService {
     chamaId: string,
     cycleId: string,
   ): Promise<any> {
-    const member = await this.getMemberRole(userId, chamaId);
+    const startTime = Date.now();
+    try {
+      const member = await this.getMemberRole(userId, chamaId);
     if (member.role !== 'admin' && member.role !== 'treasurer') {
       throw new ForbiddenException(
         'Only admin or treasurer can execute payouts',
@@ -1986,12 +1999,19 @@ export class ChamaService {
       message: `Payout of KES ${payoutAmount} from ${chama.name} has been sent to your wallet.`,
     });
 
-    return {
-      payoutId,
-      message: 'Payout executed successfully',
-      amount: payoutAmount,
-      recipient: recipientData.user_id,
-    };
+      const duration = Date.now() - startTime;
+      this.metrics.recordChamaOperation('payout', 'success');
+      return {
+        payoutId,
+        message: 'Payout executed successfully',
+        amount: payoutAmount,
+        recipient: recipientData.user_id,
+      };
+    } catch (error) {
+      this.metrics.recordChamaPayoutFailure(chamaId);
+      this.metrics.recordChamaOperation('payout', 'error');
+      throw error;
+    }
   }
 
   /**

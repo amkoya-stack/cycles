@@ -9,6 +9,7 @@ import { LedgerService } from '../ledger/ledger.service';
 import { NotificationService } from './notification.service';
 import { WalletGateway } from './wallet.gateway';
 import { LimitsService } from './limits.service';
+import { MetricsService } from '../common/services/metrics.service';
 
 @Injectable()
 export class MpesaReconciliationService {
@@ -20,6 +21,7 @@ export class MpesaReconciliationService {
     private readonly notification: NotificationService,
     private readonly walletGateway: WalletGateway,
     private readonly limits: LimitsService,
+    private readonly metrics: MetricsService,
   ) {}
 
   /**

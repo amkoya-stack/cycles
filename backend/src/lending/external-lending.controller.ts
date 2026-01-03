@@ -63,6 +63,18 @@ export class ExternalLendingController {
   }
 
   /**
+   * Get marketplace statistics
+   */
+  @Get('marketplace/stats')
+  async getMarketplaceStats() {
+    const stats = await this.externalLendingService.getMarketplaceStats();
+    return {
+      success: true,
+      data: stats,
+    };
+  }
+
+  /**
    * Get listing details (public)
    */
   @Get('listings/:id')

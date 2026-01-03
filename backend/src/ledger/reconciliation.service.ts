@@ -25,7 +25,10 @@ export interface ReconciliationResult {
 export class ReconciliationService {
   private readonly logger = new Logger(ReconciliationService.name);
 
-  constructor(private readonly db: DatabaseService) {}
+  constructor(
+    private readonly db: DatabaseService,
+    private readonly metrics: MetricsService,
+  ) {}
 
   /**
    * Run daily reconciliation check
@@ -131,6 +134,14 @@ export class ReconciliationService {
         completedAt,
       };
 
+      // Record metrics
+      this.metrics.updateLedgerReconciliationStatus('daily', status === 'completed' ? 'success' : 'failed');
+      if (transactionChecks.unbalancedTransactions.length > 0) {
+        this.metrics.updateUnbalancedTransactionsCount(transactionChecks.unbalancedTransactions.length);
+      } else {
+        this.metrics.updateUnbalancedTransactionsCount(0);
+      }
+
       // Send alerts if issues found
       if (status !== 'completed') {
         await this.sendAlert(result);
@@ -142,6 +153,9 @@ export class ReconciliationService {
 
       return result;
     } catch (error) {
+      // Record failure metrics
+      this.metrics.updateLedgerReconciliationStatus('daily', 'failed');
+      
       this.logger.error(`Reconciliation run ${runId} failed:`, error);
 
       await this.db.query(
