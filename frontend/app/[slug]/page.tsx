@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import LoanDashboard from "@/components/chama/loan-dashboard";
 import { InvestmentPortfolio } from "@/components/investment/investment-portfolio";
+import { ChamaDashboard } from "@/components/chama/chama-dashboard";
 import { Footer } from "@/components/footer";
 import { HomeNavbar } from "@/components/home/home-navbar";
 import { MemberDirectory } from "@/components/chama/member-directory";
@@ -1026,6 +1027,13 @@ export default function CycleBySlugPage() {
                 </div>
               </Card>
             </div>
+
+            {/* Chama Dashboard Metrics */}
+            <ChamaDashboard
+              chamaId={chama.id}
+              chamaName={chama.name}
+              chamaBalance={chama.current_balance}
+            />
 
             {/* Transaction History */}
             <Card className="overflow-hidden">

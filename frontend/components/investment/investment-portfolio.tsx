@@ -112,8 +112,31 @@ export function InvestmentPortfolio({ chamaId }: InvestmentPortfolioProps) {
       );
 
       if (summaryResponse.ok) {
-        const summaryData = await summaryResponse.json();
-        setSummary(summaryData);
+        const contentType = summaryResponse.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          const text = await summaryResponse.text();
+          if (text.trim()) {
+            try {
+              const summaryData = JSON.parse(text);
+              setSummary(summaryData);
+            } catch (e) {
+              console.error("Failed to parse summary JSON:", e, "Response:", text);
+            }
+          } else {
+            // Empty response - set default summary
+            setSummary({
+              total_investments: 0,
+              active_investments: 0,
+              matured_investments: 0,
+              total_invested: 0,
+              total_interest_earned: 0,
+              total_returns: 0,
+              expected_returns: 0,
+            });
+          }
+        }
+      } else {
+        console.error("Summary response not OK:", summaryResponse.status, summaryResponse.statusText);
       }
 
       // Fetch investments
@@ -132,8 +155,25 @@ export function InvestmentPortfolio({ chamaId }: InvestmentPortfolioProps) {
       );
 
       if (investmentsResponse.ok) {
-        const investmentsData = await investmentsResponse.json();
-        setInvestments(investmentsData);
+        const contentType = investmentsResponse.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          const text = await investmentsResponse.text();
+          if (text.trim()) {
+            try {
+              const investmentsData = JSON.parse(text);
+              setInvestments(Array.isArray(investmentsData) ? investmentsData : []);
+            } catch (e) {
+              console.error("Failed to parse investments JSON:", e, "Response:", text);
+              setInvestments([]);
+            }
+          } else {
+            // Empty response - set empty array
+            setInvestments([]);
+          }
+        }
+      } else {
+        console.error("Investments response not OK:", investmentsResponse.status, investmentsResponse.statusText);
+        setInvestments([]);
       }
     } catch (error) {
       console.error("Failed to fetch portfolio:", error);
