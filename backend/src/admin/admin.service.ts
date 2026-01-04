@@ -351,40 +351,201 @@ export class AdminService {
   /**
    * Suspend a user
    */
-  async suspendUser(adminUserId: string, userId: string, reason: string, ipAddress?: string, userAgent?: string): Promise<void> {
+  async suspendUser(
+    adminUserId: string,
+    userId: string,
+    reason: string,
+    ipAddress?: string,
+    userAgent?: string,
+    idempotencyKey?: string,
+  ): Promise<{ actionId: string; isDuplicate: boolean }> {
+    // Idempotency check: if idempotency key provided, check if action already exists
+    if (idempotencyKey) {
+      const existing = await this.db.query(
+        `SELECT id FROM admin_actions 
+         WHERE action_type = 'user_suspend' 
+         AND target_id = $1 
+         AND idempotency_key = $2`,
+        [userId, idempotencyKey],
+      );
+
+      if (existing.rows.length > 0) {
+        this.logger.log(
+          `User suspend action already processed (idempotency key: ${idempotencyKey})`,
+        );
+        return { actionId: existing.rows[0].id, isDuplicate: true };
+      }
+    }
+
+    // Check current state to prevent duplicate suspensions
+    const currentState = await this.db.query(
+      `SELECT status FROM users WHERE id = $1`,
+      [userId],
+    );
+
+    if (currentState.rows.length === 0) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (currentState.rows[0].status === 'suspended') {
+      this.logger.warn(`User ${userId} is already suspended`);
+      // Still log the action attempt
+      const actionId = await this.logAdminAction(
+        adminUserId,
+        'user_suspend',
+        'user',
+        userId,
+        { reason, already_suspended: true },
+        reason,
+        ipAddress,
+        userAgent,
+        idempotencyKey,
+      );
+      return { actionId, isDuplicate: true };
+    }
+
     await this.db.query(
       `UPDATE users SET status = 'suspended', updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
       [userId],
     );
 
-    await this.logAdminAction(adminUserId, 'user_suspend', 'user', userId, { reason }, reason, ipAddress, userAgent);
+    const actionId = await this.logAdminAction(
+      adminUserId,
+      'user_suspend',
+      'user',
+      userId,
+      { reason },
+      reason,
+      ipAddress,
+      userAgent,
+      idempotencyKey,
+    );
     this.logger.log(`User ${userId} suspended by admin ${adminUserId}`);
+    return { actionId, isDuplicate: false };
   }
 
   /**
    * Verify a user (KYC approval)
    */
-  async verifyUser(adminUserId: string, userId: string, reason: string, ipAddress?: string, userAgent?: string): Promise<void> {
+  async verifyUser(
+    adminUserId: string,
+    userId: string,
+    reason: string,
+    ipAddress?: string,
+    userAgent?: string,
+    idempotencyKey?: string,
+  ): Promise<{ actionId: string; isDuplicate: boolean }> {
+    // Idempotency check
+    if (idempotencyKey) {
+      const existing = await this.db.query(
+        `SELECT id FROM admin_actions 
+         WHERE action_type = 'user_verify' 
+         AND target_id = $1 
+         AND idempotency_key = $2`,
+        [userId, idempotencyKey],
+      );
+
+      if (existing.rows.length > 0) {
+        this.logger.log(
+          `User verify action already processed (idempotency key: ${idempotencyKey})`,
+        );
+        return { actionId: existing.rows[0].id, isDuplicate: true };
+      }
+    }
+
+    // Check current state
+    const currentState = await this.db.query(
+      `SELECT kyc_status FROM users WHERE id = $1`,
+      [userId],
+    );
+
+    if (currentState.rows.length === 0) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (currentState.rows[0].kyc_status === 'verified') {
+      this.logger.warn(`User ${userId} is already verified`);
+      const actionId = await this.logAdminAction(
+        adminUserId,
+        'user_verify',
+        'user',
+        userId,
+        { reason, already_verified: true },
+        reason,
+        ipAddress,
+        userAgent,
+        idempotencyKey,
+      );
+      return { actionId, isDuplicate: true };
+    }
+
     await this.db.query(
       `UPDATE users SET kyc_status = 'verified', verified_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
       [userId],
     );
 
-    await this.logAdminAction(adminUserId, 'user_verify', 'user', userId, { reason }, reason, ipAddress, userAgent);
+    const actionId = await this.logAdminAction(
+      adminUserId,
+      'user_verify',
+      'user',
+      userId,
+      { reason },
+      reason,
+      ipAddress,
+      userAgent,
+      idempotencyKey,
+    );
     this.logger.log(`User ${userId} verified by admin ${adminUserId}`);
+    return { actionId, isDuplicate: false };
   }
 
   /**
    * Reject KYC for a user
    */
-  async rejectKYC(adminUserId: string, userId: string, reason: string, ipAddress?: string, userAgent?: string): Promise<void> {
+  async rejectKYC(
+    adminUserId: string,
+    userId: string,
+    reason: string,
+    ipAddress?: string,
+    userAgent?: string,
+    idempotencyKey?: string,
+  ): Promise<{ actionId: string; isDuplicate: boolean }> {
+    // Idempotency check
+    if (idempotencyKey) {
+      const existing = await this.db.query(
+        `SELECT id FROM admin_actions 
+         WHERE action_type = 'user_kyc_reject' 
+         AND target_id = $1 
+         AND idempotency_key = $2`,
+        [userId, idempotencyKey],
+      );
+
+      if (existing.rows.length > 0) {
+        this.logger.log(
+          `KYC reject action already processed (idempotency key: ${idempotencyKey})`,
+        );
+        return { actionId: existing.rows[0].id, isDuplicate: true };
+      }
+    }
+
     await this.db.query(
       `UPDATE users SET kyc_status = 'rejected', kyc_rejection_reason = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
       [reason, userId],
     );
 
-    await this.logAdminAction(adminUserId, 'user_kyc_reject', 'user', userId, { reason }, reason, ipAddress, userAgent);
+    const actionId = await this.logAdminAction(
+      adminUserId,
+      'user_kyc_reject',
+      'user',
+      userId,
+      { reason },
+      reason,
+      ipAddress,
+      userAgent,
+      idempotencyKey,
+    );
     this.logger.log(`KYC rejected for user ${userId} by admin ${adminUserId}`);
+    return { actionId, isDuplicate: false };
   }
 
   // ============================================================================
@@ -394,40 +555,226 @@ export class AdminService {
   /**
    * Feature a chama (highlight on platform)
    */
-  async featureChama(adminUserId: string, chamaId: string, reason: string, ipAddress?: string, userAgent?: string): Promise<void> {
+  async featureChama(
+    adminUserId: string,
+    chamaId: string,
+    reason: string,
+    ipAddress?: string,
+    userAgent?: string,
+    idempotencyKey?: string,
+  ): Promise<{ actionId: string; isDuplicate: boolean }> {
+    // Idempotency check
+    if (idempotencyKey) {
+      const existing = await this.db.query(
+        `SELECT id FROM admin_actions 
+         WHERE action_type = 'chama_feature' 
+         AND target_id = $1 
+         AND idempotency_key = $2`,
+        [chamaId, idempotencyKey],
+      );
+
+      if (existing.rows.length > 0) {
+        this.logger.log(
+          `Chama feature action already processed (idempotency key: ${idempotencyKey})`,
+        );
+        return { actionId: existing.rows[0].id, isDuplicate: true };
+      }
+    }
+
+    // Check current state
+    const currentState = await this.db.query(
+      `SELECT is_featured FROM chamas WHERE id = $1`,
+      [chamaId],
+    );
+
+    if (currentState.rows.length === 0) {
+      throw new NotFoundException('Chama not found');
+    }
+
+    if (currentState.rows[0].is_featured === true) {
+      this.logger.warn(`Chama ${chamaId} is already featured`);
+      const actionId = await this.logAdminAction(
+        adminUserId,
+        'chama_feature',
+        'chama',
+        chamaId,
+        { reason, already_featured: true },
+        reason,
+        ipAddress,
+        userAgent,
+        idempotencyKey,
+      );
+      return { actionId, isDuplicate: true };
+    }
+
     await this.db.query(
       `UPDATE chamas SET is_featured = TRUE, featured_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
       [chamaId],
     );
 
-    await this.logAdminAction(adminUserId, 'chama_feature', 'chama', chamaId, { reason }, reason, ipAddress, userAgent);
+    const actionId = await this.logAdminAction(
+      adminUserId,
+      'chama_feature',
+      'chama',
+      chamaId,
+      { reason },
+      reason,
+      ipAddress,
+      userAgent,
+      idempotencyKey,
+    );
     this.logger.log(`Chama ${chamaId} featured by admin ${adminUserId}`);
+    return { actionId, isDuplicate: false };
   }
 
   /**
    * Unfeature a chama
    */
-  async unfeatureChama(adminUserId: string, chamaId: string, reason: string, ipAddress?: string, userAgent?: string): Promise<void> {
+  async unfeatureChama(
+    adminUserId: string,
+    chamaId: string,
+    reason: string,
+    ipAddress?: string,
+    userAgent?: string,
+    idempotencyKey?: string,
+  ): Promise<{ actionId: string; isDuplicate: boolean }> {
+    // Idempotency check
+    if (idempotencyKey) {
+      const existing = await this.db.query(
+        `SELECT id FROM admin_actions 
+         WHERE action_type = 'chama_unfeature' 
+         AND target_id = $1 
+         AND idempotency_key = $2`,
+        [chamaId, idempotencyKey],
+      );
+
+      if (existing.rows.length > 0) {
+        this.logger.log(
+          `Chama unfeature action already processed (idempotency key: ${idempotencyKey})`,
+        );
+        return { actionId: existing.rows[0].id, isDuplicate: true };
+      }
+    }
+
+    // Check current state
+    const currentState = await this.db.query(
+      `SELECT is_featured FROM chamas WHERE id = $1`,
+      [chamaId],
+    );
+
+    if (currentState.rows.length === 0) {
+      throw new NotFoundException('Chama not found');
+    }
+
+    if (currentState.rows[0].is_featured === false) {
+      this.logger.warn(`Chama ${chamaId} is already unfeatured`);
+      const actionId = await this.logAdminAction(
+        adminUserId,
+        'chama_unfeature',
+        'chama',
+        chamaId,
+        { reason, already_unfeatured: true },
+        reason,
+        ipAddress,
+        userAgent,
+        idempotencyKey,
+      );
+      return { actionId, isDuplicate: true };
+    }
+
     await this.db.query(
       `UPDATE chamas SET is_featured = FALSE, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
       [chamaId],
     );
 
-    await this.logAdminAction(adminUserId, 'chama_unfeature', 'chama', chamaId, { reason }, reason, ipAddress, userAgent);
+    const actionId = await this.logAdminAction(
+      adminUserId,
+      'chama_unfeature',
+      'chama',
+      chamaId,
+      { reason },
+      reason,
+      ipAddress,
+      userAgent,
+      idempotencyKey,
+    );
     this.logger.log(`Chama ${chamaId} unfeatured by admin ${adminUserId}`);
+    return { actionId, isDuplicate: false };
   }
 
   /**
    * Suspend a chama
    */
-  async suspendChama(adminUserId: string, chamaId: string, reason: string, ipAddress?: string, userAgent?: string): Promise<void> {
+  async suspendChama(
+    adminUserId: string,
+    chamaId: string,
+    reason: string,
+    ipAddress?: string,
+    userAgent?: string,
+    idempotencyKey?: string,
+  ): Promise<{ actionId: string; isDuplicate: boolean }> {
+    // Idempotency check
+    if (idempotencyKey) {
+      const existing = await this.db.query(
+        `SELECT id FROM admin_actions 
+         WHERE action_type = 'chama_suspend' 
+         AND target_id = $1 
+         AND idempotency_key = $2`,
+        [chamaId, idempotencyKey],
+      );
+
+      if (existing.rows.length > 0) {
+        this.logger.log(
+          `Chama suspend action already processed (idempotency key: ${idempotencyKey})`,
+        );
+        return { actionId: existing.rows[0].id, isDuplicate: true };
+      }
+    }
+
+    // Check current state
+    const currentState = await this.db.query(
+      `SELECT status FROM chamas WHERE id = $1`,
+      [chamaId],
+    );
+
+    if (currentState.rows.length === 0) {
+      throw new NotFoundException('Chama not found');
+    }
+
+    if (currentState.rows[0].status === 'suspended') {
+      this.logger.warn(`Chama ${chamaId} is already suspended`);
+      const actionId = await this.logAdminAction(
+        adminUserId,
+        'chama_suspend',
+        'chama',
+        chamaId,
+        { reason, already_suspended: true },
+        reason,
+        ipAddress,
+        userAgent,
+        idempotencyKey,
+      );
+      return { actionId, isDuplicate: true };
+    }
+
     await this.db.query(
       `UPDATE chamas SET status = 'suspended', suspended_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
       [chamaId],
     );
 
-    await this.logAdminAction(adminUserId, 'chama_suspend', 'chama', chamaId, { reason }, reason, ipAddress, userAgent);
+    const actionId = await this.logAdminAction(
+      adminUserId,
+      'chama_suspend',
+      'chama',
+      chamaId,
+      { reason },
+      reason,
+      ipAddress,
+      userAgent,
+      idempotencyKey,
+    );
     this.logger.log(`Chama ${chamaId} suspended by admin ${adminUserId}`);
+    return { actionId, isDuplicate: false };
   }
 
   // ============================================================================
@@ -468,7 +815,31 @@ export class AdminService {
   /**
    * Resolve fraud alert
    */
-  async resolveFraudAlert(adminUserId: string, alertId: string, status: string, resolutionNotes: string): Promise<void> {
+  async resolveFraudAlert(
+    adminUserId: string,
+    alertId: string,
+    status: string,
+    resolutionNotes: string,
+    idempotencyKey?: string,
+  ): Promise<{ actionId: string; isDuplicate: boolean }> {
+    // Idempotency check
+    if (idempotencyKey) {
+      const existing = await this.db.query(
+        `SELECT id FROM admin_actions 
+         WHERE action_type = 'fraud_alert_resolve' 
+         AND target_id = $1 
+         AND idempotency_key = $2`,
+        [alertId, idempotencyKey],
+      );
+
+      if (existing.rows.length > 0) {
+        this.logger.log(
+          `Fraud alert resolve action already processed (idempotency key: ${idempotencyKey})`,
+        );
+        return { actionId: existing.rows[0].id, isDuplicate: true };
+      }
+    }
+
     await this.db.query(
       `UPDATE fraud_alerts 
        SET status = $1, resolved_by_user_id = $2, resolution_notes = $3, resolved_at = CURRENT_TIMESTAMP
@@ -476,7 +847,19 @@ export class AdminService {
       [status, adminUserId, resolutionNotes, alertId],
     );
 
+    const actionId = await this.logAdminAction(
+      adminUserId,
+      'fraud_alert_resolve',
+      'fraud_alert',
+      alertId,
+      { status, resolutionNotes },
+      resolutionNotes,
+      undefined,
+      undefined,
+      idempotencyKey,
+    );
     this.logger.log(`Fraud alert ${alertId} resolved by admin ${adminUserId}`);
+    return { actionId, isDuplicate: false };
   }
 
   // ============================================================================
@@ -511,7 +894,31 @@ export class AdminService {
   /**
    * Review content moderation item
    */
-  async reviewContent(adminUserId: string, moderationId: string, status: string, reviewNotes: string): Promise<void> {
+  async reviewContent(
+    adminUserId: string,
+    moderationId: string,
+    status: string,
+    reviewNotes: string,
+    idempotencyKey?: string,
+  ): Promise<{ actionId: string; isDuplicate: boolean }> {
+    // Idempotency check
+    if (idempotencyKey) {
+      const existing = await this.db.query(
+        `SELECT id FROM admin_actions 
+         WHERE action_type = 'content_moderation_review' 
+         AND target_id = $1 
+         AND idempotency_key = $2`,
+        [moderationId, idempotencyKey],
+      );
+
+      if (existing.rows.length > 0) {
+        this.logger.log(
+          `Content moderation review action already processed (idempotency key: ${idempotencyKey})`,
+        );
+        return { actionId: existing.rows[0].id, isDuplicate: true };
+      }
+    }
+
     await this.db.query(
       `UPDATE content_moderation 
        SET status = $1, reviewed_by_user_id = $2, review_notes = $3, reviewed_at = CURRENT_TIMESTAMP
@@ -519,7 +926,19 @@ export class AdminService {
       [status, adminUserId, reviewNotes, moderationId],
     );
 
+    const actionId = await this.logAdminAction(
+      adminUserId,
+      'content_moderation_review',
+      'content_moderation',
+      moderationId,
+      { status, reviewNotes },
+      reviewNotes,
+      undefined,
+      undefined,
+      idempotencyKey,
+    );
     this.logger.log(`Content moderation ${moderationId} reviewed by admin ${adminUserId}`);
+    return { actionId, isDuplicate: false };
   }
 
   // ============================================================================
@@ -538,10 +957,12 @@ export class AdminService {
     reason?: string,
     ipAddress?: string,
     userAgent?: string,
-  ): Promise<void> {
-    await this.db.query(
-      `INSERT INTO admin_actions (admin_user_id, action_type, target_type, target_id, action_details, reason, ip_address, user_agent)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    idempotencyKey?: string,
+  ): Promise<string> {
+    const result = await this.db.query(
+      `INSERT INTO admin_actions (admin_user_id, action_type, target_type, target_id, action_details, reason, ip_address, user_agent, idempotency_key)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING id`,
       [
         adminUserId,
         actionType,
@@ -551,8 +972,10 @@ export class AdminService {
         reason || null,
         ipAddress || null,
         userAgent || null,
+        idempotencyKey || null,
       ],
     );
+    return result.rows[0].id;
   }
 
   /**

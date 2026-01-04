@@ -7,6 +7,7 @@ import { EmailService } from './email.service';
 import { UsersModule } from '../users/users.module';
 import { RedisModule } from '../cache/redis.module';
 import { LedgerModule } from '../ledger/ledger.module';
+import { CommonModule } from '../common/common.module';
 import { RateLimitMiddleware } from './rate-limit.middleware';
 
 @Module({
@@ -16,6 +17,7 @@ import { RateLimitMiddleware } from './rate-limit.middleware';
     UsersModule,
     RedisModule,
     LedgerModule,
+    CommonModule,
   ],
   controllers: [AuthController],
   providers: [AuthService, EmailService, RateLimitMiddleware],

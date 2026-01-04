@@ -7,10 +7,12 @@ import { ReconciliationProcessor } from './reconciliation.processor';
 import { ReconciliationController } from './reconciliation.controller';
 import { DatabaseModule } from '../database/database.module';
 import { GovernanceModule } from '../governance/governance.module';
+import { CommonModule } from '../common/common.module';
 
 @Module({
   imports: [
     DatabaseModule,
+    CommonModule,
     BullModule.registerQueue({
       name: 'reconciliation',
     }),

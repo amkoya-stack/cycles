@@ -1,54 +1,40 @@
-import { Module, Global } from '@nestjs/common';
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { DatabaseModule } from '../database/database.module';
+import { RedisModule } from '../cache/redis.module';
 import { RateLimitGuard } from './guards/rate-limit.guard';
-import { IdempotencyInterceptor } from './interceptors/idempotency.interceptor';
-import { ApiVersionGuard } from './guards/api-version.guard';
 import { FeatureFlagGuard } from './guards/feature-flag.guard';
-import { TokenizationInterceptor } from './interceptors/tokenization.interceptor';
+import { MetricsService } from './services/metrics.service';
 import { TokenizationService } from './services/tokenization.service';
 import { FeatureFlagsService } from './services/feature-flags.service';
 import { CanaryDeploymentService } from './services/canary-deployment.service';
 import { RollbackService } from './services/rollback.service';
-import { ChaosTestingService } from './services/chaos-testing.service';
-import { MetricsService } from './services/metrics.service';
-import { MetricsController } from './controllers/metrics.controller';
-import { HttpMetricsInterceptor } from './interceptors/http-metrics.interceptor';
 import { HealthMonitorService } from './services/health-monitor.service';
-import { RedisModule } from '../cache/redis.module';
-import { DatabaseModule } from '../database/database.module';
+import { HttpMetricsInterceptor } from './interceptors/http-metrics.interceptor';
 
-@Global()
 @Module({
-  imports: [RedisModule, DatabaseModule],
-  controllers: [MetricsController],
+  imports: [ConfigModule, DatabaseModule, RedisModule],
   providers: [
     RateLimitGuard,
-    IdempotencyInterceptor,
-    ApiVersionGuard,
     FeatureFlagGuard,
-    TokenizationInterceptor,
+    MetricsService,
     TokenizationService,
     FeatureFlagsService,
     CanaryDeploymentService,
     RollbackService,
-    ChaosTestingService,
-    MetricsService,
-    HttpMetricsInterceptor,
     HealthMonitorService,
+    HttpMetricsInterceptor,
   ],
   exports: [
     RateLimitGuard,
-    IdempotencyInterceptor,
-    ApiVersionGuard,
     FeatureFlagGuard,
-    TokenizationInterceptor,
+    MetricsService,
     TokenizationService,
     FeatureFlagsService,
     CanaryDeploymentService,
     RollbackService,
-    ChaosTestingService,
-    MetricsService,
-    HttpMetricsInterceptor,
     HealthMonitorService,
+    HttpMetricsInterceptor,
   ],
 })
 export class CommonModule {}

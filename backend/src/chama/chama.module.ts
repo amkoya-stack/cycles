@@ -6,6 +6,7 @@ import { WalletModule } from '../wallet/wallet.module';
 import { MpesaModule } from '../mpesa/mpesa.module';
 import { ReputationModule } from '../reputation/reputation.module';
 import { ActivityModule } from '../activity/activity.module';
+import { CommonModule } from '../common/common.module';
 import { ChamaController } from './chama.controller';
 import { ChamaService } from './chama.service';
 import { ContributionService } from './contribution.service';
@@ -25,6 +26,7 @@ import { CommunityController } from './community.controller';
 @Module({
   imports: [
     DatabaseModule,
+    CommonModule,
     LedgerModule,
     WalletModule,
     MpesaModule,

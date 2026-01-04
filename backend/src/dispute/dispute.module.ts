@@ -17,7 +17,7 @@ import { DisputeReminderService } from './dispute-reminder.service';
     DisputeNotificationService,
     DisputeReminderService,
   ],
-  exports: [DisputeService],
+  exports: [DisputeService, FileUploadService],
 })
 export class DisputeModule {}
 

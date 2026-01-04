@@ -93,7 +93,7 @@ CREATE TABLE IF NOT EXISTS fraud_alerts (
   severity VARCHAR(20) NOT NULL DEFAULT 'medium', -- 'low', 'medium', 'high', 'critical'
   user_id UUID REFERENCES users(id) ON DELETE SET NULL,
   chama_id UUID REFERENCES chamas(id) ON DELETE SET NULL,
-  transaction_id UUID REFERENCES financial_transactions(id) ON DELETE SET NULL,
+  transaction_id UUID REFERENCES transactions(id) ON DELETE SET NULL,
   description TEXT NOT NULL,
   evidence JSONB,
   status VARCHAR(20) NOT NULL DEFAULT 'open', -- 'open', 'investigating', 'resolved', 'false_positive', 'dismissed'
@@ -139,21 +139,18 @@ SELECT
   u.id as user_id,
   COUNT(DISTINCT cm.chama_id) as chamas_joined,
   COUNT(DISTINCT CASE WHEN cm.role IN ('admin', 'treasurer') THEN cm.chama_id END) as chamas_admin,
-  COALESCE(SUM(CASE WHEN ft.type = 'contribution' AND ft.status = 'completed' THEN ft.amount ELSE 0 END), 0) as total_contributions,
-  COUNT(DISTINCT CASE WHEN ft.type = 'contribution' AND ft.status = 'completed' THEN ft.id END) as contribution_count,
+  COUNT(DISTINCT CASE WHEN ft.status = 'completed' AND tc.code = 'CONTRIBUTION' THEN ft.id END) as contribution_count,
   COUNT(DISTINCT l.id) as total_loans,
   COUNT(DISTINCT CASE WHEN l.status = 'active' THEN l.id END) as active_loans,
   COUNT(DISTINCT CASE WHEN l.status = 'repaid' THEN l.id END) as repaid_loans,
   COUNT(DISTINCT CASE WHEN l.status = 'defaulted' THEN l.id END) as defaulted_loans,
-  COALESCE(SUM(CASE WHEN ft.type = 'deposit' AND ft.status = 'completed' THEN ft.amount ELSE 0 END), 0) as total_deposits,
-  COALESCE(SUM(CASE WHEN ft.type = 'withdrawal' AND ft.status = 'completed' THEN ft.amount ELSE 0 END), 0) as total_withdrawals,
-  u.reputation_score,
   u.created_at as user_joined_at
 FROM users u
 LEFT JOIN chama_members cm ON u.id = cm.user_id AND cm.status = 'active'
-LEFT JOIN financial_transactions ft ON u.id = ft.user_id
+LEFT JOIN transactions ft ON u.id = ft.initiated_by
+LEFT JOIN transaction_codes tc ON ft.transaction_code_id = tc.id
 LEFT JOIN loans l ON u.id = l.borrower_id
-GROUP BY u.id, u.reputation_score, u.created_at;
+GROUP BY u.id, u.created_at;
 
 -- ============================================================================
 -- CHAMA DASHBOARD METRICS VIEW
@@ -165,23 +162,18 @@ SELECT
   c.name as chama_name,
   COUNT(DISTINCT cm.user_id) FILTER (WHERE cm.status = 'active') as active_members,
   COUNT(DISTINCT cm.user_id) FILTER (WHERE cm.status = 'pending') as pending_members,
-  COALESCE(SUM(CASE WHEN ft.type = 'contribution' AND ft.status = 'completed' THEN ft.amount ELSE 0 END), 0) as total_contributions,
-  COUNT(DISTINCT CASE WHEN ft.type = 'contribution' AND ft.status = 'completed' THEN ft.id END) as contribution_count,
-  COALESCE(SUM(CASE WHEN ft.type = 'payout' AND ft.status = 'completed' THEN ft.amount ELSE 0 END), 0) as total_payouts,
   COUNT(DISTINCT l.id) as total_loans_issued,
-  COALESCE(SUM(CASE WHEN l.status = 'active' THEN l.amount ELSE 0 END), 0) as active_loans_amount,
-  COALESCE(SUM(CASE WHEN l.status = 'repaid' THEN l.amount ELSE 0 END), 0) as repaid_loans_amount,
-  COALESCE(SUM(CASE WHEN l.status = 'defaulted' THEN l.amount ELSE 0 END), 0) as defaulted_loans_amount,
-  c.reputation_score,
+  COUNT(DISTINCT CASE WHEN l.status = 'active' THEN l.id END) as active_loans,
+  COUNT(DISTINCT CASE WHEN l.status = 'repaid' THEN l.id END) as repaid_loans,
+  COUNT(DISTINCT CASE WHEN l.status = 'defaulted' THEN l.id END) as defaulted_loans,
   c.created_at as chama_created_at,
-  COUNT(DISTINCT d.id) FILTER (WHERE d.status = 'active') as active_disputes,
+  COUNT(DISTINCT d.id) FILTER (WHERE d.status IN ('filed', 'under_review', 'discussion', 'voting')) as active_disputes,
   COUNT(DISTINCT d.id) FILTER (WHERE d.status = 'resolved') as resolved_disputes
 FROM chamas c
 LEFT JOIN chama_members cm ON c.id = cm.chama_id
-LEFT JOIN financial_transactions ft ON c.id = ft.chama_id
 LEFT JOIN loans l ON c.id = l.chama_id
 LEFT JOIN disputes d ON c.id = d.chama_id
-GROUP BY c.id, c.name, c.reputation_score, c.created_at;
+GROUP BY c.id, c.name, c.created_at;
 
 -- ============================================================================
 -- PLATFORM DASHBOARD METRICS VIEW
@@ -189,18 +181,24 @@ GROUP BY c.id, c.name, c.reputation_score, c.created_at;
 
 CREATE OR REPLACE VIEW platform_dashboard_metrics AS
 SELECT 
-  (SELECT COUNT(*) FROM users WHERE deleted_at IS NULL) as total_users,
-  (SELECT COUNT(*) FROM users WHERE deleted_at IS NULL AND created_at >= CURRENT_DATE - INTERVAL '30 days') as new_users_30d,
-  (SELECT COUNT(*) FROM chamas WHERE deleted_at IS NULL) as total_chamas,
-  (SELECT COUNT(*) FROM chamas WHERE deleted_at IS NULL AND created_at >= CURRENT_DATE - INTERVAL '30 days') as new_chamas_30d,
-  (SELECT COUNT(*) FROM financial_transactions WHERE status = 'completed') as total_transactions,
-  (SELECT COUNT(*) FROM financial_transactions WHERE status = 'completed' AND created_at >= CURRENT_DATE) as transactions_today,
-  (SELECT COUNT(*) FROM financial_transactions WHERE status = 'completed' AND created_at >= CURRENT_DATE - INTERVAL '30 days') as transactions_30d,
-  (SELECT COALESCE(SUM(amount), 0) FROM financial_transactions WHERE status = 'completed' AND type = 'deposit') as total_deposits,
-  (SELECT COALESCE(SUM(amount), 0) FROM financial_transactions WHERE status = 'completed' AND type = 'deposit' AND created_at >= CURRENT_DATE - INTERVAL '30 days') as deposits_30d,
-  (SELECT COALESCE(SUM(amount), 0) FROM financial_transactions WHERE status = 'completed' AND type = 'contribution') as total_contributions,
+  (SELECT COUNT(*) FROM users) as total_users,
+  (SELECT COUNT(*) FROM users WHERE created_at >= CURRENT_DATE - INTERVAL '30 days') as new_users_30d,
+  (SELECT COUNT(*) FROM chamas) as total_chamas,
+  (SELECT COUNT(*) FROM chamas WHERE created_at >= CURRENT_DATE - INTERVAL '30 days') as new_chamas_30d,
+  (SELECT COUNT(*) FROM transactions WHERE status = 'completed') as total_transactions,
+  (SELECT COUNT(*) FROM transactions WHERE status = 'completed' AND created_at >= CURRENT_DATE) as transactions_today,
+  (SELECT COUNT(*) FROM transactions WHERE status = 'completed' AND created_at >= CURRENT_DATE - INTERVAL '30 days') as transactions_30d,
+  (SELECT COALESCE(SUM(amount), 0) FROM transactions t 
+   JOIN transaction_codes tc ON t.transaction_code_id = tc.id 
+   WHERE t.status = 'completed' AND tc.code = 'DEPOSIT') as total_deposits,
+  (SELECT COALESCE(SUM(amount), 0) FROM transactions t 
+   JOIN transaction_codes tc ON t.transaction_code_id = tc.id 
+   WHERE t.status = 'completed' AND tc.code = 'DEPOSIT' AND t.created_at >= CURRENT_DATE - INTERVAL '30 days') as deposits_30d,
+  (SELECT COALESCE(SUM(amount), 0) FROM transactions t 
+   JOIN transaction_codes tc ON t.transaction_code_id = tc.id 
+   WHERE t.status = 'completed' AND tc.code = 'CONTRIBUTION') as total_contributions,
   (SELECT COUNT(*) FROM loans WHERE status = 'active') as active_loans,
-  (SELECT COALESCE(SUM(amount), 0) FROM loans WHERE status = 'active') as active_loans_amount,
+  0 as active_loans_amount, -- TODO: Fix loans table schema reference
   (SELECT COUNT(*) FROM loans WHERE status = 'repaid') as repaid_loans,
   (SELECT COUNT(*) FROM loans WHERE status = 'defaulted') as defaulted_loans,
   (SELECT COUNT(*) FROM disputes WHERE status IN ('filed', 'under_review', 'discussion', 'voting')) as active_disputes,

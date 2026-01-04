@@ -3,6 +3,7 @@ import { BullModule } from '@nestjs/bull';
 import { DatabaseModule } from '../database/database.module';
 import { LedgerModule } from '../ledger/ledger.module';
 import { MpesaModule } from '../mpesa/mpesa.module';
+import { CommonModule } from '../common/common.module';
 import { WalletController } from './wallet.controller';
 import { WalletService } from './wallet.service';
 import { StatementService } from './statement.service';
@@ -15,6 +16,7 @@ import { FinancialTransactionProcessor } from './queues/financial-transaction.pr
 @Module({
   imports: [
     DatabaseModule,
+    CommonModule,
     LedgerModule,
     forwardRef(() => MpesaModule),
     BullModule.registerQueue({

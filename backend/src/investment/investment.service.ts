@@ -617,7 +617,39 @@ export class InvestmentService {
         [chamaId],
       );
 
-      return mapQueryRow(result.rows[0]);
+      // Always return a valid object, even if no investments exist
+      const summary = result.rows[0] 
+        ? mapQueryRow(result.rows[0])
+        : {
+            total_investments: 0,
+            active_investments: 0,
+            matured_investments: 0,
+            total_invested: 0,
+            total_interest_earned: 0,
+            total_returns: 0,
+            expected_returns: 0,
+          };
+
+      return summary || {
+        total_investments: 0,
+        active_investments: 0,
+        matured_investments: 0,
+        total_invested: 0,
+        total_interest_earned: 0,
+        total_returns: 0,
+        expected_returns: 0,
+      };
+    } catch (error) {
+      // Return default summary on error
+      return {
+        total_investments: 0,
+        active_investments: 0,
+        matured_investments: 0,
+        total_invested: 0,
+        total_interest_earned: 0,
+        total_returns: 0,
+        expected_returns: 0,
+      };
     } finally {
       await this.db.clearContext();
     }

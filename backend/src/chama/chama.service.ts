@@ -237,7 +237,8 @@ export class ChamaService {
    * Get public chama details (no auth required)
    */
   async getPublicChamaDetails(chamaId: string): Promise<any> {
-    const result = await this.db.query(
+    // Use queryAsSystem helper to automatically handle RLS context
+    const result = await this.db.queryAsSystem(
       `SELECT 
         c.*,
         u.email as admin_email,
@@ -255,10 +256,13 @@ export class ChamaService {
     );
 
     if (result.rows.length === 0) {
+      // Context is automatically cleared by queryAsSystem
       throw new NotFoundException('Chama not found');
     }
 
     const chama = result.rows[0];
+    
+    // Context is automatically cleared by queryAsSystem
     return {
       ...chama,
       tags: this.extractTagsFromSettings(chama.settings),
@@ -280,7 +284,8 @@ export class ChamaService {
     const decodedSlug = decodeURIComponent(slug);
     const possibleName = decodedSlug.replace(/-/g, ' ');
 
-    const result = await this.db.query(
+    // Use queryAsSystem helper to automatically handle RLS context
+    const result = await this.db.queryAsSystem(
       `SELECT 
         c.*,
         u.email as admin_email,
@@ -303,10 +308,13 @@ export class ChamaService {
     );
 
     if (result.rows.length === 0) {
+      // Context is automatically cleared by queryAsSystem
       throw new NotFoundException('Chama not found');
     }
 
     const chama = result.rows[0];
+    
+    // Context is automatically cleared by queryAsSystem
     return {
       ...chama,
       tags: this.extractTagsFromSettings(chama.settings),
@@ -473,6 +481,16 @@ export class ChamaService {
 
     await this.db.setUserContext(userId);
 
+    // Debug: Check all memberships regardless of status
+    const debugResult = await this.db.query(
+      `SELECT chama_id, status, role, joined_at 
+       FROM chama_members 
+       WHERE user_id = $1`,
+      [userId],
+    );
+    console.log(`Debug: User has ${debugResult.rowCount} total memberships:`, 
+      debugResult.rows.map(r => ({ chama_id: r.chama_id, status: r.status, role: r.role })));
+
     const result = await this.db.query(
       `SELECT 
         c.*,
@@ -485,7 +503,7 @@ export class ChamaService {
       FROM chamas c
       JOIN chama_members cm ON c.id = cm.chama_id
       LEFT JOIN chama_members cm2 ON c.id = cm2.chama_id
-      WHERE cm.user_id = $1 AND cm.status = 'active'
+      WHERE cm.user_id = $1 AND cm.status IN ('active', 'suspended')
       GROUP BY c.id, cm.id
       ORDER BY c.created_at DESC`,
       [userId],
@@ -509,18 +527,20 @@ export class ChamaService {
    */
   async listPublicChamas(): Promise<any> {
     console.log('🔍 listPublicChamas called');
+    
+    // Use queryAsSystem helper to automatically handle RLS context
     // DEBUG: Log current database and user
-    const dbInfo = await this.db.query(
+    const dbInfo = await this.db.queryAsSystem(
       'SELECT current_database() as db, current_user as user',
     );
     console.log('🟡 DB Info:', dbInfo.rows);
     // DEBUG: Log all chamas in the table
-    const allChamas = await this.db.query(
+    const allChamas = await this.db.queryAsSystem(
       'SELECT id, name, status, settings FROM chamas',
     );
     console.log('🟢 All chamas in DB:', allChamas.rows);
 
-    const result = await this.db.query(
+    const result = await this.db.queryAsSystem(
       `SELECT 
         c.id,
         c.name,
@@ -576,6 +596,8 @@ export class ChamaService {
     console.log(
       `✅ Returning ${chamasWithData.length} chamas with reputation data`,
     );
+    
+    // Context is automatically cleared by queryAsSystem
     return chamasWithData;
   }
 

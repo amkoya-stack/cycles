@@ -24,9 +24,19 @@ import { LendingModule } from './lending/lending.module';
 import { InvestmentModule } from './investment/investment.module';
 import { DisputeModule } from './dispute/dispute.module';
 import { AnalyticsModule } from './analytics/analytics.module';
+import { KycModule } from './kyc/kyc.module';
+import { SecurityModule } from './security/security.module';
+import { AmlModule } from './aml/aml.module';
+import { GdprModule } from './gdpr/gdpr.module';
+import { AuditModule } from './audit/audit.module';
+import { ComplianceModule } from './compliance/compliance.module';
+import { MonitoringModule } from './monitoring/monitoring.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { RateLimitGuard } from './common/guards/rate-limit.guard';
+import { APP_INTERCEPTOR } from '@nestjs/core';
+import { AuditTrailInterceptor } from './audit/audit-trail.interceptor';
+import { MonitoringInterceptor } from './monitoring/monitoring.interceptor';
 
 @Module({
   imports: [
@@ -61,6 +71,13 @@ import { RateLimitGuard } from './common/guards/rate-limit.guard';
     InvestmentModule,
     DisputeModule,
     AnalyticsModule,
+    KycModule,
+    SecurityModule,
+    AmlModule,
+    GdprModule,
+    AuditModule,
+    ComplianceModule,
+    MonitoringModule,
   ],
   controllers: [AppController],
   providers: [
@@ -68,6 +85,14 @@ import { RateLimitGuard } from './common/guards/rate-limit.guard';
     {
       provide: APP_GUARD,
       useClass: RateLimitGuard,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: AuditTrailInterceptor,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: MonitoringInterceptor,
     },
   ],
 })

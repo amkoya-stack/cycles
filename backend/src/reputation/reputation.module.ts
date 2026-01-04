@@ -5,10 +5,12 @@ import { ReputationAutomationService } from './reputation-automation.service';
 import { ReputationScheduledService } from './reputation-scheduled.service';
 import { ReputationController } from './reputation.controller';
 import { DatabaseModule } from '../database/database.module';
+import { CommonModule } from '../common/common.module';
 
 @Module({
   imports: [
     DatabaseModule,
+    CommonModule,
     forwardRef(() => require('../chama/chama.module').ChamaModule),
   ],
   controllers: [ReputationController],

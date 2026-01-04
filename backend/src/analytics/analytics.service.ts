@@ -3,25 +3,33 @@
 /* eslint-disable @typescript-eslint/no-unsafe-call */
 import { Injectable, Logger } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
+import { TokenizationService } from '../common/services/tokenization.service';
 
 @Injectable()
 export class AnalyticsService {
   private readonly logger = new Logger(AnalyticsService.name);
 
-  constructor(private readonly db: DatabaseService) {}
+  constructor(
+    private readonly db: DatabaseService,
+    private readonly tokenization: TokenizationService,
+  ) {}
 
   /**
    * Get user dashboard metrics
+   * NOTE: User dashboard shows PERSONAL investments (user's own investments),
+   * NOT chama investments. Chama investments are shown in chama dashboard.
    */
   async getUserDashboardMetrics(userId: string): Promise<any> {
-    const result = await this.db.query(
-      `SELECT * FROM user_dashboard_metrics WHERE user_id = $1`,
-      [userId],
-    );
+    await this.db.setSystemContext();
+    
+    try {
+      // Get base user metrics from view
+      const result = await this.db.query(
+        `SELECT * FROM user_dashboard_metrics WHERE user_id = $1`,
+        [userId],
+      );
 
-    if (result.rows.length === 0) {
-      // Return default metrics if user not found
-      return {
+      let baseMetrics: any = {
         chamasJoined: 0,
         chamasAdmin: 0,
         totalContributions: 0,
@@ -35,36 +43,80 @@ export class AnalyticsService {
         reputationScore: 0,
         userJoinedAt: null,
       };
-    }
 
-    const metrics = result.rows[0];
-    return {
-      chamasJoined: parseInt(metrics.chamas_joined || '0'),
-      chamasAdmin: parseInt(metrics.chamas_admin || '0'),
-      totalContributions: parseFloat(metrics.total_contributions || '0'),
-      contributionCount: parseInt(metrics.contribution_count || '0'),
-      totalLoans: parseInt(metrics.total_loans || '0'),
-      activeLoans: parseInt(metrics.active_loans || '0'),
-      repaidLoans: parseInt(metrics.repaid_loans || '0'),
-      defaultedLoans: parseInt(metrics.defaulted_loans || '0'),
-      totalDeposits: parseFloat(metrics.total_deposits || '0'),
-      totalWithdrawals: parseFloat(metrics.total_withdrawals || '0'),
-      reputationScore: parseInt(metrics.reputation_score || '0'),
-      userJoinedAt: metrics.user_joined_at,
-    };
+      if (result.rows.length > 0) {
+        const metrics = result.rows[0];
+        baseMetrics = {
+          chamasJoined: parseInt(metrics.chamas_joined || '0'),
+          chamasAdmin: parseInt(metrics.chamas_admin || '0'),
+          totalContributions: parseFloat(metrics.total_contributions || '0'),
+          contributionCount: parseInt(metrics.contribution_count || '0'),
+          totalLoans: parseInt(metrics.total_loans || '0'),
+          activeLoans: parseInt(metrics.active_loans || '0'),
+          repaidLoans: parseInt(metrics.repaid_loans || '0'),
+          defaultedLoans: parseInt(metrics.defaulted_loans || '0'),
+          totalDeposits: parseFloat(metrics.total_deposits || '0'),
+          totalWithdrawals: parseFloat(metrics.total_withdrawals || '0'),
+          reputationScore: parseInt(metrics.reputation_score || '0'),
+          userJoinedAt: metrics.user_joined_at,
+        };
+      }
+
+      // Get PERSONAL investment metrics (user's own investments, not chama investments)
+      // This includes: user's personal MMF, fixed savings, etc.
+      // Investment shares where user_id is set and it's a personal investment (not chama investment)
+      const personalInvestments = await this.db.query(
+        `SELECT 
+          COUNT(DISTINCT is.id) as total_investments,
+          COUNT(DISTINCT is.id) FILTER (WHERE i.status = 'active') as active_investments,
+          COUNT(DISTINCT is.id) FILTER (WHERE i.status = 'matured') as matured_investments,
+          COALESCE(SUM(is.amount_invested) FILTER (WHERE i.status IN ('active', 'approved')), 0) as total_invested,
+          COALESCE(SUM(is.interest_share), 0) as total_interest_earned,
+          COALESCE(SUM(is.principal_share + is.interest_share), 0) as total_returns,
+          COALESCE(SUM(i.expected_return * (is.ownership_percentage / 100.0)) FILTER (WHERE i.status = 'active'), 0) as expected_returns
+         FROM investment_shares is
+         JOIN investments i ON is.investment_id = i.id
+         WHERE is.user_id = $1 
+           AND (is.chama_id IS NULL OR is.chama_id = '00000000-0000-0000-0000-000000000000')`,
+        [userId],
+      );
+
+      const invMetrics = personalInvestments.rows[0] || {};
+      
+      return {
+        ...baseMetrics,
+        // Personal investment metrics
+        personalInvestments: {
+          totalInvestments: parseInt(invMetrics.total_investments || '0'),
+          activeInvestments: parseInt(invMetrics.active_investments || '0'),
+          maturedInvestments: parseInt(invMetrics.matured_investments || '0'),
+          totalInvested: parseFloat(invMetrics.total_invested || '0'),
+          totalInterestEarned: parseFloat(invMetrics.total_interest_earned || '0'),
+          totalReturns: parseFloat(invMetrics.total_returns || '0'),
+          expectedReturns: parseFloat(invMetrics.expected_returns || '0'),
+        },
+      };
+    } finally {
+      await this.db.clearContext();
+    }
   }
 
   /**
    * Get chama dashboard metrics
+   * NOTE: Chama dashboard shows CHAMA-LEVEL investments (investments made by the chama),
+   * NOT individual user investments within the chama.
    */
   async getChamaDashboardMetrics(chamaId: string): Promise<any> {
-    const result = await this.db.query(
-      `SELECT * FROM chama_dashboard_metrics WHERE chama_id = $1`,
-      [chamaId],
-    );
+    await this.db.setSystemContext();
+    
+    try {
+      // Get base chama metrics from view
+      const result = await this.db.query(
+        `SELECT * FROM chama_dashboard_metrics WHERE chama_id = $1`,
+        [chamaId],
+      );
 
-    if (result.rows.length === 0) {
-      return {
+      let baseMetrics: any = {
         activeMembers: 0,
         pendingMembers: 0,
         totalContributions: 0,
@@ -79,25 +131,61 @@ export class AnalyticsService {
         activeDisputes: 0,
         resolvedDisputes: 0,
       };
-    }
 
-    const metrics = result.rows[0];
-    return {
-      chamaName: metrics.chama_name,
-      activeMembers: parseInt(metrics.active_members || '0'),
-      pendingMembers: parseInt(metrics.pending_members || '0'),
-      totalContributions: parseFloat(metrics.total_contributions || '0'),
-      contributionCount: parseInt(metrics.contribution_count || '0'),
-      totalPayouts: parseFloat(metrics.total_payouts || '0'),
-      totalLoansIssued: parseInt(metrics.total_loans_issued || '0'),
-      activeLoansAmount: parseFloat(metrics.active_loans_amount || '0'),
-      repaidLoansAmount: parseFloat(metrics.repaid_loans_amount || '0'),
-      defaultedLoansAmount: parseFloat(metrics.defaulted_loans_amount || '0'),
-      reputationScore: parseInt(metrics.reputation_score || '0'),
-      chamaCreatedAt: metrics.chama_created_at,
-      activeDisputes: parseInt(metrics.active_disputes || '0'),
-      resolvedDisputes: parseInt(metrics.resolved_disputes || '0'),
-    };
+      if (result.rows.length > 0) {
+        const metrics = result.rows[0];
+        baseMetrics = {
+          chamaName: metrics.chama_name,
+          activeMembers: parseInt(metrics.active_members || '0'),
+          pendingMembers: parseInt(metrics.pending_members || '0'),
+          totalContributions: parseFloat(metrics.total_contributions || '0'),
+          contributionCount: parseInt(metrics.contribution_count || '0'),
+          totalPayouts: parseFloat(metrics.total_payouts || '0'),
+          totalLoansIssued: parseInt(metrics.total_loans_issued || '0'),
+          activeLoansAmount: parseFloat(metrics.active_loans_amount || '0'),
+          repaidLoansAmount: parseFloat(metrics.repaid_loans_amount || '0'),
+          defaultedLoansAmount: parseFloat(metrics.defaulted_loans_amount || '0'),
+          reputationScore: parseInt(metrics.reputation_score || '0'),
+          chamaCreatedAt: metrics.chama_created_at,
+          activeDisputes: parseInt(metrics.active_disputes || '0'),
+          resolvedDisputes: parseInt(metrics.resolved_disputes || '0'),
+        };
+      }
+
+      // Get CHAMA-LEVEL investment metrics (investments made by the chama)
+      // Investments where chama_id is set (chama-level investments)
+      const chamaInvestments = await this.db.query(
+        `SELECT 
+          COUNT(*) as total_investments,
+          COUNT(*) FILTER (WHERE status = 'active') as active_investments,
+          COUNT(*) FILTER (WHERE status = 'matured') as matured_investments,
+          COALESCE(SUM(amount) FILTER (WHERE status IN ('active', 'approved')), 0) as total_invested,
+          COALESCE(SUM(interest_earned), 0) as total_interest_earned,
+          COALESCE(SUM(total_return), 0) as total_returns,
+          COALESCE(SUM(expected_return) FILTER (WHERE status = 'active'), 0) as expected_returns
+         FROM investments
+         WHERE chama_id = $1`,
+        [chamaId],
+      );
+
+      const invMetrics = chamaInvestments.rows[0] || {};
+      
+      return {
+        ...baseMetrics,
+        // Chama investment metrics
+        chamaInvestments: {
+          totalInvestments: parseInt(invMetrics.total_investments || '0'),
+          activeInvestments: parseInt(invMetrics.active_investments || '0'),
+          maturedInvestments: parseInt(invMetrics.matured_investments || '0'),
+          totalInvested: parseFloat(invMetrics.total_invested || '0'),
+          totalInterestEarned: parseFloat(invMetrics.total_interest_earned || '0'),
+          totalReturns: parseFloat(invMetrics.total_returns || '0'),
+          expectedReturns: parseFloat(invMetrics.expected_returns || '0'),
+        },
+      };
+    } finally {
+      await this.db.clearContext();
+    }
   }
 
   /**
