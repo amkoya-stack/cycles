@@ -7,10 +7,10 @@ interface HomeHeaderProps {
 export function HomeHeader({ isAuthenticated }: HomeHeaderProps) {
   return (
     <div className="mb-6 text-center">
-      <h1 className="text-4xl font-bold text-[#083232]">
+      <h1 className="text-2xl md:text-4xl font-bold text-[#083232]">
         #1 social fintech in kenya
       </h1>
-      <h3 className="text-lg text-gray-600 mt-1">
+      <h3 className="text-base md:text-lg text-gray-600 mt-1">
         browse or{" "}
         {isAuthenticated ? (
           <Link

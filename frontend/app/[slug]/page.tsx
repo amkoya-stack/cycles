@@ -164,6 +164,7 @@ export default function CycleBySlugPage() {
   const [loadingTransactions, setLoadingTransactions] = useState(false);
   const [meetingsRefreshKey, setMeetingsRefreshKey] = useState(0);
   const [showAllTransactions, setShowAllTransactions] = useState(false);
+  const [showFullDescription, setShowFullDescription] = useState(false);
 
   // Meeting modal state
   const [showSpacesModal, setShowSpacesModal] = useState(false);
@@ -487,6 +488,13 @@ export default function CycleBySlugPage() {
     return map[freq] || freq;
   };
 
+  const getLastName = (fullName: string | null | undefined): string => {
+    if (!fullName) return "";
+    const parts = fullName.trim().split(/\s+/);
+    // Return last name if multiple names, otherwise return the single name
+    return parts.length > 1 ? parts[parts.length - 1] : parts[0];
+  };
+
   const handleImageUpload = async (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
@@ -692,9 +700,9 @@ export default function CycleBySlugPage() {
     switch (activeTab) {
       case "community":
         return (
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 md:gap-6">
             {/* Main Content - Posts & Threads */}
-            <div className="lg:col-span-3">
+            <div className="lg:col-span-3 order-2 lg:order-1">
               <CommunityPosts
                 chamaId={chama.id}
                 userId={(() => {
@@ -714,8 +722,8 @@ export default function CycleBySlugPage() {
             </div>
 
             {/* Right Sidebar - Meetings & Polls */}
-            <div className="lg:col-span-1">
-              <div className="sticky top-20 space-y-6">
+            <div className="lg:col-span-1 order-1 lg:order-2">
+              <div className="lg:sticky lg:top-20 space-y-3 md:space-y-4 lg:space-y-6">
                 <MeetingsSidebar
                   key={meetingsRefreshKey}
                   chamaId={chama.id}
@@ -851,38 +859,40 @@ export default function CycleBySlugPage() {
 
       case "financials":
         return (
-          <div className="space-y-6">
+          <div className="space-y-4 md:space-y-6">
             {/* Wallet Header */}
-            <div className="bg-[#083232] rounded-2xl p-8 text-white shadow-lg border-2 border-[#2e856e]">
-              <div className="flex items-center justify-between mb-6">
+            <div className="bg-[#083232] rounded-xl md:rounded-2xl p-4 md:p-8 text-white shadow-lg border-2 border-[#2e856e]">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 md:gap-0">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
-                    <Wallet className="w-6 h-6" />
+                  <div className="w-10 h-10 md:w-12 md:h-12 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <Wallet className="w-5 h-5 md:w-6 md:h-6" />
                   </div>
                   <div>
-                    <p className="text-sm opacity-90">Chama Wallet</p>
-                    <h2 className="text-3xl font-bold">
+                    <p className="text-xs md:text-sm opacity-90">Chama Wallet</p>
+                    <h2 className="text-2xl md:text-3xl font-bold">
                       KSh {formatAmount(chama.current_balance)}
                     </h2>
                   </div>
                 </div>
                 {userRole === "admin" && (
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-shrink-0">
                     <Button
                       onClick={() => setShowChamaDeposit(true)}
-                      className="bg-white/20 hover:bg-white/30 border border-white/30 cursor-pointer"
+                      className="bg-white/20 hover:bg-white/30 border border-white/30 cursor-pointer flex-1 md:flex-initial"
                       size="sm"
                     >
-                      <ArrowDownToLine className="w-4 h-4 mr-2" />
-                      Deposit
+                      <ArrowDownToLine className="w-4 h-4 mr-1 md:mr-2" />
+                      <span className="hidden sm:inline">Deposit</span>
+                      <span className="sm:hidden">Add</span>
                     </Button>
                     <Button
                       onClick={() => setShowChamaTransfer(true)}
-                      className="bg-white/20 hover:bg-white/30 border border-white/30 cursor-pointer"
+                      className="bg-white/20 hover:bg-white/30 border border-white/30 cursor-pointer flex-1 md:flex-initial"
                       size="sm"
                     >
-                      <Send className="w-4 h-4 mr-2" />
-                      Transfer
+                      <Send className="w-4 h-4 mr-1 md:mr-2" />
+                      <span className="hidden sm:inline">Transfer</span>
+                      <span className="sm:hidden">Send</span>
                     </Button>
                   </div>
                 )}
@@ -890,14 +900,14 @@ export default function CycleBySlugPage() {
             </div>
 
             {/* Quick Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Card className="p-5 hover:shadow-lg transition-shadow border-l-4 border-l-green-500">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
+              <Card className="p-4 md:p-5 hover:shadow-lg transition-shadow border-l-4 border-l-green-500">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs md:text-sm text-gray-600 mb-1">
                       Available Balance
                     </p>
-                    <p className="text-2xl font-bold text-[#083232]">
+                    <p className="text-xl md:text-2xl font-bold text-[#083232]">
                       KSh {formatAmount(chama.current_balance)}
                     </p>
                     <p className="text-xs text-gray-500 mt-1">
@@ -987,42 +997,42 @@ export default function CycleBySlugPage() {
                       </div>
                     )}
                   </div>
-                  <div className="bg-green-100 p-3 rounded-xl">
-                    <Wallet className="w-6 h-6 text-green-600" />
+                  <div className="bg-green-100 p-2 md:p-3 rounded-xl flex-shrink-0">
+                    <Wallet className="w-5 h-5 md:w-6 md:h-6 text-green-600" />
                   </div>
                 </div>
               </Card>
 
-              <Card className="p-5 hover:shadow-lg transition-shadow border-l-4 border-l-blue-500">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">
+              <Card className="p-4 md:p-5 hover:shadow-lg transition-shadow border-l-4 border-l-blue-500">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs md:text-sm text-gray-600 mb-1">
                       Total Collected
                     </p>
-                    <p className="text-2xl font-bold text-[#083232]">
+                    <p className="text-xl md:text-2xl font-bold text-[#083232]">
                       KSh {formatAmount(chama.total_contributions)}
                     </p>
                     <p className="text-xs text-gray-500 mt-1">
                       All-time contributions
                     </p>
                   </div>
-                  <div className="bg-blue-100 p-3 rounded-xl">
-                    <TrendingUp className="w-6 h-6 text-blue-600" />
+                  <div className="bg-blue-100 p-2 md:p-3 rounded-xl flex-shrink-0">
+                    <TrendingUp className="w-5 h-5 md:w-6 md:h-6 text-blue-600" />
                   </div>
                 </div>
               </Card>
 
-              <Card className="p-5 hover:shadow-lg transition-shadow border-l-4 border-l-purple-500">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">Next Payout</p>
-                    <p className="text-2xl font-bold text-[#083232]">TBD</p>
+              <Card className="p-4 md:p-5 hover:shadow-lg transition-shadow border-l-4 border-l-purple-500 sm:col-span-2 lg:col-span-1">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs md:text-sm text-gray-600 mb-1">Next Payout</p>
+                    <p className="text-xl md:text-2xl font-bold text-[#083232]">TBD</p>
                     <p className="text-xs text-gray-500 mt-1">
                       Scheduled recipient
                     </p>
                   </div>
-                  <div className="bg-purple-100 p-3 rounded-xl">
-                    <Calendar className="w-6 h-6 text-purple-600" />
+                  <div className="bg-purple-100 p-2 md:p-3 rounded-xl flex-shrink-0">
+                    <Calendar className="w-5 h-5 md:w-6 md:h-6 text-purple-600" />
                   </div>
                 </div>
               </Card>
@@ -1037,14 +1047,14 @@ export default function CycleBySlugPage() {
 
             {/* Transaction History */}
             <Card className="overflow-hidden">
-              <div className="bg-gray-50 px-6 py-4 border-b">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-[#083232] rounded-lg flex items-center justify-center">
-                      <History className="w-5 h-5 text-white" />
+              <div className="bg-gray-50 px-4 md:px-6 py-3 md:py-4 border-b">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
+                    <div className="w-8 h-8 md:w-10 md:h-10 bg-[#083232] rounded-lg flex items-center justify-center flex-shrink-0">
+                      <History className="w-4 h-4 md:w-5 md:h-5 text-white" />
                     </div>
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-900">
+                    <div className="min-w-0">
+                      <h3 className="text-base md:text-lg font-semibold text-gray-900">
                         Transaction History
                       </h3>
                       {chamaTransactions.length > 0 && (
@@ -1063,23 +1073,23 @@ export default function CycleBySlugPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="cursor-pointer"
+                      className="cursor-pointer flex-shrink-0"
                       onClick={() =>
                         setShowAllTransactions(!showAllTransactions)
                       }
                     >
-                      {showAllTransactions ? "Show Less" : "View All"}
+                      {showAllTransactions ? "Less" : "All"}
                     </Button>
                   )}
                 </div>
               </div>
               <div className="divide-y">
                 {loadingTransactions ? (
-                  <div className="p-6 text-center text-gray-500">
+                  <div className="p-4 md:p-6 text-center text-gray-500 text-sm">
                     Loading transactions...
                   </div>
                 ) : chamaTransactions.length === 0 ? (
-                  <div className="p-6 text-center text-gray-500">
+                  <div className="p-4 md:p-6 text-center text-gray-500 text-sm">
                     No transactions yet. Transactions will appear here once
                     members start contributing.
                   </div>
@@ -1090,49 +1100,51 @@ export default function CycleBySlugPage() {
                   ).map((tx) => (
                     <div
                       key={tx.id}
-                      className="p-4 hover:bg-gray-50 transition-colors"
+                      className="p-3 md:p-4 hover:bg-gray-50 transition-colors"
                     >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div
-                            className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                              tx.direction === "credit"
-                                ? "bg-green-100"
-                                : "bg-red-100"
-                            }`}
-                          >
-                            {tx.direction === "credit" ? (
-                              <ArrowDownToLine className="w-5 h-5 text-green-600" />
-                            ) : (
-                              <Send className="w-5 h-5 text-red-600" />
-                            )}
-                          </div>
-                          <div>
-                            <p className="font-medium text-gray-900">
-                              {tx.transaction_name}
-                            </p>
-                            <p className="text-sm text-gray-500">
-                              {tx.counterparty_name || tx.description}
-                            </p>
-                            <p className="text-xs text-gray-400">
-                              {new Date(tx.created_at).toLocaleString()}
-                            </p>
-                          </div>
+                      <div className="flex items-start gap-2 md:gap-3">
+                        <div
+                          className={`w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                            tx.direction === "credit"
+                              ? "bg-green-100"
+                              : "bg-red-100"
+                          }`}
+                        >
+                          {tx.direction === "credit" ? (
+                            <ArrowDownToLine className="w-4 h-4 md:w-5 md:h-5 text-green-600" />
+                          ) : (
+                            <Send className="w-4 h-4 md:w-5 md:h-5 text-red-600" />
+                          )}
                         </div>
-                        <div className="text-right">
-                          <p
-                            className={`font-semibold ${
-                              tx.direction === "credit"
-                                ? "text-green-600"
-                                : "text-red-600"
-                            }`}
-                          >
-                            {tx.direction === "credit" ? "+" : "-"} KSh{" "}
-                            {formatAmount(tx.amount)}
-                          </p>
-                          <p className="text-xs text-gray-400">
-                            {tx.status === "completed" ? "✓" : tx.status}
-                          </p>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-gray-900 text-sm md:text-base truncate">
+                                {tx.transaction_name}
+                              </p>
+                              <p className="text-xs md:text-sm text-gray-500 truncate">
+                                {tx.counterparty_name || tx.description}
+                              </p>
+                              <p className="text-xs text-gray-400 mt-0.5">
+                                {new Date(tx.created_at).toLocaleString()}
+                              </p>
+                            </div>
+                            <div className="text-right flex-shrink-0">
+                              <p
+                                className={`font-semibold text-sm md:text-base ${
+                                  tx.direction === "credit"
+                                    ? "text-green-600"
+                                    : "text-red-600"
+                                }`}
+                              >
+                                {tx.direction === "credit" ? "+" : "-"} KSh{" "}
+                                {formatAmount(tx.amount)}
+                              </p>
+                              <p className="text-xs text-gray-400">
+                                {tx.status === "completed" ? "✓" : tx.status}
+                              </p>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -1236,14 +1248,14 @@ export default function CycleBySlugPage() {
 
       case "about":
         return (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
             {/* Main Content Area */}
-            <div className="lg:col-span-2 space-y-4">
-              <Card className="p-6">
+            <div className="lg:col-span-2 order-1 space-y-4">
+              <Card className="p-4 md:p-6">
                 <div className="space-y-4">
                   {/* Cover Image Upload/Display - Admin Only */}
                   {userRole === "admin" && !chama.cover_image && (
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 md:p-8 text-center">
                       <input
                         type="file"
                         id="cover-image-upload"
@@ -1256,7 +1268,7 @@ export default function CycleBySlugPage() {
                         htmlFor="cover-image-upload"
                         className="cursor-pointer flex flex-col items-center"
                       >
-                        <Upload className="w-12 h-12 text-gray-400 mb-2" />
+                        <Upload className="w-10 h-10 md:w-12 md:h-12 text-gray-400 mb-2" />
                         <p className="text-sm font-medium text-gray-700">
                           {uploadingImage
                             ? "Uploading..."
@@ -1270,7 +1282,7 @@ export default function CycleBySlugPage() {
                   )}
 
                   {chama.cover_image && (
-                    <div className="relative w-full h-64 rounded-lg overflow-hidden mb-4 group">
+                    <div className="relative w-full h-48 md:h-64 rounded-lg overflow-hidden mb-4 group">
                       <Image
                         src={chama.cover_image}
                         alt={chama.name}
@@ -1289,11 +1301,11 @@ export default function CycleBySlugPage() {
                           />
                           <label
                             htmlFor="cover-image-edit"
-                            className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer flex items-center justify-center"
+                            className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 md:group-hover:opacity-100 active:opacity-100 transition-opacity cursor-pointer flex items-center justify-center"
                           >
                             <div className="text-white text-center">
-                              <Upload className="w-8 h-8 mx-auto mb-2" />
-                              <p className="text-sm font-medium">
+                              <Upload className="w-6 h-6 md:w-8 md:h-8 mx-auto mb-2" />
+                              <p className="text-xs md:text-sm font-medium">
                                 {uploadingImage
                                   ? "Uploading..."
                                   : "Change Image"}
@@ -1306,17 +1318,82 @@ export default function CycleBySlugPage() {
                   )}
 
                   <div>
-                    <h4 className="font-medium text-gray-900 mb-2">
+                    <h4 className="font-medium text-gray-900 mb-2 text-sm md:text-base">
                       Description
                     </h4>
-                    <p className="text-gray-600 leading-relaxed">
-                      {chama.description}
-                    </p>
+                    <div className="text-gray-600 leading-relaxed text-sm md:text-base">
+                      {/* Mobile: Show truncated description with "View more" */}
+                      <div className="md:hidden">
+                        <p className={showFullDescription ? "" : "line-clamp-3"}>
+                          {chama.description}
+                        </p>
+                        {chama.description && chama.description.length > 150 && (
+                          <button
+                            onClick={() => setShowFullDescription(!showFullDescription)}
+                            className="text-[#083232] font-medium text-sm mt-2 hover:underline"
+                          >
+                            {showFullDescription ? "View less" : "View more"}
+                          </button>
+                        )}
+                      </div>
+                      {/* Desktop: Show full description */}
+                      <p className="hidden md:block">
+                        {chama.description}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Mobile: Metadata inline after description - 2 rows of 3 items */}
+                  <div className="md:hidden pt-4 border-t border-gray-200">
+                    <div className="grid grid-cols-3 gap-3">
+                      {/* Row 1: Type, Visibility, Status */}
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Type</p>
+                        <p className="text-sm font-medium text-gray-900 capitalize truncate">
+                          {chama.type?.replace("-", " ") || "Savings"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Visibility</p>
+                        <p className="text-sm font-medium text-gray-900 capitalize">
+                          {chama.is_public ? "Public" : "Private"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Status</p>
+                        <p className="text-sm font-medium text-gray-900 capitalize">
+                          {chama.status}
+                        </p>
+                      </div>
+                      {/* Row 2: Lending, Created, Admin */}
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Lending</p>
+                        <p className="text-sm font-medium text-gray-900">
+                          {chama.lending_enabled ? "Enabled" : "Disabled"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Created</p>
+                        <p className="text-sm font-medium text-gray-900">
+                          {new Date(chama.created_at).toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          })}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Admin</p>
+                        <p className="text-sm font-medium text-gray-900 truncate" title={chama.admin_name || chama.admin_email}>
+                          {chama.admin_name ? getLastName(chama.admin_name) : (chama.admin_email || "")}
+                        </p>
+                      </div>
+                    </div>
                   </div>
 
                   {chama.tags && chama.tags.length > 0 && (
                     <div className="pt-4 border-t">
-                      <p className="text-sm text-gray-600 mb-2">Tags</p>
+                      <p className="text-xs md:text-sm text-gray-600 mb-2">Tags</p>
                       <div className="flex flex-wrap gap-2">
                         {chama.tags.map((tag, idx) => (
                           <span
@@ -1333,10 +1410,10 @@ export default function CycleBySlugPage() {
               </Card>
             </div>
 
-            {/* Sidebar */}
-            <div>
+            {/* Desktop Sidebar */}
+            <div className="hidden lg:block order-2 lg:order-1">
               <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                <div className="p-5 space-y-3.5">
+                <div className="p-4 md:p-5 space-y-3 md:space-y-3.5">
                   {/* Type & Visibility */}
                   <div className="grid grid-cols-2 gap-4">
                     <div>
@@ -1412,7 +1489,7 @@ export default function CycleBySlugPage() {
 
                 {/* Delete Cycle Button (Admin Only) */}
                 {canDeleteCycle() && (
-                  <div className="mt-6 pt-6 border-t border-gray-200">
+                  <div className="mt-6 pt-6 border-t border-gray-200 px-4 md:px-5 pb-4 md:pb-5">
                     <button
                       onClick={() => setShowDeleteConfirm(true)}
                       className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition-colors border border-red-200"
@@ -1465,11 +1542,13 @@ export default function CycleBySlugPage() {
       />
 
       {/* Tabs Navigation */}
-      <div className="bg-white border-b sticky top-16 z-10 shadow-sm mt-16">
-        <div className="mx-auto px-4" style={{ width: '1085px', minWidth: '1085px', maxWidth: '1085px' }} ref={tabContainerRef}>
+      <div className="bg-white border-b sticky top-16 z-10 shadow-sm mt-16 pt-2 md:pt-0">
+        {/* Desktop Tabs */}
+        <div className="hidden md:block max-w-[1085px] mx-auto px-4" ref={tabContainerRef}>
           <div className="flex items-center gap-1">
             {tabs.map((tab, index) => {
               const isActive = activeTab === tab.id;
+              const Icon = tab.icon;
               return (
                 <button
                   key={tab.id}
@@ -1495,7 +1574,42 @@ export default function CycleBySlugPage() {
                     }
                   `}
                 >
+                  <Icon className="w-4 h-4" />
                   {tab.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Mobile Tabs - Horizontal Scroll */}
+        <div className="md:hidden overflow-x-auto scrollbar-hide -mx-4 px-4 py-2">
+          <div className="flex items-center gap-1.5" style={{ width: 'max-content' }}>
+            {tabs.map((tab) => {
+              const isActive = activeTab === tab.id;
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => {
+                    setActiveTab(tab.id);
+                    const currentUrl = new URL(window.location.href);
+                    currentUrl.searchParams.set("tab", tab.id);
+                    router.push(currentUrl.pathname + currentUrl.search, {
+                      scroll: false,
+                    });
+                  }}
+                  className={`
+                    flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium whitespace-nowrap transition-colors rounded-md flex-shrink-0
+                    ${
+                      isActive
+                        ? "bg-[#083232] text-white"
+                        : "bg-gray-100 text-gray-700 active:bg-gray-200"
+                    }
+                  `}
+                >
+                  <Icon className="w-3 h-3" />
+                  <span>{tab.label}</span>
                 </button>
               );
             })}
@@ -1504,7 +1618,7 @@ export default function CycleBySlugPage() {
       </div>
 
       {/* Content */}
-      <div className="w-[1085px] mx-auto px-4 py-8 flex-1" style={{ width: '1085px', minWidth: '1085px', maxWidth: '1085px' }}>
+      <div className="max-w-[1085px] mx-auto px-4 py-4 md:py-8 flex-1 w-full">
         {renderTabContent()}
       </div>
 

@@ -17,7 +17,7 @@ export function ChamaSearch({ value, onChange }: ChamaSearchProps) {
         placeholder="search by cycle name"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="pl-10 h-12 text-base"
+        className="pl-10 h-12 text-base w-full"
       />
     </div>
   );

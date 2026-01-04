@@ -2,11 +2,13 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { ChamaSearch } from "@/components/chama/chama-search";
 import { ChamaFilters } from "@/components/chama/chama-filters";
 import { HomeNavbar } from "@/components/home/home-navbar";
 import { HomeHeader } from "@/components/home/home-header";
 import { ChamaGrid } from "@/components/home/chama-grid";
+import { ChamaMobileList } from "@/components/home/chama-mobile-list";
 import { Pagination } from "@/components/home/pagination";
 import { Footer } from "@/components/footer";
 import { useAuth } from "@/hooks/use-auth";
@@ -96,7 +98,8 @@ export default function HomePage() {
       />
 
       <div className="flex-1 pt-16">
-        <main className="max-w-[1085px] mx-auto px-4 py-8">
+        {/* Desktop Layout */}
+        <main className="hidden md:block max-w-[1085px] mx-auto px-4 py-8">
           <HomeHeader isAuthenticated={isAuthenticated} />
 
           {/* Search Bar */}
@@ -136,6 +139,50 @@ export default function HomePage() {
             totalPages={totalPages}
             onPageChange={handlePageChange}
           />
+        </main>
+
+        {/* Mobile Layout - Completely Different UI */}
+        <main className="md:hidden">
+          {/* Mobile Header - Same text as desktop, centered */}
+          <div className="px-4 pt-4 pb-2 text-center">
+            <HomeHeader isAuthenticated={isAuthenticated} />
+          </div>
+
+          {/* Mobile Search - Sticky */}
+          <div ref={searchBarRef} className="sticky top-16 z-10 bg-gray-50 px-4 py-3 border-b border-gray-200">
+            <ChamaSearch value={searchQuery} onChange={setSearchQuery} />
+          </div>
+
+          {/* Mobile Filters - Horizontal Scroll */}
+          <div className="px-4 py-3 border-b border-gray-200 bg-white">
+            <ChamaFilters
+              activeFilter={activeFilter}
+              onFilterChange={setActiveFilter}
+            />
+          </div>
+
+          {/* Mobile Chama List - Different from Desktop */}
+          <ChamaMobileList
+            loading={loading}
+            chamas={paginatedChamas}
+            onJoin={(chamaId) => {
+              const chama = paginatedChamas.find((c) => c.id === chamaId);
+              if (chama) handleJoinChama(chama);
+            }}
+            onView={(chamaId) => {
+              const chama = paginatedChamas.find((c) => c.id === chamaId);
+              if (chama) handleViewChama(chama);
+            }}
+          />
+
+          {/* Mobile Pagination */}
+          <div className="px-4 pb-6 pt-4">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={handlePageChange}
+            />
+          </div>
         </main>
       </div>
 

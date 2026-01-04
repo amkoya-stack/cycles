@@ -34,7 +34,7 @@ export function ChamaCard({ chama, onJoin, onView }: ChamaCardProps) {
   const router = useRouter();
 
   return (
-    <Card className="w-[337px] h-[382px] hover:shadow-lg transition-shadow flex flex-col p-0">
+    <Card className="w-full max-w-[337px] h-[382px] hover:shadow-lg transition-shadow flex flex-col p-0 mx-auto">
       {/* Cover Image */}
       <div className="relative w-full h-32 bg-gray-200 flex-shrink-0 overflow-hidden rounded-t-lg">
         {chama.cover_image ? (

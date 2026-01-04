@@ -20,6 +20,12 @@ if (API_BASE_URL.includes('/api') && !API_BASE_URL.includes('/api/v1')) {
 const API_VERSION = 'v1';
 export const API_URL = `${API_BASE_URL}/api/${API_VERSION}`;
 
+// Log API URL for debugging (only in development)
+if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+  console.log('[API Config] API_BASE_URL:', API_BASE_URL);
+  console.log('[API Config] API_URL:', API_URL);
+}
+
 // Helper function to build API URLs
 export const apiUrl = (path: string): string => {
   if (!path) return API_URL;

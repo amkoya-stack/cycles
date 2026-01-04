@@ -132,42 +132,42 @@ export function ActivePollsSidebar({ chamaId }: ActivePollsSidebarProps) {
   }
 
   return (
-    <Card className="p-4">
-      <div className="flex items-center gap-2 mb-4">
-        <BarChart3 className="w-5 h-5 text-[#083232]" />
-        <h3 className="font-semibold text-[#083232]">Active Polls</h3>
+    <Card className="p-3 md:p-4">
+      <div className="flex items-center gap-2 mb-3 md:mb-4">
+        <BarChart3 className="w-4 h-4 md:w-5 md:h-5 text-[#083232]" />
+        <h3 className="font-semibold text-sm md:text-base text-[#083232]">Active Polls</h3>
       </div>
 
       {polls.length === 0 ? (
-        <div className="text-center py-8">
-          <BarChart3 className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-          <p className="text-sm text-gray-500">No active polls</p>
+        <div className="text-center py-6 md:py-8">
+          <BarChart3 className="w-6 h-6 md:w-8 md:h-8 text-gray-300 mx-auto mb-2" />
+          <p className="text-xs md:text-sm text-gray-500">No active polls</p>
           <p className="text-xs text-gray-400 mt-1">Create one in the feed!</p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2 md:space-y-3">
           {polls.map((poll) => (
             <div
               key={poll.id}
-              className="p-3 rounded-lg border border-gray-200 hover:border-[#083232] transition-colors cursor-pointer hover:bg-gray-50"
+              className="p-2.5 md:p-3 rounded-lg border border-gray-200 hover:border-[#083232] transition-colors cursor-pointer hover:bg-gray-50 touch-manipulation"
             >
-              <h4 className="font-medium text-sm text-gray-900 line-clamp-2 mb-2">
+              <h4 className="font-medium text-xs md:text-sm text-gray-900 line-clamp-2 mb-1.5 md:mb-2">
                 {poll.title}
               </h4>
 
-              <div className="flex items-center justify-between text-xs">
+              <div className="flex items-center justify-between text-xs gap-2">
                 <div className="flex items-center gap-1 text-gray-600">
                   <Users className="w-3 h-3" />
                   <span>{poll.total_votes || 0} votes</span>
                 </div>
 
                 {poll.status === "active" ? (
-                  <div className="flex items-center gap-1 text-orange-600">
+                  <div className="flex items-center gap-1 text-orange-600 shrink-0">
                     <Clock className="w-3 h-3" />
                     <span>{formatTimeRemaining(poll.deadline)}</span>
                   </div>
                 ) : (
-                  <Badge variant="outline" className="text-xs h-5 px-2">
+                  <Badge variant="outline" className="text-xs h-4 md:h-5 px-1.5 md:px-2 shrink-0">
                     {poll.status}
                   </Badge>
                 )}
@@ -178,7 +178,7 @@ export function ActivePollsSidebar({ chamaId }: ActivePollsSidebarProps) {
       )}
 
       {polls.length > 0 && (
-        <p className="text-xs text-gray-400 text-center mt-4">
+        <p className="text-xs text-gray-400 text-center mt-3 md:mt-4">
           Showing polls from the last 7 days
         </p>
       )}

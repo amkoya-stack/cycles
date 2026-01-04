@@ -88,50 +88,72 @@ export function ChamaFilters({
 
   return (
     <div ref={containerRef}>
-      {/* First line */}
-      <div className="flex gap-2 overflow-hidden">
-        {visibleFilters.map((filter) => (
-          <button
-            key={filter.id}
-            onClick={() => onFilterChange(filter.id)}
-            className={
-              activeFilter === filter.id
-                ? "px-4 py-2 rounded-full bg-[#083232] text-white text-sm font-medium transition-colors whitespace-nowrap flex-shrink-0 cursor-pointer"
-                : "px-4 py-2 rounded-full border border-gray-300 text-gray-700 text-sm hover:border-[#083232] hover:text-[#083232] transition-colors whitespace-nowrap flex-shrink-0 cursor-pointer"
-            }
-          >
-            {filter.label}
-          </button>
-        ))}
-
-        {hiddenFilters.length > 0 && (
-          <button
-            onClick={() => setShowMore(!showMore)}
-            className="px-4 py-2 rounded-full border border-gray-300 text-gray-700 text-sm hover:border-[#083232] hover:text-[#083232] transition-colors whitespace-nowrap flex-shrink-0 cursor-pointer"
-          >
-            {showMore ? "Less..." : "More..."}
-          </button>
-        )}
-      </div>
-
-      {/* Second line - shown when More is clicked */}
-      {showMore && hiddenFilters.length > 0 && (
-        <div className="flex flex-wrap gap-2 mt-2">
-          {hiddenFilters.map((filter) => (
+      {/* Desktop: Multi-line with More button */}
+      <div className="hidden md:block">
+        {/* First line */}
+        <div className="flex gap-2 overflow-hidden">
+          {visibleFilters.map((filter) => (
             <button
               key={filter.id}
               onClick={() => onFilterChange(filter.id)}
               className={
                 activeFilter === filter.id
-                  ? "px-4 py-2 rounded-full bg-[#083232] text-white text-sm font-medium transition-colors whitespace-nowrap cursor-pointer"
-                  : "px-4 py-2 rounded-full border border-gray-300 text-gray-700 text-sm hover:border-[#083232] hover:text-[#083232] transition-colors whitespace-nowrap cursor-pointer"
+                  ? "px-4 py-2 rounded-full bg-[#083232] text-white text-sm font-medium transition-colors whitespace-nowrap flex-shrink-0 cursor-pointer"
+                  : "px-4 py-2 rounded-full border border-gray-300 text-gray-700 text-sm hover:border-[#083232] hover:text-[#083232] transition-colors whitespace-nowrap flex-shrink-0 cursor-pointer"
+              }
+            >
+              {filter.label}
+            </button>
+          ))}
+
+          {hiddenFilters.length > 0 && (
+            <button
+              onClick={() => setShowMore(!showMore)}
+              className="px-4 py-2 rounded-full border border-gray-300 text-gray-700 text-sm hover:border-[#083232] hover:text-[#083232] transition-colors whitespace-nowrap flex-shrink-0 cursor-pointer"
+            >
+              {showMore ? "Less..." : "More..."}
+            </button>
+          )}
+        </div>
+
+        {/* Second line - shown when More is clicked */}
+        {showMore && hiddenFilters.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-2">
+            {hiddenFilters.map((filter) => (
+              <button
+                key={filter.id}
+                onClick={() => onFilterChange(filter.id)}
+                className={
+                  activeFilter === filter.id
+                    ? "px-4 py-2 rounded-full bg-[#083232] text-white text-sm font-medium transition-colors whitespace-nowrap cursor-pointer"
+                    : "px-4 py-2 rounded-full border border-gray-300 text-gray-700 text-sm hover:border-[#083232] hover:text-[#083232] transition-colors whitespace-nowrap cursor-pointer"
+                }
+              >
+                {filter.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Mobile: Horizontal scroll */}
+      <div className="md:hidden overflow-x-auto -mx-4 px-4 scrollbar-hide">
+        <div className="flex gap-2 pb-2" style={{ width: 'max-content' }}>
+          {filters.map((filter) => (
+            <button
+              key={filter.id}
+              onClick={() => onFilterChange(filter.id)}
+              className={
+                activeFilter === filter.id
+                  ? "px-4 py-2 rounded-full bg-[#083232] text-white text-sm font-medium transition-colors whitespace-nowrap flex-shrink-0 cursor-pointer"
+                  : "px-4 py-2 rounded-full border border-gray-300 text-gray-700 text-sm active:border-[#083232] active:text-[#083232] transition-colors whitespace-nowrap flex-shrink-0 cursor-pointer"
               }
             >
               {filter.label}
             </button>
           ))}
         </div>
-      )}
+      </div>
     </div>
   );
 }

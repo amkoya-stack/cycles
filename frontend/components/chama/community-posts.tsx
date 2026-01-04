@@ -1153,16 +1153,16 @@ export function CommunityPosts({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2 md:space-y-3">
       {/* Create New Post */}
-      <Card className="p-3">
+      <Card className="p-2.5 md:p-3">
         <div className="flex gap-2">
-          <Avatar className="w-8 h-8 flex-shrink-0">
+          <Avatar className="w-8 h-8 md:w-10 md:h-10 flex-shrink-0">
             <AvatarImage
               src={currentUser?.avatar}
               alt={currentUser?.fullName || "You"}
             />
-            <AvatarFallback className="bg-[#083232] text-white text-xs">
+            <AvatarFallback className="bg-[#083232] text-white text-xs md:text-sm">
               {currentUser?.fullName ? getInitials(currentUser.fullName) : "Y"}
             </AvatarFallback>
           </Avatar>
@@ -1171,10 +1171,10 @@ export function CommunityPosts({
               value={newPostContent}
               onChange={(e) => setNewPostContent(e.target.value)}
               placeholder="Share something with the community..."
-              className="min-h-[80px] mb-2 text-sm"
+              className="min-h-[70px] md:min-h-[80px] mb-2 text-sm"
             />
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1 relative">
+              <div className="flex items-center gap-0.5 md:gap-1 relative">
                 {/* File Attachment */}
                 <input
                   ref={fileInputRef}
@@ -1189,7 +1189,7 @@ export function CommunityPosts({
                       variant="ghost"
                       size="sm"
                       onClick={() => fileInputRef.current?.click()}
-                      className="h-8 w-8 p-0 text-gray-500 hover:text-[#083232] hover:bg-gray-100"
+                      className="h-9 w-9 md:h-8 md:w-8 p-0 text-gray-500 hover:text-[#083232] hover:bg-gray-100 touch-manipulation"
                     >
                       <Paperclip className="w-4 h-4" />
                     </Button>
@@ -1214,7 +1214,7 @@ export function CommunityPosts({
                       variant="ghost"
                       size="sm"
                       onClick={() => mediaInputRef.current?.click()}
-                      className="h-8 w-8 p-0 text-gray-500 hover:text-[#083232] hover:bg-gray-100"
+                      className="h-9 w-9 md:h-8 md:w-8 p-0 text-gray-500 hover:text-[#083232] hover:bg-gray-100 touch-manipulation"
                     >
                       <Image className="w-4 h-4" />
                     </Button>
@@ -1231,7 +1231,7 @@ export function CommunityPosts({
                       variant="ghost"
                       size="sm"
                       onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                      className="h-8 w-8 p-0 text-gray-500 hover:text-[#083232] hover:bg-gray-100"
+                      className="h-9 w-9 md:h-8 md:w-8 p-0 text-gray-500 hover:text-[#083232] hover:bg-gray-100 touch-manipulation"
                     >
                       <Smile className="w-4 h-4" />
                     </Button>
@@ -1900,13 +1900,13 @@ export function CommunityPosts({
               <Button
                 onClick={handleCreatePost}
                 disabled={!newPostContent.trim() || submitting}
-                className="bg-[#083232] hover:bg-[#2e856e]"
+                className="bg-[#083232] hover:bg-[#2e856e] h-9 md:h-8 text-sm px-3 md:px-2 touch-manipulation"
                 size="sm"
               >
                 {submitting ? (
-                  <Loader2 className="w-3 h-3 mr-2 animate-spin" />
+                  <Loader2 className="w-3.5 h-3.5 md:w-3 md:h-3 mr-1.5 md:mr-2 animate-spin" />
                 ) : (
-                  <Send className="w-3 h-3 mr-2" />
+                  <Send className="w-3.5 h-3.5 md:w-3 md:h-3 mr-1.5 md:mr-2" />
                 )}
                 Post
               </Button>
@@ -1917,9 +1917,9 @@ export function CommunityPosts({
 
       {/* Posts Feed */}
       {posts.length === 0 ? (
-        <Card className="p-8 text-center">
-          <MessageSquare className="w-10 h-10 text-gray-400 mx-auto mb-3" />
-          <p className="text-sm text-gray-600">
+        <Card className="p-6 md:p-8 text-center">
+          <MessageSquare className="w-8 h-8 md:w-10 md:h-10 text-gray-400 mx-auto mb-2 md:mb-3" />
+          <p className="text-xs md:text-sm text-gray-600">
             No posts yet. Be the first to post!
           </p>
         </Card>
@@ -1932,33 +1932,33 @@ export function CommunityPosts({
           return (
             <Card
               key={post.id}
-              className={`p-3 ${
+              className={`p-2.5 md:p-3 ${
                 post.pinned ? "border-2 border-[#083232]" : ""
               }`}
             >
               {post.pinned && (
-                <div className="flex items-center gap-1 text-xs text-[#083232] font-medium mb-2">
+                <div className="flex items-center gap-1 text-xs text-[#083232] font-medium mb-1.5 md:mb-2">
                   <Pin className="w-3 h-3 fill-current" />
                   <span>Pinned</span>
                 </div>
               )}
               <div className="flex gap-2">
-                <Avatar className="w-8 h-8 flex-shrink-0">
+                <Avatar className="w-8 h-8 md:w-9 md:h-9 flex-shrink-0">
                   <AvatarImage
                     src={post.author.avatar}
                     alt={post.author.fullName}
                   />
-                  <AvatarFallback className="bg-[#2e856e] text-white text-xs">
+                  <AvatarFallback className="bg-[#2e856e] text-white text-xs md:text-sm">
                     {getInitials(post.author.fullName)}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
-                  <div className="mb-2">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-semibold text-gray-900">
+                  <div className="mb-1.5 md:mb-2">
+                    <div className="flex items-center gap-1.5 md:gap-2 mb-1 flex-wrap">
+                      <span className="font-semibold text-gray-900 text-sm md:text-base">
                         {post.author.fullName}
                       </span>
-                      <span className="text-sm text-gray-500">
+                      <span className="text-xs md:text-sm text-gray-500">
                         {formatTimeAgo(post.createdAt)}
                       </span>
                       {post.edited && (
@@ -1966,7 +1966,7 @@ export function CommunityPosts({
                       )}
                       {post.isPoll && (
                         <span
-                          className={`text-xs px-2 py-0.5 rounded ${
+                          className={`text-xs px-1.5 md:px-2 py-0.5 rounded ${
                             post.isGovernanceProposal
                               ? "bg-amber-500 text-white"
                               : "bg-[#083232] text-white"
@@ -2042,7 +2042,7 @@ export function CommunityPosts({
                               return (
                                 <div
                                   key={idx}
-                                  className={`px-2.5 py-1.5 rounded-lg border transition-all ${
+                                  className={`px-2 md:px-2.5 py-2 md:py-1.5 rounded-lg border transition-all touch-manipulation ${
                                     isSelected
                                       ? "border-[#083232] bg-[#083232]/5"
                                       : hasVoted
@@ -2072,27 +2072,27 @@ export function CommunityPosts({
                                               post.isGovernanceProposal || false
                                             )
                                           }
-                                          className="w-3.5 h-3.5 text-[#083232] border-gray-300 focus:ring-[#083232] cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                                          className="w-4 h-4 md:w-3.5 md:h-3.5 text-[#083232] border-gray-300 focus:ring-[#083232] cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
                                         />
                                       ) : isSelected ? (
-                                        <CheckCircle2 className="w-4 h-4 text-[#083232]" />
+                                        <CheckCircle2 className="w-4 h-4 md:w-3.5 md:h-3.5 text-[#083232]" />
                                       ) : (
-                                        <Circle className="w-4 h-4 text-gray-300" />
+                                        <Circle className="w-4 h-4 md:w-3.5 md:h-3.5 text-gray-300" />
                                       )}
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                      <div className="flex items-center justify-between">
-                                        <span className="text-sm">
+                                      <div className="flex items-center justify-between gap-2">
+                                        <span className="text-sm md:text-sm">
                                           {option}
                                         </span>
                                         {hasAnyVotes && (
-                                          <span className="text-xs text-gray-500">
+                                          <span className="text-xs text-gray-500 shrink-0">
                                             {optionVotes} ({percentage}%)
                                           </span>
                                         )}
                                       </div>
                                       {hasAnyVotes && (
-                                        <div className="w-full bg-gray-200 rounded-full h-1 mt-1">
+                                        <div className="w-full bg-gray-200 rounded-full h-1 md:h-1 mt-1.5 md:mt-1">
                                           <div
                                             className="bg-[#083232] h-1 rounded-full transition-all"
                                             style={{ width: `${percentage}%` }}
@@ -2153,15 +2153,15 @@ export function CommunityPosts({
                   </div>
 
                   {!post.isPoll && (
-                    <div className="flex items-center gap-4 text-sm text-gray-600 pb-3 border-b">
+                    <div className="flex items-center gap-3 md:gap-4 text-xs md:text-sm text-gray-600 pb-2 md:pb-3 border-b pt-2">
                       <button
                         onClick={() => togglePostLike(post.id)}
-                        className={`flex items-center gap-1 hover:text-[#083232] transition-colors ${
+                        className={`flex items-center gap-1 hover:text-[#083232] transition-colors touch-manipulation py-1 ${
                           post.likedByMe ? "text-[#f64d52]" : ""
                         }`}
                       >
                         <ThumbsUp
-                          className={`w-4 h-4 ${
+                          className={`w-4 h-4 md:w-3.5 md:h-3.5 ${
                             post.likedByMe ? "fill-current" : ""
                           }`}
                         />
@@ -2169,31 +2169,33 @@ export function CommunityPosts({
                       </button>
                       <button
                         onClick={() => setReplyingTo(post.id)}
-                        className="flex items-center gap-1 hover:text-[#083232] transition-colors"
+                        className="flex items-center gap-1 hover:text-[#083232] transition-colors touch-manipulation py-1"
                       >
-                        <MessageSquare className="w-4 h-4" />
-                        <span>Reply</span>
+                        <MessageSquare className="w-4 h-4 md:w-3.5 md:h-3.5" />
+                        <span className="hidden sm:inline">Reply</span>
                       </button>
                       {totalReplies > 0 && (
                         <button
                           onClick={() => toggleExpanded(post.id)}
-                          className="hover:text-[#083232] transition-colors"
+                          className="hover:text-[#083232] transition-colors touch-manipulation py-1 text-xs"
                         >
                           {isExpanded ? "Hide" : "View"} {totalReplies}{" "}
-                          {totalReplies === 1 ? "reply" : "replies"}
+                          <span className="hidden sm:inline">
+                            {totalReplies === 1 ? "reply" : "replies"}
+                          </span>
                         </button>
                       )}
-                      <div className="flex items-center gap-2 ml-auto">
+                      <div className="flex items-center gap-1.5 md:gap-2 ml-auto">
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <button
                               onClick={() => handleTogglePin(post.id)}
-                              className={`hover:text-[#083232] transition-colors ${
+                              className={`hover:text-[#083232] transition-colors touch-manipulation p-1.5 ${
                                 post.pinned ? "text-[#083232]" : ""
                               }`}
                             >
                               <Pin
-                                className={`w-4 h-4 ${
+                                className={`w-4 h-4 md:w-3.5 md:h-3.5 ${
                                   post.pinned ? "fill-current" : ""
                                 }`}
                               />
@@ -2206,9 +2208,9 @@ export function CommunityPosts({
                         {post.author.id === userId && (
                           <button
                             onClick={() => handleDeletePost(post.id)}
-                            className="flex items-center gap-1 hover:text-[#f64d52] transition-colors"
+                            className="flex items-center gap-1 hover:text-[#f64d52] transition-colors touch-manipulation p-1.5"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-4 h-4 md:w-3.5 md:h-3.5" />
                           </button>
                         )}
                       </div>

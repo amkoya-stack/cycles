@@ -24,25 +24,59 @@ export class AuditTrailService {
   async logActivity(
     action: string,
     entityType: string,
-    entityId: string,
+    entityId: string | null,
     context: AuditLogContext,
     details?: Record<string, any>,
   ): Promise<string> {
     const logId = uuidv4();
 
+    // Validate entityId is a valid UUID if provided
+    let validEntityId: string | null = null;
+    if (entityId) {
+      // Check if it's a valid UUID format
+      const uuidRegex =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (uuidRegex.test(entityId)) {
+        validEntityId = entityId;
+      } else {
+        // If it's not a UUID, store it in details instead
+        if (!details) {
+          details = {};
+        }
+        details.originalEntityId = entityId;
+      }
+    }
+
+    // Map to original audit_log schema requirements
+    // table_name: Use entity_type or 'api_request' as fallback
+    const tableName = entityType || 'api_request';
+    
+    // operation: Extract from action or default to 'SELECT' for GET requests
+    let operation = 'SELECT'; // Default
+    if (action.includes('POST') || action.includes('CREATE')) {
+      operation = 'INSERT';
+    } else if (action.includes('PUT') || action.includes('PATCH') || action.includes('UPDATE')) {
+      operation = 'UPDATE';
+    } else if (action.includes('DELETE')) {
+      operation = 'DELETE';
+    }
+
     await this.db.query(
       `INSERT INTO audit_log 
-       (id, user_id, chama_id, action, entity_type, entity_id, 
+       (id, table_name, operation, record_id, user_id, chama_id, action, entity_type, entity_id, 
         ip_address, user_agent, device_fingerprint, session_id, 
         compliance_required, details, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CURRENT_TIMESTAMP)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, CURRENT_TIMESTAMP)`,
       [
         logId,
+        tableName.substring(0, 50), // Ensure it fits VARCHAR(50)
+        operation,
+        validEntityId, // record_id maps to entity_id
         context.userId || null,
         context.chamaId || null,
         action,
         entityType,
-        entityId,
+        validEntityId,
         context.ipAddress || null,
         context.userAgent || null,
         context.deviceFingerprint || null,

@@ -53,7 +53,7 @@ export class AuditTrailInterceptor implements NestInterceptor {
             await this.auditTrail.logActivity(
               `${request.method} ${request.url}`,
               'api_request',
-              request.url,
+              null, // No specific entity ID for general API requests
               {
                 userId,
                 ipAddress,
@@ -64,6 +64,7 @@ export class AuditTrailInterceptor implements NestInterceptor {
               },
               {
                 method: request.method,
+                url: request.url,
                 statusCode: response.statusCode,
                 duration,
                 controller: controller.name,
@@ -83,7 +84,7 @@ export class AuditTrailInterceptor implements NestInterceptor {
             await this.auditTrail.logActivity(
               `${request.method} ${request.url} - ERROR`,
               'api_request',
-              request.url,
+              null, // No specific entity ID for general API requests
               {
                 userId,
                 ipAddress,
@@ -94,6 +95,7 @@ export class AuditTrailInterceptor implements NestInterceptor {
               },
               {
                 method: request.method,
+                url: request.url,
                 statusCode: error.status || 500,
                 duration,
                 error: error.message,
