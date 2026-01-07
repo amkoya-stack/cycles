@@ -52,6 +52,62 @@ export class ChatService {
         );
       }
 
+      // Check if both sender and recipient have chat enabled
+      // First check if the column exists (for backward compatibility)
+      try {
+        const columnCheck = await this.db.query(
+          `SELECT column_name 
+           FROM information_schema.columns 
+           WHERE table_name = 'notification_preferences' 
+           AND column_name = 'chat_enabled'`
+        );
+        
+        if (columnCheck.rows.length > 0) {
+          // Column exists, check both sender and recipient settings
+          const chatSettingsCheck = await this.db.query(
+            `SELECT 
+              user_id,
+              COALESCE(chat_enabled, true) as chat_enabled
+             FROM notification_preferences
+             WHERE user_id = ANY($1) AND chama_id = $2`,
+            [[senderId, dto.recipientId], dto.chamaId],
+          );
+
+          // Check sender's chat setting
+          const senderSettings = chatSettingsCheck.rows.find(
+            (row) => row.user_id === senderId,
+          );
+          if (
+            senderSettings &&
+            senderSettings.chat_enabled === false
+          ) {
+            throw new BadRequestException(
+              'You have disabled chat messages. Please enable chat in Cycle Settings to send messages.',
+            );
+          }
+
+          // Check recipient's chat setting
+          const recipientSettings = chatSettingsCheck.rows.find(
+            (row) => row.user_id === dto.recipientId,
+          );
+          if (
+            recipientSettings &&
+            recipientSettings.chat_enabled === false
+          ) {
+            throw new BadRequestException(
+              'This member has disabled chat messages from other members',
+            );
+          }
+        }
+      } catch (error: any) {
+        // If it's our BadRequestException, re-throw it
+        if (error instanceof BadRequestException) {
+          throw error;
+        }
+        // Otherwise, log and continue (column might not exist yet)
+        console.warn('Could not check chat settings:', error.message);
+      }
+
       // Get or create conversation
       console.log('Getting/creating conversation...');
       const conversationResult = await this.db.query(

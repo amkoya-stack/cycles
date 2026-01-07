@@ -361,6 +361,7 @@ export class NotificationService {
       dailyDigest?: boolean;
       weeklyDigest?: boolean;
       digestTime?: string;
+      chatEnabled?: boolean;
     },
   ) {
     const fields: string[] = [];
@@ -409,6 +410,12 @@ export class NotificationService {
       paramIndex++;
     }
 
+    if (preferences.chatEnabled !== undefined) {
+      fields.push(`chat_enabled = $${paramIndex}`);
+      values.push(preferences.chatEnabled);
+      paramIndex++;
+    }
+
     if (fields.length === 0) {
       return this.getNotificationPreferences(userId, chamaId ?? undefined);
     }
@@ -426,8 +433,67 @@ export class NotificationService {
     );
 
     if (result.rows.length === 0) {
-      // Preferences don't exist, create them
-      return this.getNotificationPreferences(userId, chamaId ?? undefined);
+      // Preferences don't exist, create them with the provided values
+      const insertFields: string[] = ['user_id', 'chama_id'];
+      const insertValues: any[] = [userId, chamaId];
+      let insertParamIndex = 1;
+      const insertFieldParts: string[] = [];
+
+      // Build INSERT statement with all provided preferences
+      if (preferences.pushEnabled !== undefined) {
+        insertFields.push('push_enabled');
+        insertValues.push(preferences.pushEnabled);
+        insertFieldParts.push(`$${insertParamIndex++}`);
+      }
+      if (preferences.emailEnabled !== undefined) {
+        insertFields.push('email_enabled');
+        insertValues.push(preferences.emailEnabled);
+        insertFieldParts.push(`$${insertParamIndex++}`);
+      }
+      if (preferences.smsEnabled !== undefined) {
+        insertFields.push('sms_enabled');
+        insertValues.push(preferences.smsEnabled);
+        insertFieldParts.push(`$${insertParamIndex++}`);
+      }
+      if (preferences.activityPreferences) {
+        insertFields.push('activity_preferences');
+        insertValues.push(JSON.stringify(preferences.activityPreferences));
+        insertFieldParts.push(`$${insertParamIndex++}::jsonb`);
+      }
+      if (preferences.dailyDigest !== undefined) {
+        insertFields.push('daily_digest');
+        insertValues.push(preferences.dailyDigest);
+        insertFieldParts.push(`$${insertParamIndex++}`);
+      }
+      if (preferences.weeklyDigest !== undefined) {
+        insertFields.push('weekly_digest');
+        insertValues.push(preferences.weeklyDigest);
+        insertFieldParts.push(`$${insertParamIndex++}`);
+      }
+      if (preferences.digestTime) {
+        insertFields.push('digest_time');
+        insertValues.push(preferences.digestTime);
+        insertFieldParts.push(`$${insertParamIndex++}::time`);
+      }
+      if (preferences.chatEnabled !== undefined) {
+        insertFields.push('chat_enabled');
+        insertValues.push(preferences.chatEnabled);
+        insertFieldParts.push(`$${insertParamIndex++}`);
+      }
+
+      // Add user_id and chama_id at the end
+      insertFieldParts.push(`$${insertParamIndex++}`, `$${insertParamIndex++}`);
+
+      const insertResult = await this.db.query(
+        `
+        INSERT INTO notification_preferences (${insertFields.join(', ')})
+        VALUES (${insertFieldParts.join(', ')})
+        RETURNING *
+        `,
+        insertValues,
+      );
+
+      return insertResult.rows[0];
     }
 
     return result.rows[0];

@@ -1532,6 +1532,23 @@ export class ChamaService {
 
     await this.db.setUserContext(userId);
 
+    // Check if chat_enabled column exists (for backward compatibility)
+    let chatEnabledColumn = '';
+    try {
+      const columnCheck = await this.db.query(
+        `SELECT column_name 
+         FROM information_schema.columns 
+         WHERE table_name = 'notification_preferences' 
+         AND column_name = 'chat_enabled'`
+      );
+      if (columnCheck.rows.length > 0) {
+        chatEnabledColumn = ', COALESCE(np.chat_enabled, true) as chat_enabled';
+      }
+    } catch (err) {
+      // Column doesn't exist yet, skip it
+      console.warn('chat_enabled column not found, skipping');
+    }
+
     const result = await this.db.query(
       `SELECT 
         cm.*,
@@ -1539,9 +1556,10 @@ export class ChamaService {
         u.phone,
         u.full_name as name,
         u.profile_photo_url as profile_picture,
-        calculate_contribution_rate(cm.id) as contribution_rate
+        calculate_contribution_rate(cm.id) as contribution_rate${chatEnabledColumn}
       FROM chama_members cm
       JOIN users u ON cm.user_id = u.id
+      LEFT JOIN notification_preferences np ON np.user_id = u.id AND np.chama_id = $1
       WHERE cm.chama_id = $1 AND cm.status = 'active'
       ORDER BY cm.payout_position`,
       [chamaId],
@@ -2139,6 +2157,35 @@ export class ChamaService {
     // This will be updated based on actual activity over time
 
     return tags;
+  }
+
+  /**
+   * Get member chat settings for a specific user in a chama
+   */
+  async getMemberChatSettings(
+    requesterId: string,
+    chamaId: string,
+    memberUserId: string,
+  ): Promise<{ chat_enabled: boolean }> {
+    // Verify requester is a member of the chama
+    await this.getMemberRole(requesterId, chamaId);
+
+    // Get chat settings for the member
+    const result = await this.db.query(
+      `
+      SELECT COALESCE(chat_enabled, true) as chat_enabled
+      FROM notification_preferences
+      WHERE user_id = $1 AND chama_id = $2
+      `,
+      [memberUserId, chamaId],
+    );
+
+    if (result.rows.length > 0) {
+      return { chat_enabled: result.rows[0].chat_enabled };
+    }
+
+    // Default to enabled if no preferences exist
+    return { chat_enabled: true };
   }
 
   /**

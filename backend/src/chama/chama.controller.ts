@@ -408,6 +408,25 @@ export class ChamaController {
   }
 
   /**
+   * Get member chat settings
+   * GET /api/chama/:id/members/:userId/chat-settings
+   * Note: Must be before :id/members/:userId/contributions to avoid route conflicts
+   */
+  @Get(':id/members/:userId/chat-settings')
+  @UseGuards(JwtAuthGuard)
+  async getMemberChatSettings(
+    @Req() req: any,
+    @Param('id') chamaId: string,
+    @Param('userId') userId: string,
+  ) {
+    return this.chamaService.getMemberChatSettings(
+      req.user.id,
+      chamaId,
+      userId,
+    );
+  }
+
+  /**
    * Leave chama
    * POST /api/chama/:id/leave
    */

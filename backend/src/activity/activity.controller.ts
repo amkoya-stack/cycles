@@ -170,6 +170,7 @@ export class ActivityController {
     @Body('dailyDigest') dailyDigest?: boolean,
     @Body('weeklyDigest') weeklyDigest?: boolean,
     @Body('digestTime') digestTime?: string,
+    @Body('chatEnabled') chatEnabled?: boolean,
   ) {
     return this.notificationService.updateNotificationPreferences(
       req.user.id,
@@ -182,6 +183,7 @@ export class ActivityController {
         dailyDigest,
         weeklyDigest,
         digestTime,
+        chatEnabled,
       },
     );
   }
