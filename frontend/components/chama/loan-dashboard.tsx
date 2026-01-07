@@ -977,7 +977,7 @@ export default function LoanDashboard({
                     <h2 className="text-lg font-semibold text-gray-900">
                       All Loans
                     </h2>
-                  </div>
+      </div>
 
                   {/* Filters and Search */}
                   <div className="flex items-center gap-4 mb-6">
@@ -990,7 +990,7 @@ export default function LoanDashboard({
                         onChange={(e) => setLoanSearch(e.target.value)}
                         className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
-                    </div>
+    </div>
                     <div className="flex gap-2">
                       {[
                         "all",

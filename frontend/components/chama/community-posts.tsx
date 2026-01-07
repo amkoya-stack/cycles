@@ -50,6 +50,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+import { apiUrl } from "@/lib/api-config";
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
 
 interface Author {
@@ -201,17 +203,27 @@ export function CommunityPosts({
     const fetchCurrentUser = async () => {
       try {
         const token = getAuthToken();
-        const response = await fetch(`${API_URL}/auth/profile`, {
+        // Try /auth/me first (standard endpoint), fallback to /auth/profile
+        let response = await fetch(apiUrl("auth/me"), {
           headers: {
             Authorization: `Bearer ${token}`,
           },
         });
 
+        // If /auth/me doesn't work, try /auth/profile
+        if (!response.ok) {
+          response = await fetch(apiUrl("auth/profile"), {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
+        }
+
         if (response.ok) {
           const userData = await response.json();
           setCurrentUser({
             fullName: userData.full_name || "You",
-            avatar: userData.profile_photo_url,
+            avatar: userData.profile_photo_url || userData.avatar || userData.profilePhotoUrl,
           });
         }
       } catch (error) {
@@ -1155,7 +1167,7 @@ export function CommunityPosts({
   return (
     <div className="space-y-2 md:space-y-3">
       {/* Create New Post */}
-      <Card className="p-2.5 md:p-3">
+      <div className="p-2.5 md:p-3">
         <div className="flex gap-2">
           <Avatar className="w-8 h-8 md:w-10 md:h-10 flex-shrink-0">
             <AvatarImage
@@ -1903,17 +1915,15 @@ export function CommunityPosts({
                 className="bg-[#083232] hover:bg-[#2e856e] h-9 md:h-8 text-sm px-3 md:px-2 touch-manipulation"
                 size="sm"
               >
-                {submitting ? (
+                {submitting && (
                   <Loader2 className="w-3.5 h-3.5 md:w-3 md:h-3 mr-1.5 md:mr-2 animate-spin" />
-                ) : (
-                  <Send className="w-3.5 h-3.5 md:w-3 md:h-3 mr-1.5 md:mr-2" />
                 )}
                 Post
               </Button>
             </div>
           </div>
         </div>
-      </Card>
+      </div>
 
       {/* Posts Feed */}
       {posts.length === 0 ? (
@@ -1930,11 +1940,9 @@ export function CommunityPosts({
           const isReplyingToPost = replyingTo === post.id;
 
           return (
-            <Card
+            <div
               key={post.id}
-              className={`p-2.5 md:p-3 ${
-                post.pinned ? "border-2 border-[#083232]" : ""
-              }`}
+              className="p-2.5 md:p-3"
             >
               {post.pinned && (
                 <div className="flex items-center gap-1 text-xs text-[#083232] font-medium mb-1.5 md:mb-2">
@@ -2257,7 +2265,7 @@ export function CommunityPosts({
                     post.replies.map((reply) => renderReply(reply, post.id))}
                 </div>
               </div>
-            </Card>
+            </div>
           );
         })
       )}

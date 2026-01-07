@@ -14,13 +14,20 @@ export function useChamas() {
       const publicUrl = apiUrl("chama/public");
       console.log("[useChamas] Fetching public chamas from:", publicUrl);
       
-      const publicResponse = await fetch(publicUrl);
       let publicChamas = [];
-
-      if (publicResponse.ok) {
-        publicChamas = await publicResponse.json();
-      } else {
-        console.error("[useChamas] Public chamas fetch failed:", publicResponse.status, publicResponse.statusText);
+      try {
+        const publicResponse = await fetch(publicUrl);
+        if (publicResponse.ok) {
+          publicChamas = await publicResponse.json();
+        } else {
+          console.error("[useChamas] Public chamas fetch failed:", publicResponse.status, publicResponse.statusText);
+        }
+      } catch (error: any) {
+        if (error.name === 'TypeError' && error.message === 'Failed to fetch') {
+          console.error("[useChamas] Network error - Backend may not be running. URL:", publicUrl);
+        } else {
+          console.error("[useChamas] Error fetching public chamas:", error);
+        }
       }
 
       // Fetch user's chamas if authenticated
@@ -43,8 +50,12 @@ export function useChamas() {
           } else {
             console.error("[useChamas] User chamas fetch failed:", userResponse.status, userResponse.statusText);
           }
-        } catch (error) {
-          console.error("[useChamas] Error fetching user chamas:", error);
+        } catch (error: any) {
+          if (error.name === 'TypeError' && error.message === 'Failed to fetch') {
+            console.error("[useChamas] Network error - Backend may not be running. URL:", userUrl);
+          } else {
+            console.error("[useChamas] Error fetching user chamas:", error);
+          }
         }
       }
 

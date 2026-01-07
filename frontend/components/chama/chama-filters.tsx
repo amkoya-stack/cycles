@@ -136,8 +136,8 @@ export function ChamaFilters({
         )}
       </div>
 
-      {/* Mobile: Horizontal scroll */}
-      <div className="md:hidden overflow-x-auto -mx-4 px-4 scrollbar-hide">
+      {/* Mobile: Horizontal scroll (scrollbar hidden) */}
+      <div className="md:hidden overflow-x-auto -mx-4 px-4 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
         <div className="flex gap-2 pb-2" style={{ width: 'max-content' }}>
           {filters.map((filter) => (
             <button

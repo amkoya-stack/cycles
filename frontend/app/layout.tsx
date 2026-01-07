@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/toaster";
 import { FloatingChatButton } from "@/components/chat/floating-chat-button";
+import { MobileBottomNav } from "@/components/navigation/mobile-bottom-nav";
 import { AuthInitializer } from "@/components/auth-initializer";
 import "./globals.css";
 
@@ -28,12 +29,15 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased overflow-x-hidden`}
       >
-        <AuthInitializer />
-        {children}
-        <Toaster />
-        <FloatingChatButton />
+        <div className="min-w-0 w-full overflow-x-hidden">
+          <AuthInitializer />
+          {children}
+          <Toaster />
+          <FloatingChatButton />
+          <MobileBottomNav />
+        </div>
       </body>
     </html>
   );

@@ -11,9 +11,11 @@ import {
   LogOut,
   Settings,
   DollarSign,
+  MoreHorizontal,
 } from "lucide-react";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { NotificationsDropdown } from "@/components/wallet/NotificationsDropdown";
+import { apiUrl } from "@/lib/api-config";
 
 interface HomeNavbarProps {
   isAuthenticated: boolean;
@@ -21,6 +23,10 @@ interface HomeNavbarProps {
   searchQuery: string;
   onSearchChange: (value: string) => void;
   title?: string;
+  isChamaPage?: boolean;
+  isAdmin?: boolean;
+  isMember?: boolean;
+  onSettingsClick?: () => void;
 }
 
 export function HomeNavbar({
@@ -29,6 +35,10 @@ export function HomeNavbar({
   searchQuery,
   onSearchChange,
   title,
+  isChamaPage = false,
+  isAdmin = false,
+  isMember = false,
+  onSettingsClick,
 }: HomeNavbarProps) {
   const [showDropdown, setShowDropdown] = useState(false);
   const [showCyclesDropdown, setShowCyclesDropdown] = useState(false);
@@ -66,7 +76,7 @@ export function HomeNavbar({
 
         // Fetch user profile
         const profileResponse = await fetch(
-          "http://localhost:3001/api/v1/auth/profile",
+          apiUrl("auth/profile"),
           {
             headers: {
               Authorization: `Bearer ${accessToken}`,
@@ -88,7 +98,7 @@ export function HomeNavbar({
         }
 
         // Fetch user chamas
-        const chamaResponse = await fetch("http://localhost:3001/api/v1/chama", {
+        const chamaResponse = await fetch(apiUrl("chama"), {
           headers: {
             Authorization: `Bearer ${accessToken}`,
           },
@@ -118,27 +128,27 @@ export function HomeNavbar({
     <div className="fixed top-0 left-0 right-0 z-50">
       <nav className="bg-[#083232] text-white shadow-md">
         <div className="max-w-[1085px] mx-auto px-4">
-          <div className="flex items-center justify-between h-16 gap-4">
+          <div className="flex items-center justify-between h-14 md:h-16 gap-2 md:gap-4">
             <div className="relative" ref={cyclesDropdownRef}>
               <button
                 onClick={() => setShowCyclesDropdown(!showCyclesDropdown)}
-                className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg transition-all duration-200 border border-white/20 cursor-pointer"
+                className="flex items-center gap-1.5 md:gap-2 px-2 md:px-4 py-1.5 md:py-2 bg-white/10 hover:bg-white/20 rounded-lg transition-all duration-200 border border-white/20 cursor-pointer"
               >
-                <span className="text-xl font-bold">{title || "Cycles"}</span>
-                <ChevronsUpDown className="w-5 h-5" />
+                <span className="text-base md:text-xl font-bold">{title || "Cycles"}</span>
+                <ChevronsUpDown className="w-4 h-4 md:w-5 md:h-5" />
               </button>
 
               {showCyclesDropdown && (
-                <div className="absolute left-0 mt-3 w-64 bg-white rounded-xl shadow-2xl border border-gray-100 overflow-hidden text-gray-900 animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="absolute left-0 mt-3 w-56 md:w-64 bg-white rounded-xl shadow-2xl border border-gray-100 overflow-hidden text-gray-900 animate-in fade-in slide-in-from-top-2 duration-200">
                   <div className="p-2">
                     <Link
                       href="/"
-                      className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-50 transition-all text-gray-700 group"
+                      className="flex items-center gap-2 md:gap-3 px-3 md:px-4 py-2 md:py-3 rounded-lg hover:bg-gray-50 transition-all text-gray-700 group"
                       onClick={() => setShowCyclesDropdown(false)}
                     >
-                      <div className="w-9 h-9 bg-[#083232]/10 rounded-lg flex items-center justify-center group-hover:bg-[#083232]/20 transition-colors">
+                      <div className="w-8 h-8 md:w-9 md:h-9 bg-[#083232]/10 rounded-lg flex items-center justify-center group-hover:bg-[#083232]/20 transition-colors">
                         <svg
-                          className="w-5 h-5 text-[#083232]"
+                          className="w-4 h-4 md:w-5 md:h-5 text-[#083232]"
                           fill="none"
                           stroke="currentColor"
                           viewBox="0 0 24 24"
@@ -151,18 +161,18 @@ export function HomeNavbar({
                           />
                         </svg>
                       </div>
-                      <span className="text-sm font-medium">
+                      <span className="text-xs md:text-sm font-medium">
                         View All Cycles
                       </span>
                     </Link>
                     <Link
                       href="/cycle/create"
-                      className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-50 transition-all text-gray-700 group"
+                      className="flex items-center gap-2 md:gap-3 px-3 md:px-4 py-2 md:py-3 rounded-lg hover:bg-gray-50 transition-all text-gray-700 group"
                       onClick={() => setShowCyclesDropdown(false)}
                     >
-                      <div className="w-9 h-9 bg-[#f64d52]/10 rounded-lg flex items-center justify-center group-hover:bg-[#f64d52]/20 transition-colors">
+                      <div className="w-8 h-8 md:w-9 md:h-9 bg-[#f64d52]/10 rounded-lg flex items-center justify-center group-hover:bg-[#f64d52]/20 transition-colors">
                         <svg
-                          className="w-5 h-5 text-[#f64d52]"
+                          className="w-4 h-4 md:w-5 md:h-5 text-[#f64d52]"
                           fill="none"
                           stroke="currentColor"
                           viewBox="0 0 24 24"
@@ -175,18 +185,18 @@ export function HomeNavbar({
                           />
                         </svg>
                       </div>
-                      <span className="text-sm font-medium">
+                      <span className="text-xs md:text-sm font-medium">
                         Create a Cycle
                       </span>
                     </Link>
                     <Link
                       href="/lending/marketplace"
-                      className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-50 transition-all text-gray-700 group"
+                      className="flex items-center gap-2 md:gap-3 px-3 md:px-4 py-2 md:py-3 rounded-lg hover:bg-gray-50 transition-all text-gray-700 group"
                       onClick={() => setShowCyclesDropdown(false)}
                     >
-                      <div className="w-9 h-9 bg-blue-500/10 rounded-lg flex items-center justify-center group-hover:bg-blue-500/20 transition-colors">
+                      <div className="w-8 h-8 md:w-9 md:h-9 bg-blue-500/10 rounded-lg flex items-center justify-center group-hover:bg-blue-500/20 transition-colors">
                         <svg
-                          className="w-5 h-5 text-blue-500"
+                          className="w-4 h-4 md:w-5 md:h-5 text-blue-500"
                           fill="none"
                           stroke="currentColor"
                           viewBox="0 0 24 24"
@@ -199,18 +209,18 @@ export function HomeNavbar({
                           />
                         </svg>
                       </div>
-                      <span className="text-sm font-medium">
+                      <span className="text-xs md:text-sm font-medium">
                         Loan Marketplace
                       </span>
                     </Link>
                     <Link
                       href="/investment/marketplace"
-                      className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-50 transition-all text-gray-700 group"
+                      className="flex items-center gap-2 md:gap-3 px-3 md:px-4 py-2 md:py-3 rounded-lg hover:bg-gray-50 transition-all text-gray-700 group"
                       onClick={() => setShowCyclesDropdown(false)}
                     >
-                      <div className="w-9 h-9 bg-green-500/10 rounded-lg flex items-center justify-center group-hover:bg-green-500/20 transition-colors">
+                      <div className="w-8 h-8 md:w-9 md:h-9 bg-green-500/10 rounded-lg flex items-center justify-center group-hover:bg-green-500/20 transition-colors">
                         <svg
-                          className="w-5 h-5 text-green-500"
+                          className="w-4 h-4 md:w-5 md:h-5 text-green-500"
                           fill="none"
                           stroke="currentColor"
                           viewBox="0 0 24 24"
@@ -223,7 +233,7 @@ export function HomeNavbar({
                           />
                         </svg>
                       </div>
-                      <span className="text-sm font-medium">
+                      <span className="text-xs md:text-sm font-medium">
                         Investment Marketplace
                       </span>
                     </Link>
@@ -232,8 +242,8 @@ export function HomeNavbar({
                   {isAuthenticated && userChamas.length > 0 && (
                     <>
                       <div className="border-t border-gray-100"></div>
-                      <div className="px-4 py-3 bg-gray-50/50">
-                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      <div className="px-3 md:px-4 py-2 md:py-3 bg-gray-50/50">
+                        <p className="text-[10px] md:text-xs font-semibold text-gray-500 uppercase tracking-wider">
                           My Cycles ({userChamas.length})
                         </p>
                       </div>
@@ -246,11 +256,11 @@ export function HomeNavbar({
                             <Link
                               key={chama.id}
                               href={`/${encodeURIComponent(slug)}`}
-                              className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-50 transition-all group"
+                              className="flex items-center gap-2 md:gap-3 px-2 md:px-3 py-2 md:py-2.5 rounded-lg hover:bg-gray-50 transition-all group"
                               onClick={() => setShowCyclesDropdown(false)}
                             >
                               {chama.cover_image ? (
-                                <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 shadow-sm group-hover:scale-105 transition-transform">
+                                <div className="w-8 h-8 md:w-10 md:h-10 rounded-lg overflow-hidden flex-shrink-0 shadow-sm group-hover:scale-105 transition-transform">
                                   <img
                                     src={chama.cover_image}
                                     alt={chama.name}
@@ -258,17 +268,17 @@ export function HomeNavbar({
                                   />
                                 </div>
                               ) : (
-                                <div className="w-10 h-10 bg-gradient-to-br from-[#083232] to-[#2e856e] rounded-lg flex items-center justify-center text-white text-lg flex-shrink-0 shadow-sm group-hover:scale-105 transition-transform">
+                                <div className="w-8 h-8 md:w-10 md:h-10 bg-gradient-to-br from-[#083232] to-[#2e856e] rounded-lg flex items-center justify-center text-white text-sm md:text-lg flex-shrink-0 shadow-sm group-hover:scale-105 transition-transform">
                                   {chama.name.charAt(0).toUpperCase()}
                                 </div>
                               )}
                               <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-gray-900 truncate group-hover:text-[#083232] transition-colors">
+                                <p className="text-xs md:text-sm font-medium text-gray-900 truncate group-hover:text-[#083232] transition-colors">
                                   {chama.name}
                                 </p>
-                                <p className="text-xs text-gray-500 flex items-center gap-1">
+                                <p className="text-[10px] md:text-xs text-gray-500 flex items-center gap-1">
                                   <svg
-                                    className="w-3 h-3"
+                                    className="w-2.5 h-2.5 md:w-3 md:h-3"
                                     fill="none"
                                     stroke="currentColor"
                                     viewBox="0 0 24 24"
@@ -300,10 +310,10 @@ export function HomeNavbar({
                   value={searchQuery}
                   onChange={(e) => onSearchChange(e.target.value)}
                   placeholder="search by cycle name"
-                  className="w-full h-10 pl-10 pr-4 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/30 transition-all"
+                  className="w-full h-8 md:h-10 pl-8 md:pl-10 pr-3 md:pr-4 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/30 transition-all text-sm md:text-base"
                 />
                 <svg
-                  className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/60"
+                  className="absolute left-2 md:left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 md:w-4 md:h-4 text-white/60"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -320,96 +330,190 @@ export function HomeNavbar({
 
             {!showSearchInNav && <div className="flex-1"></div>}
 
-            <div className="flex items-center space-x-4 flex-shrink-0">
+            <div className="flex items-center space-x-2 md:space-x-4 flex-shrink-0">
               {isAuthenticated ? (
                 <>
                   <div className="text-white">
                     <NotificationsDropdown />
                   </div>
+                  {/* Hide wallet on mobile since it's in bottom nav */}
                   <Link
                     href="/wallet"
-                    className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                    className="hidden md:block p-2 hover:bg-white/10 rounded-lg transition-colors"
                   >
                     <Wallet className="w-5 h-5" />
                   </Link>
                   <div className="relative" ref={dropdownRef}>
                     <button
                       onClick={() => setShowDropdown(!showDropdown)}
-                      className="flex items-center gap-1 p-2 hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
+                      className="flex items-center gap-0.5 md:gap-1 p-1.5 md:p-2 hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
                     >
-                      <User className="w-5 h-5" />
-                      <ChevronDown className="w-4 h-4" />
+                      {/* Show 3 dots on mobile, User icon on desktop */}
+                      <MoreHorizontal className="w-4 h-4 md:hidden" />
+                      <User className="hidden md:block w-5 h-5" />
+                      <ChevronDown className="hidden md:block w-4 h-4" />
                     </button>
 
                     {showDropdown && (
-                      <div className="absolute left-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden text-gray-900">
-                        {/* User Info */}
-                        <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
-                          <p className="text-sm font-semibold text-gray-900 truncate">
-                            {userName}
-                          </p>
-                        </div>
+                      <div className="fixed top-14 right-0 md:absolute md:top-auto md:left-0 md:right-auto md:mt-2 w-28 md:w-56 bg-white rounded-none md:rounded-lg shadow-xl border border-gray-200 overflow-hidden text-gray-900 z-[100]">
+                        {/* On chama page (mobile only): Show Cycle Settings for all members */}
+                        {isChamaPage && isMember ? (
+                          <>
+                            {/* Mobile: Show Cycle Settings */}
+                            <button
+                              onClick={() => {
+                                setShowDropdown(false);
+                                onSettingsClick?.();
+                              }}
+                              className="md:hidden flex items-center px-4 py-2 hover:bg-gray-50 transition-colors w-full text-left"
+                            >
+                              <span className="text-xs">Cycle Settings</span>
+                            </button>
+                            
+                            {/* Desktop: Show normal dropdown */}
+                            <div className="hidden md:block">
+                              {/* User Info */}
+                              <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
+                                <p className="text-sm font-semibold text-gray-900 truncate">
+                                  {userName}
+                                </p>
+                              </div>
 
-                        {/* Menu Items */}
-                        <Link
-                          href="/wallet"
-                          onClick={() => setShowDropdown(false)}
-                          className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 transition-colors"
-                        >
-                          <Wallet className="w-4 h-4" />
-                          <span className="text-sm">My Wallet</span>
-                        </Link>
-                        <Link
-                          href="/loans"
-                          onClick={() => setShowDropdown(false)}
-                          className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 transition-colors"
-                        >
-                          <DollarSign className="w-4 h-4" />
-                          <span className="text-sm">My Loans</span>
-                        </Link>
-                        <Link
-                          href="/investment/marketplace"
-                          onClick={() => setShowDropdown(false)}
-                          className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 transition-colors"
-                        >
-                          <svg
-                            className="w-4 h-4"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-                            />
-                          </svg>
-                          <span className="text-sm">Investments</span>
-                        </Link>
-                        <Link
-                          href="/profile"
-                          onClick={() => setShowDropdown(false)}
-                          className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 transition-colors"
-                        >
-                          <User className="w-4 h-4" />
-                          <span className="text-sm">Profile</span>
-                        </Link>
-                        <Link
-                          href="/settings"
-                          onClick={() => setShowDropdown(false)}
-                          className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 transition-colors"
-                        >
-                          <Settings className="w-4 h-4" />
-                          <span className="text-sm">Settings</span>
-                        </Link>
-                        <button
-                          onClick={handleLogout}
-                          className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 transition-colors w-full text-left text-red-600"
-                        >
-                          <LogOut className="w-4 h-4" />
-                          <span className="text-sm">Logout</span>
-                        </button>
+                              {/* Menu Items */}
+                              <Link
+                                href="/wallet"
+                                onClick={() => setShowDropdown(false)}
+                                className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 transition-colors"
+                              >
+                                <Wallet className="w-4 h-4" />
+                                <span className="text-sm">My Wallet</span>
+                              </Link>
+                              <Link
+                                href="/loans"
+                                onClick={() => setShowDropdown(false)}
+                                className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 transition-colors"
+                              >
+                                <DollarSign className="w-4 h-4" />
+                                <span className="text-sm">My Loans</span>
+                              </Link>
+                              <Link
+                                href="/investment/marketplace"
+                                onClick={() => setShowDropdown(false)}
+                                className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 transition-colors"
+                              >
+                                <svg
+                                  className="w-4 h-4"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                                  />
+                                </svg>
+                                <span className="text-sm">Investments</span>
+                              </Link>
+                              <Link
+                                href="/profile"
+                                onClick={() => setShowDropdown(false)}
+                                className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 transition-colors"
+                              >
+                                <User className="w-4 h-4" />
+                                <span className="text-sm">Profile</span>
+                              </Link>
+                              <Link
+                                href="/settings"
+                                onClick={() => setShowDropdown(false)}
+                                className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 transition-colors"
+                              >
+                                <Settings className="w-4 h-4" />
+                                <span className="text-sm">Settings</span>
+                              </Link>
+                              <button
+                                onClick={handleLogout}
+                                className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 transition-colors w-full text-left text-red-600"
+                              >
+                                <LogOut className="w-4 h-4" />
+                                <span className="text-sm">Logout</span>
+                              </button>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            {/* User Info */}
+                            <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
+                              <p className="text-xs md:text-sm font-semibold text-gray-900 truncate">
+                                {userName}
+                              </p>
+                            </div>
+
+                            {/* Menu Items */}
+                            {/* Hide wallet on mobile since it's in bottom nav */}
+                            <Link
+                              href="/wallet"
+                              onClick={() => setShowDropdown(false)}
+                              className="hidden md:flex items-center gap-3 px-4 py-2 hover:bg-gray-50 transition-colors"
+                            >
+                              <Wallet className="w-4 h-4" />
+                              <span className="text-sm">My Wallet</span>
+                            </Link>
+                            <Link
+                              href="/loans"
+                              onClick={() => setShowDropdown(false)}
+                              className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 transition-colors"
+                            >
+                              <DollarSign className="w-4 h-4" />
+                              <span className="text-xs md:text-sm">My Loans</span>
+                            </Link>
+                            {/* Hide investments on mobile since it's in bottom nav */}
+                            <Link
+                              href="/investment/marketplace"
+                              onClick={() => setShowDropdown(false)}
+                              className="hidden md:flex items-center gap-3 px-4 py-2 hover:bg-gray-50 transition-colors"
+                            >
+                              <svg
+                                className="w-4 h-4"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                                />
+                              </svg>
+                              <span className="text-sm">Investments</span>
+                            </Link>
+                            <Link
+                              href="/profile"
+                              onClick={() => setShowDropdown(false)}
+                              className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 transition-colors"
+                            >
+                              <User className="w-4 h-4" />
+                              <span className="text-xs md:text-sm">Profile</span>
+                            </Link>
+                            <Link
+                              href="/settings"
+                              onClick={() => setShowDropdown(false)}
+                              className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 transition-colors"
+                            >
+                              <Settings className="w-4 h-4" />
+                              <span className="text-xs md:text-sm">Settings</span>
+                            </Link>
+                            <button
+                              onClick={handleLogout}
+                              className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 transition-colors w-full text-left text-red-600"
+                            >
+                              <LogOut className="w-4 h-4" />
+                              <span className="text-xs md:text-sm">Logout</span>
+                            </button>
+                          </>
+                        )}
                       </div>
                     )}
                   </div>
@@ -417,7 +521,7 @@ export function HomeNavbar({
               ) : (
                 <Link
                   href="/auth/login"
-                  className="px-4 py-2 hover:bg-white/10 text-white rounded-lg transition-colors font-medium"
+                  className="px-3 md:px-4 py-1.5 md:py-2 hover:bg-white/10 text-white rounded-lg transition-colors font-medium text-sm md:text-base"
                 >
                   Login
                 </Link>

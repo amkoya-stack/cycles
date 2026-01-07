@@ -26,6 +26,16 @@ interface Poll {
 export function ActivePollsSidebar({ chamaId }: ActivePollsSidebarProps) {
   const [polls, setPolls] = useState<Poll[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
 
   useEffect(() => {
     fetchActivePolls();
@@ -118,17 +128,12 @@ export function ActivePollsSidebar({ chamaId }: ActivePollsSidebarProps) {
   };
 
   if (loading) {
-    return (
-      <Card className="p-4">
-        <div className="flex items-center gap-2 mb-4">
-          <BarChart3 className="w-5 h-5 text-[#083232]" />
-          <h3 className="font-semibold text-[#083232]">Active Polls</h3>
-        </div>
-        <div className="flex items-center justify-center py-8">
-          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#083232]"></div>
-        </div>
-      </Card>
-    );
+    return null;
+  }
+
+  // On mobile, don't show if there are no polls
+  if (isMobile && polls.length === 0) {
+    return null;
   }
 
   return (

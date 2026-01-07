@@ -1,4 +1,5 @@
 // Frontend Chat API Client
+import { apiUrl } from "./api-config";
 
 interface SendMessageDto {
   recipientId: string;
@@ -42,45 +43,48 @@ interface ChamaMember {
 }
 
 class ChatApiClient {
-  private baseUrl: string;
-  
-  constructor() {
-    // Use the centralized API config
-    const envUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-    // Normalize: extract just the base URL (host + port)
-    let base = envUrl.trim().replace(/\/+$/, ''); // Remove trailing slashes
-    // Remove /api/v1 or /api if present
-    if (base.includes('/api/v1')) {
-      base = base.split('/api/v1')[0];
-    } else if (base.includes('/api')) {
-      base = base.split('/api')[0];
-    }
-    this.baseUrl = `${base}/api/v1`;
-    console.log('[ChatAPI] Base URL initialized to:', this.baseUrl);
-  }
-
   private async makeRequest(endpoint: string, options: RequestInit = {}) {
     const token = localStorage.getItem("accessToken");
-    const fullUrl = `${this.baseUrl}${endpoint}`;
+    // Use centralized apiUrl helper, but remove leading /api/v1 if present
+    let cleanEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
+    cleanEndpoint = cleanEndpoint.replace(/^(api\/v1\/)+/, '').replace(/^(api\/)+/, '');
+    const fullUrl = apiUrl(cleanEndpoint);
     console.log(`[ChatAPI] Making request to: ${fullUrl}`);
-    const response = await fetch(fullUrl, {
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-        ...options.headers,
-      },
-    });
+    
+    try {
+      const response = await fetch(fullUrl, {
+        ...options,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+          ...options.headers,
+        },
+      });
 
-    if (!response.ok) {
-      const error = await response
-        .json()
-        .catch(() => ({ message: "Request failed" }));
-      console.error(`Chat API Error (${response.status}):`, error);
-      throw new Error(error.message || `HTTP ${response.status}`);
+      if (!response.ok) {
+        const error = await response
+          .json()
+          .catch(() => ({ message: "Request failed" }));
+        
+        // Handle rate limit errors gracefully
+        if (response.status === 429) {
+          console.warn(`Chat API Rate Limit (429): ${error.message || "Too many requests"}`);
+          throw new Error(error.message || "Rate limit exceeded. Please wait a moment and try again.");
+        }
+        
+        console.error(`Chat API Error (${response.status}):`, error);
+        throw new Error(error.message || `HTTP ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error: any) {
+      // Handle network errors (backend not running, CORS, etc.)
+      if (error.name === 'TypeError' && error.message === 'Failed to fetch') {
+        console.error(`[ChatAPI] Network error - Backend may not be running or CORS issue. URL: ${fullUrl}`);
+        throw new Error(`Cannot connect to backend. Please ensure the backend server is running at ${fullUrl.split('/api')[0]}`);
+      }
+      throw error;
     }
-
-    return response.json();
   }
 
   // Send a message

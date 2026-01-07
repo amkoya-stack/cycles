@@ -356,10 +356,10 @@ export default function CreateChamaPage() {
                   placeholder="Tell people what this cycle is about..."
                   className="mt-1"
                   rows={4}
-                  maxLength={500}
+                  maxLength={150}
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  {formData.description.length}/500 characters
+                  {formData.description.length}/150 characters
                 </p>
               </div>
 

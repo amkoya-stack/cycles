@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { apiUrl } from "@/lib/api-config";
 import { useToast } from "@/hooks/use-toast";
+import { chatApi } from "@/lib/chat-api";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -63,6 +64,7 @@ import {
   Clock,
   Trophy,
   RefreshCw,
+  MessageCircle,
 } from "lucide-react";
 
 interface Member {
@@ -82,6 +84,8 @@ interface Member {
   last_activity_at?: string;
   profile_picture?: string;
   location?: string;
+  bio?: string; // Add bio field
+  chat_enabled?: boolean; // Chat settings for this member
   reputation?: {
     totalScore: number;
     tier: "bronze" | "silver" | "gold" | "platinum" | "diamond";
@@ -105,6 +109,8 @@ interface MemberDirectoryProps {
   userRole: string | null;
   currentUserId: string | null;
   onInviteMember?: () => void;
+  onOpenInviteTab?: () => void; // For mobile: opens settings modal to invite tab
+  chamaName?: string; // For chat modal
 }
 
 const ROLE_CONFIG = {
@@ -139,6 +145,7 @@ export function MemberDirectory({
   userRole,
   currentUserId,
   onInviteMember,
+  onOpenInviteTab,
 }: MemberDirectoryProps) {
   const router = useRouter();
   const { toast } = useToast();
@@ -150,6 +157,7 @@ export function MemberDirectory({
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("name");
+  const [mobileFilter, setMobileFilter] = useState<"all" | "admins">("all");
   const [showRoleDialog, setShowRoleDialog] = useState(false);
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [newRole, setNewRole] = useState<string>("");
@@ -160,13 +168,55 @@ export function MemberDirectory({
   const [leaderboardPeriod, setLeaderboardPeriod] = useState<
     "7days" | "30days" | "alltime"
   >("7days");
+  const [currentUserChatEnabled, setCurrentUserChatEnabled] = useState<boolean | null>(null);
+  
+  // Function to trigger the floating chat button (for desktop)
+  const triggerFloatingChatButton = () => {
+    const chatButton = document.querySelector(
+      "button[aria-label='Open chat']"
+    ) as HTMLButtonElement;
+    if (chatButton) {
+      chatButton.click();
+    }
+  };
 
   useEffect(() => {
     fetchMembers();
     if (userRole === "admin") {
       fetchJoinRequests();
     }
+    fetchCurrentUserChatSettings();
   }, [chamaId, userRole]);
+
+  const fetchCurrentUserChatSettings = async () => {
+    if (!currentUserId || !chamaId) return;
+    
+    try {
+      const accessToken = localStorage.getItem("accessToken");
+      if (!accessToken) return;
+
+      const response = await fetch(
+        apiUrl(`activity/preferences/me?chamaId=${chamaId}`),
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+
+      if (response.ok) {
+        const settings = await response.json();
+        setCurrentUserChatEnabled(settings.chat_enabled !== false);
+      } else {
+        // Default to enabled if fetch fails
+        setCurrentUserChatEnabled(true);
+      }
+    } catch (error) {
+      console.error("Failed to fetch current user chat settings:", error);
+      // Default to enabled if fetch fails
+      setCurrentUserChatEnabled(true);
+    }
+  };
 
   const fetchMembers = async () => {
     try {
@@ -183,15 +233,20 @@ export function MemberDirectory({
       );
 
       if (!response.ok) {
-        throw new Error("Failed to fetch members");
+        const errorData = await response.json().catch(() => ({}));
+        console.error("Failed to fetch members:", response.status, errorData);
+        throw new Error(
+          errorData.message || `Failed to fetch members (${response.status})`
+        );
       }
 
       const data = await response.json();
 
-      // Fetch reputation for each member
+      // Fetch reputation and bio for each member
       const membersWithReputation = await Promise.all(
         data.map(async (member: Member) => {
           try {
+            // Fetch reputation
             const repResponse = await fetch(
               apiUrl(`reputation/${chamaId}/user/${member.user_id}`),
               {
@@ -201,20 +256,52 @@ export function MemberDirectory({
               }
             );
 
+            let reputation = null;
             if (repResponse.ok) {
               const repData = await repResponse.json();
+              reputation = repData.reputation;
+            }
+
+            // Fetch user profile for bio
+            let bio = null;
+            try {
+              const profileResponse = await fetch(
+                apiUrl(`users/${member.user_id}`),
+                {
+                  headers: {
+                    Authorization: `Bearer ${accessToken}`,
+                  },
+                }
+              );
+
+              if (profileResponse.ok) {
+                const profileData = await profileResponse.json();
+                bio = profileData.bio || null;
+              }
+            } catch (err) {
+              console.error(
+                `Failed to fetch bio for ${member.user_id}:`,
+                err
+              );
+            }
+
+            // Chat settings are already included in the member data from listMembers
+            // Default to enabled if not present
+            const chatEnabled = (member as any).chat_enabled !== false;
+
               return {
                 ...member,
-                reputation: repData.reputation,
+              reputation,
+              bio,
+              chat_enabled: chatEnabled,
               };
-            }
           } catch (err) {
             console.error(
               `Failed to fetch reputation for ${member.user_id}:`,
               err
             );
-          }
           return member;
+          }
         })
       );
 
@@ -578,8 +665,216 @@ export function MemberDirectory({
           </Card>
         )}
 
-      {/* Main layout with sidebar */}
-      <div className="flex gap-6 w-full" style={{ maxWidth: '100%' }}>
+      {/* Mobile View - Small Screens */}
+      <div className="md:hidden space-y-4">
+        {/* Mobile Header */}
+        <div className="flex items-center justify-between px-2 py-3 bg-white border-b border-gray-200">
+          <button
+            onClick={() => setMobileFilter("all")}
+            className={`text-sm font-medium transition-colors flex-1 text-left ${
+              mobileFilter === "all"
+                ? "text-[#083232] font-semibold"
+                : "text-gray-600"
+            }`}
+          >
+            All members {members.length}
+          </button>
+          <button
+            onClick={() => setMobileFilter("admins")}
+            className={`text-sm font-medium transition-colors flex-1 text-center ${
+              mobileFilter === "admins"
+                ? "text-[#083232] font-semibold"
+                : "text-gray-600"
+            }`}
+          >
+            Admins {members.filter((m) => m.role === "admin").length}
+          </button>
+          {onOpenInviteTab && (
+            <button
+              onClick={onOpenInviteTab}
+              className="text-sm text-gray-700 hover:text-gray-900 cursor-pointer flex-1 text-right"
+            >
+              Invite
+            </button>
+          )}
+        </div>
+
+        {/* Mobile Member List */}
+        <div className="space-y-3 px-2">
+          {filteredMembers
+            .filter((member) => {
+              // Apply mobile filter
+              if (mobileFilter === "admins") {
+                return member.role === "admin";
+              }
+              return true; // Show all for "all" filter
+            })
+            .map((member) => {
+            return (
+              <div
+                key={member.user_id}
+                className="pt-4 pb-4 pr-4 hover:bg-gray-50 transition-colors border-b border-gray-200 text-left"
+              >
+                <div className="flex items-start gap-2">
+                  {/* Avatar */}
+                  <div className="relative flex-shrink-0">
+                    <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center overflow-hidden">
+                      {member.profile_picture ? (
+                        <img
+                          src={member.profile_picture}
+                          alt={member.name}
+                          className="w-full h-full rounded-full object-cover"
+                        />
+                      ) : (
+                        <User className="w-4 h-4 text-gray-400" />
+                      )}
+                    </div>
+                    {/* Online status indicator */}
+                    <div className="absolute bottom-0 right-0 w-2 h-2 bg-green-500 border border-white rounded-full"></div>
+                  </div>
+
+                  {/* Member Info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-gray-900 truncate text-sm leading-none">
+                          <button
+                            onClick={() =>
+                              router.push(`/profile/${member.user_id}`)
+                            }
+                            className="hover:text-[#2e856e] transition-colors cursor-pointer text-left"
+                          >
+                            {member.name}
+                          </button>
+                        </h3>
+                        {/* About Me - Directly below name */}
+                        {member.bio && (
+                          <p className="text-xs text-gray-600 line-clamp-2 mt-0.5 mb-2 leading-tight">
+                            {member.bio}
+                          </p>
+                        )}
+                      </div>
+                      {/* Reputation Score and Chat Button */}
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {/* Chat Button */}
+                        {member.user_id !== currentUserId && (
+                          <button
+                            onClick={() => {
+                              // Check if current user has chat disabled
+                              if (currentUserChatEnabled === false) {
+                                toast({
+                                  title: "Chat Disabled",
+                                  description: "You have disabled chat messages. Please enable chat in Cycle Settings to send messages.",
+                                  variant: "destructive",
+                                });
+                                return;
+                              }
+
+                              // Check if recipient has chat disabled
+                              if (member.chat_enabled === false) {
+                                toast({
+                                  title: "Chat Disabled",
+                                  description: `${member.name} has disabled chat messages from other members.`,
+                                  variant: "destructive",
+                                });
+                                return;
+                              }
+
+                              // Both users have chat enabled, open chat
+                              localStorage.setItem(
+                                "pendingMessage",
+                                JSON.stringify({
+                                  recipientId: member.user_id,
+                                  chamaId: chamaId,
+                                  recipientName: member.name,
+                                  recipientAvatar: member.profile_picture,
+                                })
+                              );
+                              // On desktop, trigger the floating chat button; on mobile, navigate to chat page
+                              if (window.innerWidth >= 768) {
+                                triggerFloatingChatButton();
+                              } else {
+                                router.push("/chat");
+                              }
+                            }}
+                            className="p-1.5 hover:bg-gray-100 rounded-full transition-colors"
+                            title={
+                              currentUserChatEnabled === false
+                                ? "You have disabled chat"
+                                : member.chat_enabled === false
+                                ? "Chat disabled"
+                                : "Send message"
+                            }
+                          >
+                            <MessageCircle
+                              className={`w-4 h-4 ${
+                                currentUserChatEnabled === false || member.chat_enabled === false
+                                  ? "text-gray-300 cursor-not-allowed"
+                                  : "text-gray-600 hover:text-[#083232]"
+                              }`}
+                            />
+                          </button>
+                        )}
+                        {/* Reputation Score */}
+                        {member.reputation ? (
+                          <div className="flex flex-col items-center gap-0.5">
+                            <ReputationBadge
+                              tier={member.reputation.tier}
+                              name=""
+                              size="sm"
+                              showLabel={false}
+                            />
+                            <span className="text-xs font-semibold text-gray-700">
+                              {member.reputation.totalScore}
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center gap-0.5">
+                            <div className="w-5 h-5 bg-gray-100 rounded-full flex items-center justify-center">
+                              <Star className="w-2.5 h-2.5 text-gray-400" />
+                            </div>
+                            <span className="text-xs text-gray-400">N/A</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Date Joined */}
+                    <div className="flex items-center gap-1 text-xs text-gray-500">
+                      <Calendar className="w-3 h-3" />
+                      <span>
+                        Joined{" "}
+                        {new Date(member.joined_at).toLocaleDateString("en-US", {
+                          month: "long",
+                          day: "numeric",
+                          year: "numeric",
+                        })}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {filteredMembers.length === 0 && (
+          <div className="p-8 text-center mx-4">
+            <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              No members found
+            </h3>
+            <p className="text-gray-600">
+              {searchQuery || roleFilter !== "all" || statusFilter !== "all"
+                ? "Try adjusting your search or filters"
+                : "This chama doesn't have any members yet"}
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Desktop View - Medium Screens and Above */}
+      <div className="hidden md:flex gap-6 w-full" style={{ maxWidth: '100%' }}>
         {/* Left side - Main content */}
         <div className="flex-1 space-y-4 min-w-0 overflow-hidden">
           {/* Header with invite button */}
@@ -729,8 +1024,68 @@ export function MemberDirectory({
                       </div>
                     </div>
 
-                    {/* Right side: Reputation + Actions */}
+                    {/* Right side: Chat + Reputation + Actions */}
                     <div className="flex items-center gap-4 flex-shrink-0">
+                      {/* Chat Button */}
+                      {member.user_id !== currentUserId && (
+                        <button
+                          onClick={() => {
+                            // Check if current user has chat disabled
+                            if (currentUserChatEnabled === false) {
+                              toast({
+                                title: "Chat Disabled",
+                                description: "You have disabled chat messages. Please enable chat in Cycle Settings to send messages.",
+                                variant: "destructive",
+                              });
+                              return;
+                            }
+
+                            // Check if recipient has chat disabled
+                            if (member.chat_enabled === false) {
+                              toast({
+                                title: "Chat Disabled",
+                                description: `${member.name} has disabled chat messages from other members.`,
+                                variant: "destructive",
+                              });
+                              return;
+                            }
+
+                            // Both users have chat enabled, open chat
+                            localStorage.setItem(
+                              "pendingMessage",
+                              JSON.stringify({
+                                recipientId: member.user_id,
+                                chamaId: chamaId,
+                                recipientName: member.name,
+                                recipientAvatar: member.profile_picture,
+                              })
+                            );
+                            // On desktop, trigger the floating chat button; on mobile, navigate to chat page
+                            if (window.innerWidth >= 768) {
+                              triggerFloatingChatButton();
+                            } else {
+                              router.push("/chat");
+                            }
+                          }}
+                          className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                          title={
+                            currentUserChatEnabled === false
+                              ? "You have disabled chat"
+                              : member.chat_enabled === false
+                              ? "Chat disabled"
+                              : "Send message"
+                          }
+                        >
+                          <MessageCircle
+                            className={`w-5 h-5 ${
+                              currentUserChatEnabled === false || member.chat_enabled === false
+                                ? "text-gray-300 cursor-not-allowed"
+                                : "text-gray-600 hover:text-[#083232]"
+                            }`}
+                          />
+                        </button>
+                      )}
+
                       {/* Reputation Score */}
                       {member.reputation ? (
                         <TooltipProvider>
@@ -1136,6 +1491,7 @@ export function MemberDirectory({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
     </div>
   );
 }

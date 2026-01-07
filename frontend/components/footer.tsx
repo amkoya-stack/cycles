@@ -3,7 +3,7 @@ import { Facebook, Twitter, Linkedin } from "lucide-react";
 
 export function Footer() {
   return (
-    <footer className="bg-[#083232] text-white mt-auto">
+    <footer className="hidden md:block bg-[#083232] text-white mt-auto">
       <div className="max-w-[1085px] mx-auto px-4 py-4">
         {/* Main Footer Content */}
         <div className="flex flex-wrap items-center justify-between gap-4 pb-3 border-b border-white/10">

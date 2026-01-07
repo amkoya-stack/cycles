@@ -435,7 +435,7 @@ export default function ProfilePage() {
           searchQuery=""
           onSearchChange={() => {}}
         />
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center pt-16">
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center pt-14 md:pt-16">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#083232] mx-auto"></div>
             <p className="mt-4 text-gray-600">Loading profile...</p>
@@ -454,7 +454,7 @@ export default function ProfilePage() {
           searchQuery=""
           onSearchChange={() => {}}
         />
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center pt-16">
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center pt-14 md:pt-16">
           <div className="text-center">
             <p className="text-red-600 mb-4">Failed to load profile</p>
             <Button onClick={() => router.push("/")}>Go Home</Button>
@@ -473,7 +473,7 @@ export default function ProfilePage() {
         onSearchChange={() => {}}
       />
 
-      <div className="min-h-screen bg-gray-50 pt-16">
+      <div className="min-h-screen bg-gray-50 pt-14 md:pt-16">
         <main className="max-w-[1085px] mx-auto px-4 py-8">
           {/* Profile Header */}
           <Card className="p-6 mb-6">

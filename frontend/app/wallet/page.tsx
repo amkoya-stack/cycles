@@ -585,7 +585,7 @@ export default function WalletPage() {
         searchQuery=""
         onSearchChange={() => {}}
       />
-      <div className="min-h-screen bg-gray-50 flex flex-col pt-16">
+      <div className="min-h-screen bg-gray-50 flex flex-col pt-14 md:pt-16">
         {/* Main Content */}
         <div className="max-w-6xl mx-auto px-4 py-8 flex-1">
           {/* Deposit Status Indicator */}

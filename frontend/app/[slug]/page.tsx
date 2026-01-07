@@ -14,7 +14,7 @@ import { Footer } from "@/components/footer";
 import { HomeNavbar } from "@/components/home/home-navbar";
 import { MemberDirectory } from "@/components/chama/member-directory";
 import { LeaveChamaComponent } from "@/components/chama/leave-chama";
-import { ChamaSettings } from "@/components/chama/chama-settings";
+import { ChamaSettingsModal } from "@/components/chama/chama-settings-modal";
 import { RotationPayoutPage } from "@/components/chama/rotation-payout-page";
 import { ReputationPage } from "@/components/reputation/reputation-page";
 import { ActivityFeed } from "@/components/chama/activity-feed";
@@ -58,6 +58,9 @@ import {
   X,
   PieChart,
   AlertCircle,
+  Menu,
+  ChevronDown,
+  Settings,
 } from "lucide-react";
 
 interface ChamaDetails {
@@ -69,6 +72,7 @@ interface ChamaDetails {
   admin_name: string;
   contribution_amount: number;
   contribution_frequency: string;
+  interval_days?: number;
   max_members: number;
   active_members: number;
   total_contributions: number;
@@ -145,10 +149,15 @@ export default function CycleBySlugPage() {
   const [userRole, setUserRole] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [settingsInitialTab, setSettingsInitialTab] = useState<string | undefined>(undefined);
   const [isJoining, setIsJoining] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const tabContainerRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const [visibleTabs, setVisibleTabs] = useState<typeof allTabs>([]);
+  const [overflowTabs, setOverflowTabs] = useState<typeof allTabs>([]);
+  const [showOverflowTabs, setShowOverflowTabs] = useState(false);
 
   // Chama wallet modals
   const [showChamaDeposit, setShowChamaDeposit] = useState(false);
@@ -686,13 +695,127 @@ export default function CycleBySlugPage() {
     { id: "disputes" as TabType, label: "Disputes", icon: AlertCircle },
     { id: "activity" as TabType, label: "Activity", icon: Activity },
     { id: "documents" as TabType, label: "Documents", icon: FileText },
-    { id: "settings" as TabType, label: "Settings", icon: LogOut },
   ];
 
-  // Non-members can only see "About" tab, members see all except Settings (admin only)
-  const tabs = chama?.is_member
-    ? allTabs.filter((tab) => tab.id !== "settings" || userRole === "admin")
-    : allTabs.filter((tab) => tab.id === "about");
+  // Filter tabs based on membership and hidden tabs setting
+  const tabs = (() => {
+    // Non-members can only see "About" tab
+    if (!chama?.is_member) {
+      return allTabs.filter((tab) => tab.id === "about");
+    }
+
+    // Admins see all tabs
+    if (userRole === "admin") {
+      return allTabs;
+    }
+
+    // Regular members see all tabs except hidden ones
+    // "about" tab should always be visible
+    const hiddenTabs = chama?.settings?.hiddenTabs || [];
+    return allTabs.filter(
+      (tab) => tab.id === "about" || !hiddenTabs.includes(tab.id)
+    );
+  })();
+
+  // Redirect to "about" tab if current activeTab is not available
+  useEffect(() => {
+    if (chama && tabs.length > 0) {
+      const isActiveTabAvailable = tabs.some((tab) => tab.id === activeTab);
+      if (!isActiveTabAvailable) {
+        setActiveTab("about");
+        // Update URL without reload
+        const url = new URL(window.location.href);
+        url.searchParams.set("tab", "about");
+        window.history.replaceState({}, "", url.toString());
+      }
+    }
+  }, [chama, tabs, activeTab]);
+
+  // Calculate visible and overflow tabs based on container width (1085px max)
+  useLayoutEffect(() => {
+    const calculateVisibleTabs = () => {
+      if (!tabContainerRef.current || tabs.length === 0) {
+        setVisibleTabs(tabs);
+        setOverflowTabs([]);
+        return;
+      }
+
+      // Wait for all tab refs to be set
+      const allRefsReady = tabs.every((_, i) => tabRefs.current[i] !== null && tabRefs.current[i]?.offsetWidth);
+      if (!allRefsReady) {
+        // If refs aren't ready, show all tabs temporarily
+        setVisibleTabs(tabs);
+        setOverflowTabs([]);
+        return;
+      }
+
+      const maxWidth = 1085 - 32; // Account for padding (16px each side)
+      const hamburgerButtonWidth = 52; // Width of hamburger button with padding
+      const gapWidth = 4; // Gap between tabs
+      
+      // Calculate total width if all tabs were visible
+      let totalTabsWidth = 0;
+      for (let i = 0; i < tabs.length; i++) {
+        const tabElement = tabRefs.current[i];
+        if (tabElement) {
+          totalTabsWidth += tabElement.offsetWidth + (i > 0 ? gapWidth : 0);
+        }
+      }
+
+      // If all tabs fit without hamburger, show all
+      if (totalTabsWidth <= maxWidth) {
+        setVisibleTabs(tabs);
+        setOverflowTabs([]);
+        return;
+      }
+
+      // Otherwise, calculate which tabs fit with hamburger
+      let totalWidth = hamburgerButtonWidth + gapWidth; // Start with hamburger + gap
+      const visible: typeof tabs = [];
+      const overflow: typeof tabs = [];
+
+      for (let i = 0; i < tabs.length; i++) {
+        const tabElement = tabRefs.current[i];
+        if (!tabElement) {
+          visible.push(tabs[i]);
+          continue;
+        }
+
+        const tabWidth = tabElement.offsetWidth;
+        const wouldFit = totalWidth + tabWidth <= maxWidth;
+
+        if (wouldFit) {
+          visible.push(tabs[i]);
+          totalWidth += tabWidth + gapWidth;
+        } else {
+          // Add remaining tabs to overflow
+          overflow.push(...tabs.slice(i));
+          break;
+        }
+      }
+
+      setVisibleTabs(visible);
+      setOverflowTabs(overflow);
+    };
+
+    // Use requestAnimationFrame for smoother calculation
+    let rafId: number;
+    const timeoutId = setTimeout(() => {
+      rafId = requestAnimationFrame(calculateVisibleTabs);
+    }, 150);
+
+    const handleResize = () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(calculateVisibleTabs);
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => {
+      clearTimeout(timeoutId);
+      if (rafId) cancelAnimationFrame(rafId);
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [tabs, chama]);
 
   const renderTabContent = () => {
     if (!chama) return null;
@@ -700,7 +823,7 @@ export default function CycleBySlugPage() {
     switch (activeTab) {
       case "community":
         return (
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 md:gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-2 md:gap-6">
             {/* Main Content - Posts & Threads */}
             <div className="lg:col-span-3 order-2 lg:order-1">
               <CommunityPosts
@@ -743,7 +866,7 @@ export default function CycleBySlugPage() {
 
       case "disputes":
         return (
-          <div className="space-y-4">
+          <div className="space-y-2 md:space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-2xl font-bold">Disputes</h2>
               <FileDisputeForm
@@ -760,9 +883,9 @@ export default function CycleBySlugPage() {
 
       case "classroom":
         return (
-          <div className="space-y-4">
-            <Card className="p-6">
-              <h3 className="text-lg font-semibold mb-4">
+          <div className="space-y-2 md:space-y-4">
+            <div className="md:bg-white md:border md:rounded-lg md:shadow-sm p-2 md:p-6">
+              <h3 className="text-lg font-semibold mb-2 md:mb-4">
                 Financial Education
               </h3>
               <p className="text-gray-600">
@@ -773,20 +896,20 @@ export default function CycleBySlugPage() {
                   Coming soon: Financial literacy courses and workshops
                 </p>
               </div>
-            </Card>
+            </div>
           </div>
         );
 
       case "members":
         if (!chama.is_member) {
           return (
-            <div className="space-y-4">
-              <Card className="p-8 text-center">
-                <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+            <div className="space-y-2 md:space-y-4">
+              <div className="md:bg-white md:border md:rounded-lg md:shadow-sm p-4 md:p-8 text-center">
+                <Users className="w-12 h-12 text-gray-400 mx-auto mb-2 md:mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-1 md:mb-2">
                   Member Access Required
                 </h3>
-                <p className="text-gray-600 mb-6">
+                <p className="text-gray-600 mb-3 md:mb-6">
                   You need to be a member to view the member directory.
                 </p>
                 {!chama.has_pending_request && (
@@ -803,7 +926,7 @@ export default function CycleBySlugPage() {
                     {getJoinButtonText()}
                   </Button>
                 )}
-              </Card>
+              </div>
             </div>
           );
         }
@@ -825,7 +948,12 @@ export default function CycleBySlugPage() {
             chamaId={chama.id}
             userRole={userRole}
             currentUserId={currentUserId}
+            chamaName={chama.name}
             onInviteMember={() => setShowInviteModal(true)}
+            onOpenInviteTab={() => {
+              setSettingsInitialTab("invite");
+              setShowSettingsModal(true);
+            }}
           />
         );
 
@@ -859,10 +987,10 @@ export default function CycleBySlugPage() {
 
       case "financials":
         return (
-          <div className="space-y-4 md:space-y-6">
+          <div className="space-y-2 md:space-y-6">
             {/* Wallet Header */}
-            <div className="bg-[#083232] rounded-xl md:rounded-2xl p-4 md:p-8 text-white shadow-lg border-2 border-[#2e856e]">
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 md:gap-0">
+            <div className="bg-[#083232] rounded-xl md:rounded-2xl p-3 md:p-8 text-white shadow-lg border-2 border-[#2e856e]">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 md:gap-0">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 md:w-12 md:h-12 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
                     <Wallet className="w-5 h-5 md:w-6 md:h-6" />
@@ -900,8 +1028,8 @@ export default function CycleBySlugPage() {
             </div>
 
             {/* Quick Stats Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
-              <Card className="p-4 md:p-5 hover:shadow-lg transition-shadow border-l-4 border-l-green-500">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 md:gap-4">
+              <div className="md:bg-white md:border md:rounded-lg md:shadow-sm md:hover:shadow-lg md:transition-shadow p-2.5 md:p-5 border-l-4 border-l-green-500">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <p className="text-xs md:text-sm text-gray-600 mb-1">
@@ -1001,9 +1129,9 @@ export default function CycleBySlugPage() {
                     <Wallet className="w-5 h-5 md:w-6 md:h-6 text-green-600" />
                   </div>
                 </div>
-              </Card>
+              </div>
 
-              <Card className="p-4 md:p-5 hover:shadow-lg transition-shadow border-l-4 border-l-blue-500">
+              <div className="md:bg-white md:border md:rounded-lg md:shadow-sm md:hover:shadow-lg md:transition-shadow p-2.5 md:p-5 border-l-4 border-l-blue-500">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <p className="text-xs md:text-sm text-gray-600 mb-1">
@@ -1020,9 +1148,9 @@ export default function CycleBySlugPage() {
                     <TrendingUp className="w-5 h-5 md:w-6 md:h-6 text-blue-600" />
                   </div>
                 </div>
-              </Card>
+              </div>
 
-              <Card className="p-4 md:p-5 hover:shadow-lg transition-shadow border-l-4 border-l-purple-500 sm:col-span-2 lg:col-span-1">
+              <div className="md:bg-white md:border md:rounded-lg md:shadow-sm md:hover:shadow-lg md:transition-shadow p-2.5 md:p-5 border-l-4 border-l-purple-500 sm:col-span-2 lg:col-span-1">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <p className="text-xs md:text-sm text-gray-600 mb-1">Next Payout</p>
@@ -1035,7 +1163,7 @@ export default function CycleBySlugPage() {
                     <Calendar className="w-5 h-5 md:w-6 md:h-6 text-purple-600" />
                   </div>
                 </div>
-              </Card>
+              </div>
             </div>
 
             {/* Chama Dashboard Metrics */}
@@ -1046,8 +1174,8 @@ export default function CycleBySlugPage() {
             />
 
             {/* Transaction History */}
-            <Card className="overflow-hidden">
-              <div className="bg-gray-50 px-4 md:px-6 py-3 md:py-4 border-b">
+            <div className="md:bg-white md:border md:rounded-lg md:shadow-sm overflow-hidden">
+              <div className="bg-gray-50 px-2 md:px-6 py-2 md:py-4 border-b">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
                     <div className="w-8 h-8 md:w-10 md:h-10 bg-[#083232] rounded-lg flex items-center justify-center flex-shrink-0">
@@ -1085,11 +1213,11 @@ export default function CycleBySlugPage() {
               </div>
               <div className="divide-y">
                 {loadingTransactions ? (
-                  <div className="p-4 md:p-6 text-center text-gray-500 text-sm">
+                  <div className="p-2 md:p-6 text-center text-gray-500 text-sm">
                     Loading transactions...
                   </div>
                 ) : chamaTransactions.length === 0 ? (
-                  <div className="p-4 md:p-6 text-center text-gray-500 text-sm">
+                  <div className="p-2 md:p-6 text-center text-gray-500 text-sm">
                     No transactions yet. Transactions will appear here once
                     members start contributing.
                   </div>
@@ -1100,7 +1228,7 @@ export default function CycleBySlugPage() {
                   ).map((tx) => (
                     <div
                       key={tx.id}
-                      className="p-3 md:p-4 hover:bg-gray-50 transition-colors"
+                      className="p-2 md:p-4 hover:bg-gray-50 transition-colors"
                     >
                       <div className="flex items-start gap-2 md:gap-3">
                         <div
@@ -1151,7 +1279,7 @@ export default function CycleBySlugPage() {
                   ))
                 )}
               </div>
-            </Card>
+            </div>
           </div>
         );
 
@@ -1161,8 +1289,8 @@ export default function CycleBySlugPage() {
       case "documents":
         if (!chama.is_member) {
           return (
-            <div className="space-y-4">
-              <Card className="p-8 text-center">
+            <div className="space-y-2 md:space-y-4">
+              <div className="md:bg-white md:border md:rounded-lg md:shadow-sm p-4 md:p-8 text-center">
                 <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">
                   Member Access Required
@@ -1184,138 +1312,84 @@ export default function CycleBySlugPage() {
                     {getJoinButtonText()}
                   </Button>
                 )}
-              </Card>
+              </div>
             </div>
           );
         }
         return <DocumentVault chamaId={chama.id} />;
 
-      case "settings":
-        if (!chama.is_member) {
-          return (
-            <div className="space-y-4">
-              <Card className="p-8 text-center">
-                <LogOut className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  Member Access Required
-                </h3>
-                <p className="text-gray-600">
-                  You need to be a member to access chama settings.
-                </p>
-              </Card>
-            </div>
-          );
-        }
-
-        return (
-          <div className="space-y-6">
-            {userRole === "admin" && (
-              <ChamaSettings
-                chamaId={chama.id}
-                chamaName={chama.name}
-                currentSettings={chama.settings || {}}
-                isAdmin={true}
-                onSettingsUpdated={async () => {
-                  // Refetch chama data to get updated settings
-                  const accessToken = localStorage.getItem("accessToken");
-                  if (accessToken) {
-                    const response = await fetch(
-                      apiUrl(`chama/${chama.id}`),
-                      {
-                        headers: {
-                          Authorization: `Bearer ${accessToken}`,
-                        },
-                      }
-                    );
-                    if (response.ok) {
-                      const updatedChama = await response.json();
-                      setChama(updatedChama);
-                    }
-                  }
-                }}
-              />
-            )}
-            <LeaveChamaComponent
-              chamaId={chama.id}
-              chamaName={chama.name}
-              userRole={userRole}
-              memberBalance={chama.current_balance || 0}
-              totalContributions={chama.total_contributions || 0}
-              pendingPayouts={0} // This would come from the API
-            />
-          </div>
-        );
-
       case "about":
         return (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 md:gap-6">
             {/* Main Content Area */}
-            <div className="lg:col-span-2 order-1 space-y-4">
-              <Card className="p-4 md:p-6">
-                <div className="space-y-4">
-                  {/* Cover Image Upload/Display - Admin Only */}
-                  {userRole === "admin" && !chama.cover_image && (
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 md:p-8 text-center">
-                      <input
-                        type="file"
-                        id="cover-image-upload"
-                        accept="image/*"
-                        onChange={handleImageUpload}
-                        className="hidden"
-                        disabled={uploadingImage}
-                      />
-                      <label
-                        htmlFor="cover-image-upload"
-                        className="cursor-pointer flex flex-col items-center"
-                      >
-                        <Upload className="w-10 h-10 md:w-12 md:h-12 text-gray-400 mb-2" />
-                        <p className="text-sm font-medium text-gray-700">
-                          {uploadingImage
-                            ? "Uploading..."
-                            : "Upload Cover Image"}
-                        </p>
-                        <p className="text-xs text-gray-500 mt-1">
-                          PNG, JPG up to 5MB
-                        </p>
-                      </label>
-                    </div>
-                  )}
+            <div className="lg:col-span-2 order-1 space-y-2 md:space-y-4">
+              <div className="md:bg-white md:border md:rounded-lg md:shadow-sm overflow-hidden">
+                {/* Cover Image - Full width, no padding */}
+                {userRole === "admin" && !chama.cover_image && (
+                  <div className="border-2 border-dashed border-gray-300 p-3 md:p-8 text-center">
+                    <input
+                      type="file"
+                      id="cover-image-upload"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      className="hidden"
+                      disabled={uploadingImage}
+                    />
+                    <label
+                      htmlFor="cover-image-upload"
+                      className="cursor-pointer flex flex-col items-center"
+                    >
+                      <Upload className="w-10 h-10 md:w-12 md:h-12 text-gray-400 mb-2" />
+                      <p className="text-sm font-medium text-gray-700">
+                        {uploadingImage
+                          ? "Uploading..."
+                          : "Upload Cover Image"}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        PNG, JPG up to 5MB
+                      </p>
+                    </label>
+                  </div>
+                )}
 
-                  {chama.cover_image && (
-                    <div className="relative w-full h-48 md:h-64 rounded-lg overflow-hidden mb-4 group">
-                      <Image
-                        src={chama.cover_image}
-                        alt={chama.name}
-                        fill
-                        className="object-cover"
-                      />
-                      {userRole === "admin" && (
-                        <>
-                          <input
-                            type="file"
-                            id="cover-image-edit"
-                            accept="image/*"
-                            onChange={handleImageUpload}
-                            className="hidden"
-                            disabled={uploadingImage}
-                          />
-                          <label
-                            htmlFor="cover-image-edit"
-                            className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 md:group-hover:opacity-100 active:opacity-100 transition-opacity cursor-pointer flex items-center justify-center"
-                          >
-                            <div className="text-white text-center">
-                              <Upload className="w-6 h-6 md:w-8 md:h-8 mx-auto mb-2" />
-                              <p className="text-xs md:text-sm font-medium">
-                                {uploadingImage
-                                  ? "Uploading..."
-                                  : "Change Image"}
-                              </p>
-                            </div>
-                          </label>
-                        </>
-                      )}
-                    </div>
-                  )}
+                {chama.cover_image && (
+                  <div className="relative w-full h-48 md:h-64 overflow-hidden group">
+                    <Image
+                      src={chama.cover_image}
+                      alt={chama.name}
+                      fill
+                      className="object-cover"
+                    />
+                    {userRole === "admin" && (
+                      <>
+                        <input
+                          type="file"
+                          id="cover-image-edit"
+                          accept="image/*"
+                          onChange={handleImageUpload}
+                          className="hidden"
+                          disabled={uploadingImage}
+                        />
+                        <label
+                          htmlFor="cover-image-edit"
+                          className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 md:group-hover:opacity-100 active:opacity-100 transition-opacity cursor-pointer flex items-center justify-center"
+                        >
+                          <div className="text-white text-center">
+                            <Upload className="w-6 h-6 md:w-8 md:h-8 mx-auto mb-2" />
+                            <p className="text-xs md:text-sm font-medium">
+                              {uploadingImage
+                                ? "Uploading..."
+                                : "Change Image"}
+                            </p>
+                          </div>
+                        </label>
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {/* Content with padding */}
+                <div className="p-2 md:p-6 space-y-2 md:space-y-4">
 
                   <div>
                     <h4 className="font-medium text-gray-900 mb-2 text-sm md:text-base">
@@ -1344,8 +1418,8 @@ export default function CycleBySlugPage() {
                   </div>
 
                   {/* Mobile: Metadata inline after description - 2 rows of 3 items */}
-                  <div className="md:hidden pt-4 border-t border-gray-200">
-                    <div className="grid grid-cols-3 gap-3">
+                  <div className="md:hidden pt-2 border-t border-gray-200">
+                    <div className="grid grid-cols-3 gap-2">
                       {/* Row 1: Type, Visibility, Status */}
                       <div>
                         <p className="text-xs text-gray-500 mb-1">Type</p>
@@ -1407,7 +1481,7 @@ export default function CycleBySlugPage() {
                     </div>
                   )}
                 </div>
-              </Card>
+              </div>
             </div>
 
             {/* Desktop Sidebar */}
@@ -1487,15 +1561,15 @@ export default function CycleBySlugPage() {
                   )}
                 </div>
 
-                {/* Delete Cycle Button (Admin Only) */}
-                {canDeleteCycle() && (
+                {/* Settings Button (All Members) */}
+                {chama?.is_member && (
                   <div className="mt-6 pt-6 border-t border-gray-200 px-4 md:px-5 pb-4 md:pb-5">
                     <button
-                      onClick={() => setShowDeleteConfirm(true)}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition-colors border border-red-200"
+                      onClick={() => setShowSettingsModal(true)}
+                      className="flex items-center gap-2 text-gray-700 hover:text-gray-900 cursor-pointer"
                     >
-                      <Trash2 className="w-4 h-4" />
-                      Delete Cycle
+                      <Settings className="w-4 h-4" />
+                      Settings
                     </button>
                   </div>
                 )}
@@ -1539,22 +1613,42 @@ export default function CycleBySlugPage() {
         searchQuery=""
         onSearchChange={() => {}}
         title={chama.name}
+        isChamaPage={true}
+        isAdmin={userRole === "admin"}
+        isMember={chama?.is_member || false}
+        onSettingsClick={() => setShowSettingsModal(true)}
       />
 
       {/* Tabs Navigation */}
-      <div className="bg-white border-b sticky top-16 z-10 shadow-sm mt-16 pt-2 md:pt-0">
+      <div className="bg-white border-b sticky top-14 md:top-16 z-10 shadow-sm mt-14 md:mt-16 pt-2 md:pt-0">
         {/* Desktop Tabs */}
-        <div className="hidden md:block max-w-[1085px] mx-auto px-4" ref={tabContainerRef}>
+        <div className="hidden md:block max-w-[1085px] mx-auto px-4 relative" ref={tabContainerRef}>
+          {/* Hidden tabs for measurement - render all tabs invisibly to measure widths */}
+          <div className="absolute opacity-0 pointer-events-none -z-10" aria-hidden="true" style={{ visibility: 'hidden' }}>
+            <div className="flex items-center gap-1">
+              {tabs.map((tab, index) => (
+                <button
+                  key={`measure-${tab.id}`}
+                  ref={(el) => {
+                    if (el) {
+                      tabRefs.current[index] = el;
+                    }
+                  }}
+                  className="px-4 py-3 text-sm font-medium whitespace-nowrap"
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          
+          {/* First line - visible tabs */}
           <div className="flex items-center gap-1">
-            {tabs.map((tab, index) => {
+            {(visibleTabs.length > 0 ? visibleTabs : tabs).map((tab) => {
               const isActive = activeTab === tab.id;
-              const Icon = tab.icon;
               return (
                 <button
                   key={tab.id}
-                  ref={(el) => {
-                    tabRefs.current[index] = el;
-                  }}
                   onClick={() => {
                     setActiveTab(tab.id);
                     // Update URL with tab parameter
@@ -1565,7 +1659,7 @@ export default function CycleBySlugPage() {
                     });
                   }}
                   className={`
-                    flex items-center gap-2 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors
+                    px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors
                     border-b-2 min-h-12 flex-shrink-0 cursor-pointer
                     ${
                       isActive
@@ -1574,20 +1668,67 @@ export default function CycleBySlugPage() {
                     }
                   `}
                 >
-                  <Icon className="w-4 h-4" />
                   {tab.label}
                 </button>
               );
             })}
+            {overflowTabs.length > 0 && (
+              <button
+                onClick={() => setShowOverflowTabs(!showOverflowTabs)}
+                className={`
+                  flex items-center justify-center px-3 py-3 text-sm font-medium whitespace-nowrap transition-colors
+                  border-b-2 min-h-12 flex-shrink-0 cursor-pointer
+                  ${
+                    overflowTabs.some((tab) => activeTab === tab.id) || showOverflowTabs
+                      ? "border-[#083232] text-[#083232]"
+                      : "border-transparent text-gray-600 hover:text-[#083232] hover:border-gray-300"
+                  }
+                `}
+              >
+                <Menu className="w-5 h-5" />
+              </button>
+            )}
           </div>
+          
+          {/* Second line - overflow tabs (shown when hamburger is clicked) */}
+          {overflowTabs.length > 0 && showOverflowTabs && (
+            <div className="flex items-center gap-1 pt-1 border-t border-gray-200 mt-1">
+              {overflowTabs.map((tab) => {
+                const isActive = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => {
+                      setActiveTab(tab.id);
+                      const currentUrl = new URL(window.location.href);
+                      currentUrl.searchParams.set("tab", tab.id);
+                      router.push(currentUrl.pathname + currentUrl.search, {
+                        scroll: false,
+                      });
+                    }}
+                    className={`
+                      px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors
+                      border-b-2 min-h-12 flex-shrink-0 cursor-pointer
+                      ${
+                        isActive
+                          ? "border-[#083232] text-[#083232]"
+                          : "border-transparent text-gray-600 hover:text-[#083232] hover:border-gray-300"
+                      }
+                    `}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Mobile Tabs - Horizontal Scroll */}
         <div className="md:hidden overflow-x-auto scrollbar-hide -mx-4 px-4 py-2">
-          <div className="flex items-center gap-1.5" style={{ width: 'max-content' }}>
+          <div className="flex items-center gap-3" style={{ width: 'max-content' }}>
             {tabs.map((tab) => {
               const isActive = activeTab === tab.id;
-              const Icon = tab.icon;
               return (
                 <button
                   key={tab.id}
@@ -1600,15 +1741,14 @@ export default function CycleBySlugPage() {
                     });
                   }}
                   className={`
-                    flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium whitespace-nowrap transition-colors rounded-md flex-shrink-0
+                    px-2 py-1.5 text-xs font-medium whitespace-nowrap transition-colors flex-shrink-0 border-b-2
                     ${
                       isActive
-                        ? "bg-[#083232] text-white"
-                        : "bg-gray-100 text-gray-700 active:bg-gray-200"
+                        ? "border-[#083232] text-[#083232]"
+                        : "border-transparent text-gray-600"
                     }
                   `}
                 >
-                  <Icon className="w-3 h-3" />
                   <span>{tab.label}</span>
                 </button>
               );
@@ -1618,9 +1758,44 @@ export default function CycleBySlugPage() {
       </div>
 
       {/* Content */}
-      <div className="max-w-[1085px] mx-auto px-4 py-4 md:py-8 flex-1 w-full">
+      <div className="max-w-[1085px] mx-auto px-2 md:px-4 py-2 md:py-8 flex-1 w-full">
         {renderTabContent()}
       </div>
+
+      {/* Settings Modal */}
+      {showSettingsModal && chama && (
+        <ChamaSettingsModal
+          isOpen={showSettingsModal}
+          onClose={() => {
+            setShowSettingsModal(false);
+            setSettingsInitialTab(undefined);
+          }}
+          chama={chama}
+          isAdmin={userRole === "admin"}
+          initialTab={settingsInitialTab as any}
+          showOnlyTab={settingsInitialTab === "invite"}
+          onSettingsUpdated={async () => {
+            // Refetch chama data to get updated settings
+            const accessToken = localStorage.getItem("accessToken");
+            if (accessToken) {
+              const response = await fetch(apiUrl(`chama/${chama.id}`), {
+                headers: {
+                  Authorization: `Bearer ${accessToken}`,
+                },
+              });
+              if (response.ok) {
+                const updatedChama = await response.json();
+                setChama(updatedChama);
+              }
+            }
+            setShowSettingsModal(false);
+          }}
+          onDeleteCycle={() => {
+            setShowSettingsModal(false);
+            setShowDeleteConfirm(true);
+          }}
+        />
+      )}
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (

@@ -97,7 +97,7 @@ export default function HomePage() {
         onSearchChange={setSearchQuery}
       />
 
-      <div className="flex-1 pt-16">
+      <div className="flex-1 pt-14 md:pt-16">
         {/* Desktop Layout */}
         <main className="hidden md:block max-w-[1085px] mx-auto px-4 py-8">
           <HomeHeader isAuthenticated={isAuthenticated} />
@@ -149,7 +149,7 @@ export default function HomePage() {
           </div>
 
           {/* Mobile Search - Sticky */}
-          <div ref={searchBarRef} className="sticky top-16 z-10 bg-gray-50 px-4 py-3 border-b border-gray-200">
+          <div ref={searchBarRef} className="sticky top-14 md:top-16 z-10 bg-gray-50 px-4 py-3 border-b border-gray-200">
             <ChamaSearch value={searchQuery} onChange={setSearchQuery} />
           </div>
 
@@ -176,7 +176,7 @@ export default function HomePage() {
           />
 
           {/* Mobile Pagination */}
-          <div className="px-4 pb-6 pt-4">
+          <div className="px-4 pb-20 pt-4">
             <Pagination
               currentPage={currentPage}
               totalPages={totalPages}
@@ -186,7 +186,10 @@ export default function HomePage() {
         </main>
       </div>
 
-      <Footer />
+      {/* Desktop Footer */}
+      <div className="hidden md:block">
+        <Footer />
+      </div>
     </div>
   );
 }

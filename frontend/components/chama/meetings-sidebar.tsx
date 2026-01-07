@@ -21,6 +21,16 @@ export function MeetingsSidebar({
   const [ongoingMeetings, setOngoingMeetings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string>("");
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
 
   useEffect(() => {
     // Get current user ID from token
@@ -194,24 +204,7 @@ export function MeetingsSidebar({
   };
 
   if (loading) {
-    return (
-      <div className="space-y-6">
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <Radio className="h-5 w-5 text-[#f64d52]" />
-            <h3 className="font-semibold text-base">Live Now</h3>
-          </div>
-          <div className="text-sm text-gray-500">Loading...</div>
-        </div>
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <Calendar className="h-5 w-5 text-[#083232]" />
-            <h3 className="font-semibold text-base">Upcoming</h3>
-          </div>
-          <div className="text-sm text-gray-500">Loading...</div>
-        </div>
-      </div>
-    );
+    return null;
   }
 
   return (
@@ -276,61 +269,63 @@ export function MeetingsSidebar({
       )}
 
       {/* Upcoming Meetings Section */}
-      <div className="space-y-2 md:space-y-3">
-        <div className="flex items-center gap-2">
-          <Calendar className="h-4 w-4 md:h-5 md:w-5 text-[#083232]" />
-          <h3 className="font-semibold text-sm md:text-base">Upcoming Meetings</h3>
-        </div>
+      {(upcomingMeetings.length > 0 || !isMobile) && (
+        <div className="space-y-2 md:space-y-3">
+          <div className="flex items-center gap-2">
+            <Calendar className="h-4 w-4 md:h-5 md:w-5 text-[#083232]" />
+            <h3 className="font-semibold text-sm md:text-base">Upcoming Meetings</h3>
+          </div>
 
-        {upcomingMeetings.length === 0 ? (
-          <p className="text-xs md:text-sm text-gray-500">No upcoming meetings</p>
-        ) : (
-          <div className="space-y-2 md:space-y-3">
-            {upcomingMeetings.map((meeting) => {
-              // Backend returns: scheduled_start, host_name, host_user_id
-              const scheduledStart = meeting.scheduled_start;
-              const organizerName = meeting.host_name || "Unknown";
-              const isHost = meeting.host_user_id === currentUserId;
+          {upcomingMeetings.length === 0 ? (
+            <p className="text-xs md:text-sm text-gray-500">No upcoming meetings</p>
+          ) : (
+            <div className="space-y-2 md:space-y-3">
+              {upcomingMeetings.map((meeting) => {
+                // Backend returns: scheduled_start, host_name, host_user_id
+                const scheduledStart = meeting.scheduled_start;
+                const organizerName = meeting.host_name || "Unknown";
+                const isHost = meeting.host_user_id === currentUserId;
 
-              return (
-                <div
-                  key={meeting.id}
-                  className="p-2.5 md:p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer group relative touch-manipulation"
-                >
-                  <h4 className="font-medium text-xs md:text-sm text-gray-900 mb-1.5 md:mb-2 pr-7 md:pr-8">
-                    {meeting.title}
-                  </h4>
-                  {isHost && (
-                    <button
-                      onClick={(e) => handleDeleteMeeting(meeting.id, e)}
-                      className="absolute top-2.5 md:top-3 right-2.5 md:right-3 text-gray-400 hover:text-[#f64d52] opacity-0 group-hover:opacity-100 transition-opacity touch-manipulation p-1"
-                      title="Cancel meeting"
-                    >
-                      <Trash2 className="h-3.5 w-3.5 md:h-4 md:w-4" />
-                    </button>
-                  )}
-                  <div className="flex items-center gap-2 md:gap-3 text-xs text-gray-600 flex-wrap">
-                    <div className="flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
-                      <span>{formatTime(scheduledStart)}</span>
-                    </div>
-                    <span className="text-gray-400 hidden sm:inline">•</span>
-                    <div className="flex items-center gap-1">
-                      <Calendar className="h-3 w-3" />
-                      <span>{formatDate(scheduledStart)}</span>
-                    </div>
-                    <span className="text-gray-400 hidden sm:inline">•</span>
-                    <div className="flex items-center gap-1">
-                      <User className="h-3 w-3" />
-                      <span className="truncate max-w-[100px] md:max-w-none">{organizerName}</span>
+                return (
+                  <div
+                    key={meeting.id}
+                    className="p-2.5 md:p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer group relative touch-manipulation"
+                  >
+                    <h4 className="font-medium text-xs md:text-sm text-gray-900 mb-1.5 md:mb-2 pr-7 md:pr-8">
+                      {meeting.title}
+                    </h4>
+                    {isHost && (
+                      <button
+                        onClick={(e) => handleDeleteMeeting(meeting.id, e)}
+                        className="absolute top-2.5 md:top-3 right-2.5 md:right-3 text-gray-400 hover:text-[#f64d52] opacity-0 group-hover:opacity-100 transition-opacity touch-manipulation p-1"
+                        title="Cancel meeting"
+                      >
+                        <Trash2 className="h-3.5 w-3.5 md:h-4 md:w-4" />
+                      </button>
+                    )}
+                    <div className="flex items-center gap-2 md:gap-3 text-xs text-gray-600 flex-wrap">
+                      <div className="flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        <span>{formatTime(scheduledStart)}</span>
+                      </div>
+                      <span className="text-gray-400 hidden sm:inline">•</span>
+                      <div className="flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        <span>{formatDate(scheduledStart)}</span>
+                      </div>
+                      <span className="text-gray-400 hidden sm:inline">•</span>
+                      <div className="flex items-center gap-1">
+                        <User className="h-3 w-3" />
+                        <span className="truncate max-w-[100px] md:max-w-none">{organizerName}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
