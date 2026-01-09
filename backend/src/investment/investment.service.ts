@@ -553,8 +553,17 @@ export class InvestmentService {
       }
 
       if (filters?.productType) {
-        query += ` AND p.product_type = $${paramIndex++}`;
-        params.push(filters.productType);
+        // Handle both single productType and array of productTypes
+        const productTypes = Array.isArray(filters.productType) 
+          ? filters.productType 
+          : [filters.productType];
+        
+        if (productTypes.length > 0) {
+          const placeholders = productTypes.map((_, i) => `$${paramIndex + i}`).join(', ');
+          query += ` AND p.product_type IN (${placeholders})`;
+          params.push(...productTypes);
+          paramIndex += productTypes.length;
+        }
       }
 
       query += ' ORDER BY i.created_at DESC';

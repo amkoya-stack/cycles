@@ -61,28 +61,32 @@ export class AuditTrailService {
       operation = 'DELETE';
     }
 
+    // Build details object with all context information
+    const detailsData: Record<string, any> = {
+      ...(details || {}),
+      action,
+      entityType,
+      entityId: validEntityId,
+      chamaId: context.chamaId || null,
+      deviceFingerprint: context.deviceFingerprint || null,
+      sessionId: context.sessionId || null,
+      complianceRequired: context.complianceRequired || false,
+    };
+
     await this.db.query(
       `INSERT INTO audit_log 
-       (id, table_name, operation, record_id, user_id, chama_id, action, entity_type, entity_id, 
-        ip_address, user_agent, device_fingerprint, session_id, 
-        compliance_required, details, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, CURRENT_TIMESTAMP)`,
+       (id, table_name, operation, record_id, user_id, 
+        ip_address, user_agent, new_data, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP)`,
       [
         logId,
         tableName.substring(0, 50), // Ensure it fits VARCHAR(50)
         operation,
         validEntityId, // record_id maps to entity_id
         context.userId || null,
-        context.chamaId || null,
-        action,
-        entityType,
-        validEntityId,
         context.ipAddress || null,
         context.userAgent || null,
-        context.deviceFingerprint || null,
-        context.sessionId || null,
-        context.complianceRequired || false,
-        details ? JSON.stringify(details) : null,
+        JSON.stringify(detailsData), // Store all additional data in new_data JSONB
       ],
     );
 
@@ -208,7 +212,8 @@ export class AuditTrailService {
     }
 
     if (filters.chamaId) {
-      query += ` AND chama_id = $${paramIndex}`;
+      // chama_id is stored in new_data JSONB, so we need to query it differently
+      query += ` AND new_data->>'chamaId' = $${paramIndex}`;
       params.push(filters.chamaId);
       paramIndex++;
     }

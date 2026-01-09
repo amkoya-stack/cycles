@@ -317,31 +317,60 @@ export class NotificationService {
 
   /**
    * Get or create notification preferences for user/chama
+   * When chamaId is provided, only returns preferences for that specific chama
+   * When chamaId is null, returns global preferences (chama_id IS NULL)
    */
   async getNotificationPreferences(userId: string, chamaId?: string) {
+    // If chamaId is provided, only get preferences for that specific chama
+    if (chamaId) {
+      const result = await this.db.query(
+        `
+        SELECT *
+        FROM notification_preferences
+        WHERE user_id = $1 AND chama_id = $2
+        `,
+        [userId, chamaId],
+      );
+
+      if (result.rows.length > 0) {
+        return result.rows[0];
+      }
+
+      // Create default preferences for this specific chama if not exists
+      const insertResult = await this.db.query(
+        `
+        INSERT INTO notification_preferences (user_id, chama_id, chat_enabled)
+        VALUES ($1, $2, true)
+        RETURNING *
+        `,
+        [userId, chamaId],
+      );
+
+      return insertResult.rows[0];
+    }
+
+    // If chamaId is null, get global preferences (chama_id IS NULL)
     const result = await this.db.query(
       `
       SELECT *
       FROM notification_preferences
-      WHERE user_id = $1 AND (chama_id = $2 OR ($2 IS NULL AND chama_id IS NULL))
-      ORDER BY chama_id DESC NULLS LAST
-      LIMIT 1
+      WHERE user_id = $1 AND chama_id IS NULL
       `,
-      [userId, chamaId || null],
+      [userId],
     );
 
     if (result.rows.length > 0) {
       return result.rows[0];
     }
 
-    // Create default preferences if not exists
+    // Create default global preferences if not exists
     const insertResult = await this.db.query(
       `
-      INSERT INTO notification_preferences (user_id, chama_id)
-      VALUES ($1, $2)
+      INSERT INTO notification_preferences (user_id, chama_id, chat_enabled)
+      VALUES ($1, NULL, true)
       RETURNING *
       `,
-      [userId, chamaId || null],
+      [userId],
     );
 
     return insertResult.rows[0];
@@ -420,13 +449,23 @@ export class NotificationService {
       return this.getNotificationPreferences(userId, chamaId ?? undefined);
     }
 
-    values.push(userId, chamaId);
+    values.push(userId);
+
+    // If chamaId is provided, only update preferences for that specific chama
+    // If chamaId is null, only update global preferences (chama_id IS NULL)
+    let whereClause: string;
+    if (chamaId !== null && chamaId !== undefined) {
+      values.push(chamaId);
+      whereClause = `WHERE user_id = $${paramIndex} AND chama_id = $${paramIndex + 1}`;
+    } else {
+      whereClause = `WHERE user_id = $${paramIndex} AND chama_id IS NULL`;
+    }
 
     const result = await this.db.query(
       `
       UPDATE notification_preferences
       SET ${fields.join(', ')}
-      WHERE user_id = $${paramIndex} AND (chama_id = $${paramIndex + 1} OR ($${paramIndex + 1} IS NULL AND chama_id IS NULL))
+      ${whereClause}
       RETURNING *
       `,
       values,

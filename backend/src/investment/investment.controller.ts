@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
+/* eslint-disable @typescript-eslint/no-unsafe-return */
 import {
   Controller,
   Get,
@@ -10,18 +11,19 @@ import {
   Query,
   UseGuards,
   Req,
-  Logger,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt.guard';
-import { RateLimit } from '../common/decorators/rate-limit.decorator';
-import { FeatureFlag } from '../common/decorators/feature-flag.decorator';
 import { InvestmentService } from './investment.service';
+import type {
+  CreateInvestmentProductDto,
+  CreateInvestmentDto,
+  CreateInvestmentPoolDto,
+  ContributeToPoolDto,
+} from './investment.service';
 
 @Controller({ path: 'investment', version: '1' })
 @UseGuards(JwtAuthGuard)
 export class InvestmentController {
-  private readonly logger = new Logger(InvestmentController.name);
-
   constructor(private readonly investmentService: InvestmentService) {}
 
   // ============================================================================
@@ -29,7 +31,7 @@ export class InvestmentController {
   // ============================================================================
 
   /**
-   * Get all investment products (marketplace)
+   * Get all investment products
    * GET /api/v1/investment/products
    */
   @Get('products')
@@ -60,72 +62,29 @@ export class InvestmentController {
   }
 
   /**
-   * Create investment product (admin only - will add admin guard later)
+   * Create investment product
    * POST /api/v1/investment/products
    */
   @Post('products')
-  @RateLimit({ max: 10, window: 3600 }) // 10 products per hour
-  @FeatureFlag({ flagKey: 'investment_module_enabled' })
-  async createProduct(@Body() dto: any) {
+  async createProduct(@Body() dto: CreateInvestmentProductDto) {
     return this.investmentService.createProduct(dto);
   }
 
   /**
-   * Update investment product (admin only)
+   * Update investment product
    * PUT /api/v1/investment/products/:id
    */
   @Put('products/:id')
-  async updateProduct(@Param('id') id: string, @Body() updates: any) {
+  async updateProduct(
+    @Param('id') id: string,
+    @Body() updates: Partial<CreateInvestmentProductDto>,
+  ) {
     return this.investmentService.updateProduct(id, updates);
   }
 
   // ============================================================================
   // INVESTMENTS
   // ============================================================================
-
-  /**
-   * Create investment proposal
-   * POST /api/v1/investment/investments
-   */
-  @Post('investments')
-  @RateLimit({ max: 5, window: 3600 }) // 5 investments per hour
-  @FeatureFlag({ flagKey: 'investment_module_enabled' })
-  async createInvestment(@Req() req: any, @Body() dto: any) {
-    const userId = req.user.id;
-    const ipAddress = req.ip || req.headers['x-forwarded-for'] || 'unknown';
-    const idempotencyKey = dto.idempotencyKey || req.headers['idempotency-key'];
-
-    this.logger.log(
-      `[API_CREATE_INVESTMENT] Request received - ` +
-      `userId: ${userId}, chamaId: ${dto.chamaId}, ` +
-      `productId: ${dto.productId}, amount: ${dto.amount}, ` +
-      `ipAddress: ${ipAddress}, idempotencyKey: ${idempotencyKey || 'none'}`,
-    );
-
-    try {
-      const result = await this.investmentService.createInvestment(
-        { ...dto, idempotencyKey },
-        userId,
-      );
-
-      this.logger.log(
-        `[API_CREATE_INVESTMENT] Request completed successfully - ` +
-        `userId: ${userId}, investmentId: ${result.id}, ` +
-        `status: ${result.status}`,
-      );
-
-      return result;
-    } catch (error: any) {
-      this.logger.error(
-        `[API_CREATE_INVESTMENT] Request failed - ` +
-        `userId: ${userId}, chamaId: ${dto.chamaId}, ` +
-        `productId: ${dto.productId}, amount: ${dto.amount}, ` +
-        `ipAddress: ${ipAddress}, error: ${error.message}`,
-        error.stack,
-      );
-      throw error;
-    }
-  }
 
   /**
    * Get investments for a chama
@@ -135,11 +94,21 @@ export class InvestmentController {
   async getChamaInvestments(
     @Param('chamaId') chamaId: string,
     @Query('status') status?: string,
-    @Query('productType') productType?: string,
+    @Query('productType') productType?: string | string[],
   ) {
     const filters: any = {};
     if (status) filters.status = status;
-    if (productType) filters.productType = productType;
+    if (productType) {
+      // Handle both single string, array of strings, and comma-separated string
+      if (Array.isArray(productType)) {
+        filters.productType = productType;
+      } else if (productType.includes(',')) {
+        // Handle comma-separated string
+        filters.productType = productType.split(',').map((t) => t.trim());
+      } else {
+        filters.productType = [productType];
+      }
+    }
 
     return this.investmentService.getChamaInvestments(chamaId, filters);
   }
@@ -154,59 +123,72 @@ export class InvestmentController {
   }
 
   /**
+   * Create investment proposal
+   * POST /api/v1/investment/investments
+   */
+  @Post('investments')
+  async createInvestment(@Body() dto: CreateInvestmentDto, @Req() req: any) {
+    return this.investmentService.createInvestment(dto, req.user.id);
+  }
+
+  /**
    * Execute approved investment
    * POST /api/v1/investment/investments/:id/execute
    */
   @Post('investments/:id/execute')
-  @RateLimit({ max: 10, window: 3600 }) // 10 executions per hour
-  @FeatureFlag({ flagKey: 'investment_execution_enabled' })
   async executeInvestment(
-    @Req() req: any,
     @Param('id') id: string,
-    @Body() body: { idempotencyKey?: string },
+    @Req() req: any,
+    @Body() body?: { idempotencyKey?: string },
   ) {
-    const userId = req.user.id;
-    const ipAddress = req.ip || req.headers['x-forwarded-for'] || 'unknown';
-    const idempotencyKey = body.idempotencyKey || req.headers['idempotency-key'];
-
-    this.logger.log(
-      `[API_EXECUTE_INVESTMENT] Request received - ` +
-      `userId: ${userId}, investmentId: ${id}, ` +
-      `ipAddress: ${ipAddress}, idempotencyKey: ${idempotencyKey || 'none'}`,
+    return this.investmentService.executeInvestment(
+      id,
+      req.user.id,
+      body?.idempotencyKey,
     );
-
-    try {
-      const result = await this.investmentService.executeInvestment(
-        id,
-        userId,
-        idempotencyKey,
-      );
-
-      this.logger.log(
-        `[API_EXECUTE_INVESTMENT] Request completed successfully - ` +
-        `userId: ${userId}, investmentId: ${id}, ` +
-        `jobId: ${result.jobId}, status: ${result.status}`,
-      );
-
-      return result;
-    } catch (error: any) {
-      this.logger.error(
-        `[API_EXECUTE_INVESTMENT] Request failed - ` +
-        `userId: ${userId}, investmentId: ${id}, ` +
-        `ipAddress: ${ipAddress}, error: ${error.message}`,
-        error.stack,
-      );
-      throw error;
-    }
   }
 
   /**
-   * Get portfolio summary for a chama
+   * Get investment portfolio summary for a chama
    * GET /api/v1/investment/portfolio/:chamaId
    */
   @Get('portfolio/:chamaId')
   async getPortfolioSummary(@Param('chamaId') chamaId: string) {
     return this.investmentService.getPortfolioSummary(chamaId);
+  }
+
+  /**
+   * Get investment dividends
+   * GET /api/v1/investment/investments/:id/dividends
+   */
+  @Get('investments/:id/dividends')
+  async getInvestmentDividends(@Param('id') id: string) {
+    return this.investmentService.getInvestmentDividends(id);
+  }
+
+  /**
+   * Get investments maturing soon
+   * GET /api/v1/investment/investments/maturing-soon
+   */
+  @Get('investments/maturing-soon')
+  async getInvestmentsMaturingSoon(
+    @Query('chamaId') chamaId?: string,
+    @Query('days') days?: string,
+  ) {
+    const daysParam = days ? parseInt(days, 10) : 30;
+    return this.investmentService.getInvestmentsMaturingSoon(
+      daysParam,
+      chamaId,
+    );
+  }
+
+  /**
+   * Get overdue investments
+   * GET /api/v1/investment/investments/overdue
+   */
+  @Get('investments/overdue')
+  async getOverdueInvestments(@Query('chamaId') chamaId?: string) {
+    return this.investmentService.getOverdueInvestments(chamaId);
   }
 
   // ============================================================================
@@ -218,24 +200,8 @@ export class InvestmentController {
    * POST /api/v1/investment/pools
    */
   @Post('pools')
-  async createPool(@Body() dto: any) {
+  async createPool(@Body() dto: CreateInvestmentPoolDto) {
     return this.investmentService.createPool(dto);
-  }
-
-  /**
-   * Contribute to investment pool
-   * POST /api/v1/investment/pools/:poolId/contribute
-   */
-  @Post('pools/:poolId/contribute')
-  async contributeToPool(
-    @Req() req: any,
-    @Param('poolId') poolId: string,
-    @Body() body: { chamaId: string; amount: number; userId?: string },
-  ) {
-    return this.investmentService.contributeToPool({
-      poolId,
-      ...body,
-    });
   }
 
   /**
@@ -247,116 +213,20 @@ export class InvestmentController {
     return this.investmentService.getPoolDetails(id);
   }
 
-  // ============================================================================
-  // DIVIDENDS & PROFIT DISTRIBUTION
-  // ============================================================================
-
   /**
-   * Distribute dividend for an investment
-   * POST /api/v1/investment/investments/:id/dividends
+   * Contribute to investment pool
+   * POST /api/v1/investment/pools/:id/contribute
    */
-  @Post('investments/:id/dividends')
-  @RateLimit({ max: 5, window: 3600 }) // 5 dividend distributions per hour
-  @FeatureFlag({ flagKey: 'dividend_distribution_enabled' })
-  async distributeDividend(
-    @Req() req: any,
+  @Post('pools/:id/contribute')
+  async contributeToPool(
     @Param('id') id: string,
-    @Body()
-    body: {
-      amount: number;
-      paymentDate?: string;
-      periodStart?: string;
-      periodEnd?: string;
-      idempotencyKey?: string;
-      distributeToWallet?: boolean;
-      reinvest?: boolean;
-    },
+    @Body() dto: ContributeToPoolDto,
+    @Req() req: any,
   ) {
-    const userId = req.user.id;
-    const ipAddress = req.ip || req.headers['x-forwarded-for'] || 'unknown';
-    const idempotencyKey = body.idempotencyKey || req.headers['idempotency-key'];
-
-    this.logger.log(
-      `[API_DISTRIBUTE_DIVIDEND] Request received - ` +
-      `userId: ${userId}, investmentId: ${id}, ` +
-      `amount: ${body.amount}, ipAddress: ${ipAddress}, ` +
-      `idempotencyKey: ${idempotencyKey || 'none'}`,
-    );
-
-    try {
-      const result = await this.investmentService.distributeDividend({
-        investmentId: id,
-        amount: body.amount,
-        paymentDate: body.paymentDate ? new Date(body.paymentDate) : new Date(),
-        periodStart: body.periodStart ? new Date(body.periodStart) : undefined,
-        periodEnd: body.periodEnd ? new Date(body.periodEnd) : undefined,
-        distributedBy: userId,
-        idempotencyKey,
-      });
-
-      this.logger.log(
-        `[API_DISTRIBUTE_DIVIDEND] Request completed successfully - ` +
-        `userId: ${userId}, investmentId: ${id}, ` +
-        `jobId: ${result.jobId}, status: ${result.status}`,
-      );
-
-      return result;
-    } catch (error: any) {
-      this.logger.error(
-        `[API_DISTRIBUTE_DIVIDEND] Request failed - ` +
-        `userId: ${userId}, investmentId: ${id}, ` +
-        `amount: ${body.amount}, ipAddress: ${ipAddress}, ` +
-        `error: ${error.message}`,
-        error.stack,
-      );
-      throw error;
-    }
-  }
-
-  /**
-   * Get dividends for an investment
-   * GET /api/v1/investment/investments/:id/dividends
-   */
-  @Get('investments/:id/dividends')
-  async getInvestmentDividends(@Param('id') id: string) {
-    return this.investmentService.getInvestmentDividends(id);
-  }
-
-  // ============================================================================
-  // MATURITY TRACKING
-  // ============================================================================
-
-  /**
-   * Mark investment as matured
-   * POST /api/v1/investment/investments/:id/mature
-   */
-  @Post('investments/:id/mature')
-  async markInvestmentMatured(@Param('id') id: string) {
-    return this.investmentService.markInvestmentMatured(id);
-  }
-
-  /**
-   * Get investments maturing soon
-   * GET /api/v1/investment/maturing-soon
-   */
-  @Get('maturing-soon')
-  async getInvestmentsMaturingSoon(
-    @Query('daysAhead') daysAhead?: string,
-    @Query('chamaId') chamaId?: string,
-  ) {
-    return this.investmentService.getInvestmentsMaturingSoon(
-      daysAhead ? parseInt(daysAhead, 10) : 7,
-      chamaId,
-    );
-  }
-
-  /**
-   * Get overdue investments
-   * GET /api/v1/investment/overdue
-   */
-  @Get('overdue')
-  async getOverdueInvestments(@Query('chamaId') chamaId?: string) {
-    return this.investmentService.getOverdueInvestments(chamaId);
+    return this.investmentService.contributeToPool({
+      ...dto,
+      poolId: id,
+      userId: req.user.id,
+    });
   }
 }
-
