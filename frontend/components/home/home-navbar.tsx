@@ -27,6 +27,7 @@ interface HomeNavbarProps {
   isAdmin?: boolean;
   isMember?: boolean;
   onSettingsClick?: () => void;
+  onActivityClick?: () => void;
 }
 
 export function HomeNavbar({
@@ -39,6 +40,7 @@ export function HomeNavbar({
   isAdmin = false,
   isMember = false,
   onSettingsClick,
+  onActivityClick,
 }: HomeNavbarProps) {
   const [showDropdown, setShowDropdown] = useState(false);
   const [showCyclesDropdown, setShowCyclesDropdown] = useState(false);
@@ -94,7 +96,26 @@ export function HomeNavbar({
 
         if (profileResponse.ok) {
           const profileData = await profileResponse.json();
-          setUserName(profileData.full_name || profileData.email || "Account");
+          // Use full_name if available and not empty, otherwise fallback to email
+          // Check both full_name and fullName (in case of camelCase)
+          const fullName = (profileData.full_name || profileData.fullName || "").trim();
+          if (fullName && fullName.length > 0) {
+            setUserName(fullName);
+          } else if (profileData.email) {
+            // If no full_name, use email but try to extract name from email
+            const emailName = profileData.email.split("@")[0];
+            // Convert james.mutiso@gmail.com to "James Mutiso"
+            const formattedName = emailName
+              .split(".")
+              .map((part: string) => part.charAt(0).toUpperCase() + part.slice(1))
+              .join(" ");
+            setUserName(formattedName);
+          } else {
+            setUserName("Account");
+          }
+        } else {
+          // If profile fetch fails, set a default to prevent loading state
+          setUserName("Account");
         }
 
         // Fetch user chamas
@@ -110,6 +131,8 @@ export function HomeNavbar({
         }
       } catch (error) {
         console.error("Error fetching user data:", error);
+        // Set default to prevent loading state
+        setUserName("Account");
       }
     };
 
@@ -355,11 +378,11 @@ export function HomeNavbar({
                     </button>
 
                     {showDropdown && (
-                      <div className="fixed top-14 right-0 md:absolute md:top-auto md:left-0 md:right-auto md:mt-2 w-28 md:w-56 bg-white rounded-none md:rounded-lg shadow-xl border border-gray-200 overflow-hidden text-gray-900 z-[100]">
+                      <div className="fixed top-14 right-0 w-48 md:absolute md:top-auto md:left-0 md:right-auto md:mt-2 md:w-56 bg-white shadow-xl border border-gray-200 overflow-hidden text-gray-900 z-[100]">
                         {/* On chama page (mobile only): Show Cycle Settings for all members */}
                         {isChamaPage && isMember ? (
                           <>
-                            {/* Mobile: Show Cycle Settings */}
+                            {/* Mobile: Show Cycle Settings and Recent Activity (admin only) */}
                             <button
                               onClick={() => {
                                 setShowDropdown(false);
@@ -369,6 +392,19 @@ export function HomeNavbar({
                             >
                               <span className="text-xs">Cycle Settings</span>
                             </button>
+                            
+                            {/* Mobile: Show Recent Activity (admin only) */}
+                            {isAdmin && (
+                              <button
+                                onClick={() => {
+                                  setShowDropdown(false);
+                                  onActivityClick?.();
+                                }}
+                                className="md:hidden flex items-center px-4 py-2 hover:bg-gray-50 transition-colors w-full text-left"
+                              >
+                                <span className="text-xs">Recent Activity</span>
+                              </button>
+                            )}
                             
                             {/* Desktop: Show normal dropdown */}
                             <div className="hidden md:block">
@@ -394,7 +430,7 @@ export function HomeNavbar({
                                 className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 transition-colors"
                               >
                                 <DollarSign className="w-4 h-4" />
-                                <span className="text-sm">My Loans</span>
+                                <span className="text-sm">Loans</span>
                               </Link>
                               <Link
                                 href="/investment/marketplace"
@@ -424,6 +460,31 @@ export function HomeNavbar({
                                 <User className="w-4 h-4" />
                                 <span className="text-sm">Profile</span>
                               </Link>
+                              {/* Cycle Settings - Admin only */}
+                              {isAdmin && (
+                                <button
+                                  onClick={() => {
+                                    setShowDropdown(false);
+                                    onSettingsClick?.();
+                                  }}
+                                  className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 transition-colors w-full text-left"
+                                >
+                                  <Settings className="w-4 h-4" />
+                                  <span className="text-sm">Cycle Settings</span>
+                                </button>
+                              )}
+                              {/* Recent Activity - Admin only */}
+                              {isAdmin && (
+                                <button
+                                  onClick={() => {
+                                    setShowDropdown(false);
+                                    onActivityClick?.();
+                                  }}
+                                  className="flex items-center px-4 py-2 hover:bg-gray-50 transition-colors w-full text-left"
+                                >
+                                  <span className="text-sm">Recent Activity</span>
+                                </button>
+                              )}
                               <Link
                                 href="/settings"
                                 onClick={() => setShowDropdown(false)}
@@ -466,7 +527,7 @@ export function HomeNavbar({
                               className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 transition-colors"
                             >
                               <DollarSign className="w-4 h-4" />
-                              <span className="text-xs md:text-sm">My Loans</span>
+                              <span className="text-xs md:text-sm">Loans</span>
                             </Link>
                             {/* Hide investments on mobile since it's in bottom nav */}
                             <Link

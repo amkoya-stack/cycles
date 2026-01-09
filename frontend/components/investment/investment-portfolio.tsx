@@ -20,13 +20,12 @@ import {
   Clock,
   Award,
   PieChart,
-  Vote,
   AlertCircle,
+  ChevronDown,
 } from "lucide-react";
 import { apiUrl } from "@/lib/api-config";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 
 interface PortfolioSummary {
   total_investments: number;
@@ -82,18 +81,72 @@ const PRODUCT_TYPE_LABELS: Record<string, string> = {
 
 export function InvestmentPortfolio({ chamaId }: InvestmentPortfolioProps) {
   const { toast } = useToast();
-  const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [loadingInvestments, setLoadingInvestments] = useState(false);
   const [summary, setSummary] = useState<PortfolioSummary | null>(null);
   const [investments, setInvestments] = useState<Investment[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [productTypeFilter, setProductTypeFilter] = useState<string>("all");
-  const [pendingProposals, setPendingProposals] = useState<any[]>([]);
+  const [productTypeFilter, setProductTypeFilter] = useState<string[]>([]);
+  const [expandedInvestmentId, setExpandedInvestmentId] = useState<string | null>(null);
+  const [initialLoad, setInitialLoad] = useState(true);
 
   useEffect(() => {
-    fetchPortfolio();
-    fetchPendingProposals();
+    if (initialLoad) {
+      fetchPortfolio();
+      setInitialLoad(false);
+    } else {
+      fetchInvestmentsOnly();
+    }
   }, [chamaId, statusFilter, productTypeFilter]);
+
+  const fetchInvestmentsOnly = async () => {
+    try {
+      setLoadingInvestments(true);
+      const accessToken = localStorage.getItem("accessToken");
+      if (!accessToken) return;
+
+      // Fetch investments only (no summary)
+      const params = new URLSearchParams();
+      if (statusFilter !== "all") params.append("status", statusFilter);
+      if (productTypeFilter.length > 0) {
+        params.append("productType", productTypeFilter.join(","));
+      }
+
+      const investmentsResponse = await fetch(
+        `${apiUrl(`investment/investments/chama/${chamaId}`)}?${params.toString()}`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+
+      if (investmentsResponse.ok) {
+        const contentType = investmentsResponse.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          const text = await investmentsResponse.text();
+          if (text.trim()) {
+            try {
+              const investmentsData = JSON.parse(text);
+              setInvestments(Array.isArray(investmentsData) ? investmentsData : []);
+            } catch (e) {
+              console.error("Failed to parse investments JSON:", e, "Response:", text);
+              setInvestments([]);
+            }
+          } else {
+            setInvestments([]);
+          }
+        }
+      } else {
+        console.error("Investments response not OK:", investmentsResponse.status, investmentsResponse.statusText);
+        setInvestments([]);
+      }
+    } catch (error) {
+      console.error("Failed to fetch investments:", error);
+    } finally {
+      setLoadingInvestments(false);
+    }
+  };
 
   const fetchPortfolio = async () => {
     try {
@@ -142,8 +195,9 @@ export function InvestmentPortfolio({ chamaId }: InvestmentPortfolioProps) {
       // Fetch investments
       const params = new URLSearchParams();
       if (statusFilter !== "all") params.append("status", statusFilter);
-      if (productTypeFilter !== "all")
-        params.append("productType", productTypeFilter);
+      if (productTypeFilter.length > 0) {
+        params.append("productType", productTypeFilter.join(","));
+      }
 
       const investmentsResponse = await fetch(
         `${apiUrl(`investment/investments/chama/${chamaId}`)}?${params.toString()}`,
@@ -187,29 +241,6 @@ export function InvestmentPortfolio({ chamaId }: InvestmentPortfolioProps) {
     }
   };
 
-  const fetchPendingProposals = async () => {
-    try {
-      const accessToken = localStorage.getItem("accessToken");
-      if (!accessToken) return;
-
-      // Fetch active governance proposals of type MAKE_INVESTMENT
-      const response = await fetch(
-        `${apiUrl(`governance/chama/${chamaId}/proposals`)}?status=active&proposalType=make_investment`,
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        }
-      );
-
-      if (response.ok) {
-        const data = await response.json();
-        setPendingProposals(data || []);
-      }
-    } catch (error) {
-      console.error("Failed to fetch pending proposals:", error);
-    }
-  };
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-KE", {
@@ -244,22 +275,273 @@ export function InvestmentPortfolio({ chamaId }: InvestmentPortfolioProps) {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-[#083232]">Investment Portfolio</h1>
-          <p className="text-gray-600 mt-1">View and manage your chama investments</p>
+      {/* Mobile View */}
+      <div className="md:hidden">
+        {/* Summary Stats - Mobile */}
+        {summary && (
+          <div className="bg-white border-b border-gray-200">
+            {/* Total Invested - Prominent */}
+            <div className="px-4 pt-4 pb-3 border-b border-gray-200">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
+                    <DollarSign className="w-4 h-4 text-gray-700" />
+                  </div>
+                  <span className="text-sm font-medium text-gray-700">Total Invested</span>
+                </div>
+                <span className="text-xl font-bold text-[#083232]">
+                  {formatCurrency(summary.total_invested)}
+                </span>
+              </div>
+            </div>
+            
+            {/* Other Stats - Grid */}
+            <div className="px-4 py-3 grid grid-cols-3 gap-3">
+              <div className="text-center">
+                <div className="w-7 h-7 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-1.5">
+                  <TrendingUp className="w-3.5 h-3.5 text-green-600" />
+                </div>
+                <p className="text-[10px] text-gray-500 mb-0.5">Interest</p>
+                <p className="text-sm font-semibold text-green-600">
+                  {formatCurrency(summary.total_interest_earned)}
+                </p>
+              </div>
+              <div className="text-center">
+                <div className="w-7 h-7 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-1.5">
+                  <PieChart className="w-3.5 h-3.5 text-blue-600" />
+                </div>
+                <p className="text-[10px] text-gray-500 mb-0.5">Expected</p>
+                <p className="text-sm font-semibold text-blue-600">
+                  {formatCurrency(summary.expected_returns)}
+                </p>
+              </div>
+              <div className="text-center">
+                <div className="w-7 h-7 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-1.5">
+                  <Award className="w-3.5 h-3.5 text-purple-600" />
+                </div>
+                <p className="text-[10px] text-gray-500 mb-0.5">Active</p>
+                <p className="text-sm font-semibold text-purple-600">
+                  {summary.active_investments}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Filters - Mobile */}
+        <div className="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
+          {/* Status Filters */}
+          <div className="px-4 pt-3 pb-2 border-b border-gray-100">
+            <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wide mb-2 px-1">Status</p>
+            <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-2 -mx-4 px-4">
+              {["all", "pending_approval", "approved", "active", "matured"].map((status) => (
+                <button
+                  key={status}
+                  onClick={() => setStatusFilter(status)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0 transition-all ${
+                    statusFilter === status
+                      ? "bg-[#083232] text-white shadow-sm"
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  }`}
+                >
+                  {status.split("_").map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(" ")}
+                </button>
+              ))}
+            </div>
+          </div>
+          
+          {/* Product Type Filters */}
+          <div className="px-4 pb-3 pt-2">
+            <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wide mb-2 px-1">Product Type</p>
+            <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-2 -mx-4 px-4">
+              {Object.keys(PRODUCT_TYPE_LABELS).map((type) => {
+                const isSelected = productTypeFilter.includes(type);
+                return (
+                  <button
+                    key={type}
+                    onClick={() => {
+                      if (isSelected) {
+                        setProductTypeFilter(productTypeFilter.filter((t) => t !== type));
+                      } else {
+                        setProductTypeFilter([...productTypeFilter, type]);
+                      }
+                    }}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0 transition-all ${
+                      isSelected
+                        ? "bg-blue-600 text-white shadow-sm"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    {PRODUCT_TYPE_LABELS[type] || type}
+                  </button>
+                );
+              })}
+              {productTypeFilter.length > 0 && (
+                <button
+                  onClick={() => setProductTypeFilter([])}
+                  className="px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0 transition-all bg-gray-200 text-gray-700 hover:bg-gray-300"
+                >
+                  Clear All
+                </button>
+              )}
+            </div>
+          </div>
         </div>
-        <Link href="/investment/marketplace">
-          <Button className="bg-[#083232] hover:bg-[#2e856e]">
-            Browse Marketplace
-          </Button>
-        </Link>
+
+        {/* Investments List - Mobile */}
+        <div className="pb-20">
+          {loading && initialLoad ? (
+            <div className="text-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#083232] border-t-transparent mx-auto mb-2"></div>
+              <p className="text-sm text-gray-500">Loading investments...</p>
+            </div>
+          ) : investments.length === 0 ? (
+            <div className="text-center py-12 px-4">
+              <PieChart className="h-8 w-8 mx-auto text-gray-400 mb-2" />
+              <p className="text-sm text-gray-600 mb-4">No investments found</p>
+              <Link href="/investment/marketplace">
+                <Button variant="outline" size="sm" className="text-xs">
+                  Browse Marketplace
+                </Button>
+              </Link>
+            </div>
+          ) : (
+            <div className="space-y-0">
+              {investments.map((investment) => {
+                const isExpanded = expandedInvestmentId === investment.id;
+                const daysUntilMaturity = getDaysUntilMaturity(investment.maturity_date);
+                const isMatured = daysUntilMaturity <= 0;
+                const returnPercentage = calculateROI(investment.amount, investment.total_return);
+                
+                const getStatusColor = (status: string) => {
+                  if (status === "active") return "border-l-green-500";
+                  if (status === "matured") return "border-l-gray-400";
+                  if (status === "pending_approval" || status === "approved") return "border-l-yellow-500";
+                  if (status === "cancelled" || status === "liquidated") return "border-l-red-500";
+                  return "border-l-gray-300";
+                };
+
+                return (
+                  <div
+                    key={investment.id}
+                    className={`bg-white border-l-4 ${getStatusColor(investment.status)} border-b border-gray-200`}
+                  >
+                    <button
+                      onClick={() => setExpandedInvestmentId(isExpanded ? null : investment.id)}
+                      className="w-full px-4 py-3 text-left"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-sm font-semibold text-gray-900 truncate">
+                              {investment.product_name}
+                            </span>
+                            <Badge className={`text-xs ${STATUS_COLORS[investment.status] || "bg-gray-100"}`}>
+                              {investment.status.replace("_", " ")}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-gray-600">
+                              {formatCurrency(investment.amount)}
+                            </span>
+                            <span className="text-xs text-gray-500">
+                              {investment.interest_rate}%
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-500 truncate mt-1">
+                            {PRODUCT_TYPE_LABELS[investment.product_type] || investment.product_type}
+                          </p>
+                        </div>
+                        <ChevronDown
+                          className={`w-4 h-4 text-gray-400 ml-2 transition-transform flex-shrink-0 ${
+                            isExpanded ? "rotate-180" : ""
+                          }`}
+                        />
+                      </div>
+                    </button>
+
+                    {/* Expanded Details */}
+                    {isExpanded && (
+                      <div className="px-4 pb-3 space-y-3 border-t border-gray-200 pt-3">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <p className="text-xs text-gray-500 mb-0.5">Amount Invested</p>
+                            <p className="text-sm font-semibold text-gray-900">
+                              {formatCurrency(investment.amount)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500 mb-0.5">Interest Rate</p>
+                            <p className="text-sm font-semibold text-gray-900">
+                              {investment.interest_rate}%
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500 mb-0.5">
+                              {isMatured ? "Matured" : "Matures In"}
+                            </p>
+                            <p className="text-sm font-semibold text-gray-900">
+                              {isMatured
+                                ? "Matured"
+                                : `${daysUntilMaturity} day${daysUntilMaturity !== 1 ? "s" : ""}`}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500 mb-0.5">Returns</p>
+                            <p className="text-sm font-semibold text-green-600">
+                              {formatCurrency(investment.total_return)} ({returnPercentage}%)
+                            </p>
+                          </div>
+                        </div>
+                        {investment.status === "active" && (
+                          <div className="pt-3 border-t border-gray-200">
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <p className="text-xs text-gray-500 mb-0.5">Expected Return</p>
+                                <p className="text-sm font-semibold text-gray-900">
+                                  {formatCurrency(investment.expected_return)}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-xs text-gray-500 mb-0.5">Maturity Date</p>
+                                <p className="text-sm font-semibold text-gray-900">
+                                  {new Date(investment.maturity_date).toLocaleDateString("en-US", {
+                                    month: "short",
+                                    day: "numeric",
+                                  })}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Summary Cards */}
-      {summary && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Desktop View */}
+      <div className="hidden md:block">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-[#083232]">Investment Portfolio</h1>
+            <p className="text-gray-600 mt-1">View and manage your chama investments</p>
+          </div>
+          <Link href="/investment/marketplace">
+            <Button className="bg-[#083232] hover:bg-[#2e856e]">
+              Browse Marketplace
+            </Button>
+          </Link>
+        </div>
+
+        {/* Summary Cards */}
+        {summary && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium text-gray-600">
@@ -322,49 +604,6 @@ export function InvestmentPortfolio({ chamaId }: InvestmentPortfolioProps) {
         </div>
       )}
 
-      {/* Pending Proposals Alert */}
-      {pendingProposals.length > 0 && (
-        <Card className="border-yellow-200 bg-yellow-50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-yellow-800">
-              <AlertCircle className="h-5 w-5" />
-              Pending Investment Proposals
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-yellow-700 mb-4">
-              You have {pendingProposals.length} investment proposal{pendingProposals.length !== 1 ? "s" : ""} waiting for approval.
-            </p>
-            <div className="space-y-2 mb-4">
-              {pendingProposals.slice(0, 3).map((proposal) => (
-                <div
-                  key={proposal.id}
-                  className="p-3 bg-white rounded-lg border border-yellow-200"
-                >
-                  <p className="font-semibold text-sm">{proposal.title}</p>
-                  {proposal.metadata?.amount && (
-                    <p className="text-xs text-gray-600 mt-1">
-                      Amount: {formatCurrency(proposal.metadata.amount)}
-                    </p>
-                  )}
-                </div>
-              ))}
-            </div>
-            <Button
-              onClick={() => {
-                const currentPath = window.location.pathname;
-                const slug = currentPath.split("/")[1];
-                router.push(`/${slug}?tab=governance`);
-              }}
-              className="bg-yellow-600 hover:bg-yellow-700 text-white"
-            >
-              <Vote className="h-4 w-4 mr-2" />
-              Vote on Proposals
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Performance Summary */}
       {summary && summary.total_invested > 0 && (
         <Card>
@@ -415,19 +654,38 @@ export function InvestmentPortfolio({ chamaId }: InvestmentPortfolioProps) {
             </div>
             <div>
               <label className="text-sm font-medium mb-2 block">Product Type</label>
-              <Select value={productTypeFilter} onValueChange={setProductTypeFilter}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Types</SelectItem>
-                  {Object.entries(PRODUCT_TYPE_LABELS).map(([value, label]) => (
-                    <SelectItem key={value} value={value}>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(PRODUCT_TYPE_LABELS).map(([value, label]) => {
+                  const isSelected = productTypeFilter.includes(value);
+                  return (
+                    <button
+                      key={value}
+                      onClick={() => {
+                        if (isSelected) {
+                          setProductTypeFilter(productTypeFilter.filter((t) => t !== value));
+                        } else {
+                          setProductTypeFilter([...productTypeFilter, value]);
+                        }
+                      }}
+                      className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                        isSelected
+                          ? "bg-blue-600 text-white shadow-sm"
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      }`}
+                    >
                       {label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                    </button>
+                  );
+                })}
+                {productTypeFilter.length > 0 && (
+                  <button
+                    onClick={() => setProductTypeFilter([])}
+                    className="px-3 py-1.5 rounded-full text-xs font-medium transition-all bg-gray-200 text-gray-700 hover:bg-gray-300"
+                  >
+                    Clear All
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </CardContent>
@@ -520,6 +778,7 @@ export function InvestmentPortfolio({ chamaId }: InvestmentPortfolioProps) {
             );
           })
         )}
+      </div>
       </div>
     </div>
   );

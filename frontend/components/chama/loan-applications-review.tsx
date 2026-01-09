@@ -35,6 +35,7 @@ import {
   Eye,
   Percent,
   Shield,
+  ChevronDown,
 } from "lucide-react";
 import { apiUrl } from "@/lib/api-config";
 import { useToast } from "@/hooks/use-toast";
@@ -146,9 +147,72 @@ export function LoanApplicationsReview({
 
   useEffect(() => {
     fetchApplications();
-  }, [chamaId, lendingType, statusFilter]);
+  }, [chamaId, lendingType, statusFilter, searchQuery]);
+
+  // Mock data for UI preview
+  const mockApplications: LoanApplication[] = [
+    {
+      id: "app1",
+      applicantId: "user1",
+      applicantName: "James Mutiso",
+      applicantEmail: "james.mutiso@example.com",
+      amountRequested: 50000,
+      purpose: "Business expansion",
+      proposedInterestRate: 12,
+      proposedRepaymentPeriodMonths: 6,
+      status: "submitted",
+      submittedAt: "2025-01-08T10:00:00Z",
+      repaymentFrequency: "monthly",
+    },
+    {
+      id: "app2",
+      applicantId: "user2",
+      applicantName: "Mary Wanjiku",
+      applicantEmail: "mary.wanjiku@example.com",
+      amountRequested: 75000,
+      purpose: "Home improvement",
+      proposedInterestRate: 15,
+      proposedRepaymentPeriodMonths: 8,
+      status: "approved",
+      submittedAt: "2025-01-05T14:30:00Z",
+      approvedAt: "2025-01-07T09:00:00Z",
+      finalInterestRate: 14,
+      finalRepaymentPeriodMonths: 8,
+      repaymentFrequency: "monthly",
+    },
+    {
+      id: "app3",
+      applicantId: "user3",
+      applicantName: "John Kamau",
+      applicantEmail: "john.kamau@example.com",
+      amountRequested: 30000,
+      purpose: "Education fees",
+      proposedInterestRate: 10,
+      proposedRepaymentPeriodMonths: 4,
+      status: "pending",
+      submittedAt: "2025-01-10T08:15:00Z",
+      repaymentFrequency: "monthly",
+    },
+  ];
 
   const fetchApplications = async () => {
+    // Use mock data for UI preview (comment out to use real API)
+    let filtered = mockApplications;
+    if (statusFilter !== "all") {
+      filtered = mockApplications.filter((app) => 
+        app.status.toLowerCase() === statusFilter.toLowerCase()
+      );
+    }
+    if (searchQuery) {
+      filtered = filtered.filter((app) =>
+        app.applicantName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        app.purpose.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+    setApplications(filtered);
+    setLoading(false);
+    return;
+
     try {
       setLoading(true);
       const accessToken = localStorage.getItem("accessToken");
@@ -495,60 +559,293 @@ export function LoanApplicationsReview({
 
   const canManage = userRole === "admin" || userRole === "treasurer";
 
+  const [expandedApplicationId, setExpandedApplicationId] = useState<string | null>(null);
+
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">
-            {lendingType === "internal"
-              ? "Internal Loan Applications"
-              : lendingType === "external"
-              ? "External Loan Applications"
-              : "Inter-Chama Loan Requests"}
-          </h2>
-          <p className="text-sm text-gray-600 mt-1">
-            Review and manage loan applications
-          </p>
+      {/* Mobile View */}
+      <div className="md:hidden">
+        {/* Search and Filter */}
+        <div className="bg-gray-50 border-b border-gray-200 px-4 py-3">
+          <div className="relative mb-3">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Input
+              placeholder="Search applications..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 text-sm"
+            />
+          </div>
+          <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+            {["all", "submitted", "pending", "under_review", "approved", ...(lendingType === "external" ? ["escrow_pending", "escrow_funded", "escrow_released"] : []), "rejected"].map((status) => (
+              <button
+                key={status}
+                onClick={() => setStatusFilter(status)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
+                  statusFilter === status
+                    ? "bg-[#083232] text-white"
+                    : "bg-white text-gray-700 border border-gray-300"
+                }`}
+              >
+                {status.split("_").map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(" ")}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Applications List - Mobile */}
+        <div className="pb-20">
+          {loading ? (
+            <div className="text-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#083232] border-t-transparent mx-auto mb-2"></div>
+              <p className="text-sm text-gray-500">Loading applications...</p>
+            </div>
+          ) : filteredApplications.length === 0 ? (
+            <div className="text-center py-12 px-4">
+              <FileText className="h-8 w-8 mx-auto text-gray-400 mb-2" />
+              <p className="text-sm text-gray-600">No applications found</p>
+            </div>
+          ) : (
+            <div className="space-y-0">
+              {filteredApplications.map((application) => {
+                const isExpanded = expandedApplicationId === application.id;
+                const getStatusColor = (status: string) => {
+                  const statusLower = status.toLowerCase();
+                  if (statusLower === "approved") return "border-l-green-500";
+                  if (statusLower === "rejected") return "border-l-red-500";
+                  if (statusLower === "pending" || statusLower === "submitted" || statusLower === "under_review") return "border-l-yellow-500";
+                  if (statusLower.includes("escrow")) return "border-l-blue-500";
+                  return "border-l-gray-300";
+                };
+
+                return (
+                  <div
+                    key={application.id}
+                    className={`bg-white border-l-4 ${getStatusColor(application.status)} border-b border-gray-200`}
+                  >
+                    <button
+                      onClick={() => setExpandedApplicationId(isExpanded ? null : application.id)}
+                      className="w-full px-4 py-3 text-left"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-sm font-semibold text-gray-900 truncate">
+                              {application.applicantName || "Unknown Applicant"}
+                            </span>
+                            {getStatusBadge(application.status)}
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-gray-600">
+                              Ksh {formatAmount(application.amountRequested)}
+                            </span>
+                            <span className="text-xs text-gray-500">
+                              {application.proposedInterestRate || "N/A"}%
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-500 truncate mt-1">
+                            {application.purpose}
+                          </p>
+                        </div>
+                        <ChevronDown
+                          className={`w-4 h-4 text-gray-400 ml-2 transition-transform flex-shrink-0 ${
+                            isExpanded ? "rotate-180" : ""
+                          }`}
+                        />
+                      </div>
+                    </button>
+
+                    {/* Expanded Details */}
+                    {isExpanded && (
+                      <div className="px-4 pb-3 space-y-3 border-t border-gray-200 pt-3">
+                        {application.applicantEmail && (
+                          <div>
+                            <p className="text-xs text-gray-500 mb-0.5">Email</p>
+                            <p className="text-sm font-medium text-gray-900">{application.applicantEmail}</p>
+                          </div>
+                        )}
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <p className="text-xs text-gray-500 mb-0.5">Amount</p>
+                            <p className="text-sm font-semibold text-gray-900">
+                              Ksh {formatAmount(application.amountRequested)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500 mb-0.5">Interest Rate</p>
+                            <p className="text-sm font-semibold text-gray-900">
+                              {application.proposedInterestRate || "N/A"}%
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500 mb-0.5">Repayment Period</p>
+                            <p className="text-sm font-semibold text-gray-900">
+                              {application.proposedRepaymentPeriodMonths} months
+                            </p>
+                          </div>
+                          {application.proposedInterestRate && (
+                            <div>
+                              <p className="text-xs text-gray-500 mb-0.5">EMI Amount</p>
+                              <p className="text-sm font-semibold text-gray-900">
+                                Ksh {formatAmount(
+                                  calculateEMI(
+                                    application.amountRequested,
+                                    application.proposedInterestRate,
+                                    application.proposedRepaymentPeriodMonths,
+                                    application.repaymentFrequency || "monthly"
+                                  )
+                                )}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 mb-0.5">Purpose</p>
+                          <p className="text-sm text-gray-900">{application.purpose}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 mb-0.5">Submitted</p>
+                          <p className="text-sm text-gray-900">{formatDate(application.submittedAt)}</p>
+                        </div>
+                        {application.rejectionReason && (
+                          <div className="bg-red-50 border border-red-200 rounded p-2">
+                            <p className="text-xs font-semibold text-red-800 mb-0.5">Rejection Reason</p>
+                            <p className="text-xs text-red-700">{application.rejectionReason}</p>
+                          </div>
+                        )}
+                        {/* Risk Sharing Management - For external loans */}
+                        {lendingType === "external" && (
+                          <div className="pt-3 border-t border-gray-200">
+                            <RiskSharingManagement
+                              applicationId={application.id}
+                              chamaId={chamaId}
+                              amountRequested={application.amountRequested}
+                              onRiskSharingUpdated={fetchApplications}
+                              userRole={userRole}
+                            />
+                          </div>
+                        )}
+                        {/* Escrow Management - Only for approved external loans */}
+                        {lendingType === "external" &&
+                          (application.status === "approved" ||
+                            application.status === "escrow_pending" ||
+                            application.status === "escrow_funded" ||
+                            application.status === "escrow_released") && (
+                            <div className="pt-3 border-t border-gray-200">
+                              <EscrowManagement
+                                applicationId={application.id}
+                                chamaId={chamaId}
+                                amountRequested={application.amountRequested}
+                                escrowAccountId={application.escrowAccountId}
+                                onEscrowUpdated={fetchApplications}
+                                userRole={userRole}
+                              />
+                            </div>
+                          )}
+                        {canManage &&
+                          (application.status === "submitted" ||
+                            application.status === "pending" ||
+                            application.status === "under_review") && (
+                            <div className="flex gap-2 pt-2">
+                              <Button
+                                size="sm"
+                                className="flex-1 bg-green-600 hover:bg-green-700 text-xs"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedApplication(application);
+                                  setFinalInterestRate(
+                                    application.proposedInterestRate?.toString() || ""
+                                  );
+                                  setFinalRepaymentPeriodMonths(
+                                    application.proposedRepaymentPeriodMonths.toString()
+                                  );
+                                  setRepaymentFrequency(application.repaymentFrequency || "monthly");
+                                  setShowApproveDialog(true);
+                                }}
+                              >
+                                <CheckCircle className="w-3 h-3 mr-1" />
+                                Approve
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                className="flex-1 text-xs"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedApplication(application);
+                                  setRejectionReason("");
+                                  setShowRejectDialog(true);
+                                }}
+                              >
+                                <XCircle className="w-3 h-3 mr-1" />
+                                Reject
+                              </Button>
+                            </div>
+                          )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Filters */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <Input
-                placeholder="Search by applicant name, email, or purpose..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full sm:w-48">
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="submitted">Submitted</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="under_review">Under Review</SelectItem>
-                <SelectItem value="approved">Approved</SelectItem>
-                {lendingType === "external" && (
-                  <>
-                    <SelectItem value="escrow_pending">Escrow Pending</SelectItem>
-                    <SelectItem value="escrow_funded">Escrow Funded</SelectItem>
-                    <SelectItem value="escrow_released">Escrow Released</SelectItem>
-                  </>
-                )}
-                <SelectItem value="rejected">Rejected</SelectItem>
-              </SelectContent>
-            </Select>
+      {/* Desktop View */}
+      <div className="hidden md:block">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900">
+              {lendingType === "internal"
+                ? "Internal Loan Applications"
+                : lendingType === "external"
+                ? "External Loan Applications"
+                : "Inter-Chama Loan Requests"}
+            </h2>
+            <p className="text-sm text-gray-600 mt-1">
+              Review and manage loan applications
+            </p>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+
+        {/* Filters */}
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Input
+                  placeholder="Search by applicant name, email, or purpose..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-full sm:w-48">
+                  <SelectValue placeholder="Filter by status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="submitted">Submitted</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="under_review">Under Review</SelectItem>
+                  <SelectItem value="approved">Approved</SelectItem>
+                  {lendingType === "external" && (
+                    <>
+                      <SelectItem value="escrow_pending">Escrow Pending</SelectItem>
+                      <SelectItem value="escrow_funded">Escrow Funded</SelectItem>
+                      <SelectItem value="escrow_released">Escrow Released</SelectItem>
+                    </>
+                  )}
+                  <SelectItem value="rejected">Rejected</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
 
       {/* Applications List */}
       {loading ? (
@@ -767,6 +1064,7 @@ export function LoanApplicationsReview({
           ))}
         </div>
       )}
+      </div>
 
       {/* Approve Dialog */}
       <Dialog open={showApproveDialog} onOpenChange={setShowApproveDialog}>

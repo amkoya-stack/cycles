@@ -1617,6 +1617,14 @@ export default function CycleBySlugPage() {
         isAdmin={userRole === "admin"}
         isMember={chama?.is_member || false}
         onSettingsClick={() => setShowSettingsModal(true)}
+        onActivityClick={() => {
+          setActiveTab("activity");
+          const currentUrl = new URL(window.location.href);
+          currentUrl.searchParams.set("tab", "activity");
+          router.push(currentUrl.pathname + currentUrl.search, {
+            scroll: false,
+          });
+        }}
       />
 
       {/* Tabs Navigation */}

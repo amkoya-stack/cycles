@@ -35,7 +35,13 @@ interface ChatModalProps {
 
 type View = "conversations" | "messages" | "new-chat";
 
-export function ChatModal({ isOpen, onClose, onNewMessage, isPageMode = false, noOverlay = false }: ChatModalProps) {
+export function ChatModal({
+  isOpen,
+  onClose,
+  onNewMessage,
+  isPageMode = false,
+  noOverlay = false,
+}: ChatModalProps) {
   // Check for pendingMessage on mount to set initial view correctly
   const [currentView, setCurrentView] = useState<View>(() => {
     if (typeof window !== "undefined") {
@@ -55,7 +61,9 @@ export function ChatModal({ isOpen, onClose, onNewMessage, isPageMode = false, n
   const [chamaMembers, setChamaMembers] = useState<ChamaMember[]>([]);
   const [loading, setLoading] = useState(false);
   const [pendingRecipient, setPendingRecipient] = useState<any>(null);
-  const [currentUserChatEnabled, setCurrentUserChatEnabled] = useState<Record<string, boolean>>({});
+  const [currentUserChatEnabled, setCurrentUserChatEnabled] = useState<
+    Record<string, boolean>
+  >({});
   const [isMobile, setIsMobile] = useState(false);
   const [isInitializing, setIsInitializing] = useState(false);
 
@@ -74,7 +82,10 @@ export function ChatModal({ isOpen, onClose, onNewMessage, isPageMode = false, n
   }, []);
 
   // Check chat settings before opening chat
-  const checkChatSettingsBeforeOpen = async (chamaId: string, recipientId: string): Promise<boolean> => {
+  const checkChatSettingsBeforeOpen = async (
+    chamaId: string,
+    recipientId: string
+  ): Promise<boolean> => {
     try {
       const accessToken = localStorage.getItem("accessToken");
       if (!accessToken) return false;
@@ -104,7 +115,8 @@ export function ChatModal({ isOpen, onClose, onNewMessage, isPageMode = false, n
         if (currentUserSettings.chat_enabled === false) {
           toast({
             title: "Chat Disabled",
-            description: "You have disabled chat messages. Please enable chat in Cycle Settings to send messages.",
+            description:
+              "You have disabled chat messages. Please enable chat in Cycle Settings to send messages.",
             variant: "destructive",
           });
           return false;
@@ -126,7 +138,8 @@ export function ChatModal({ isOpen, onClose, onNewMessage, isPageMode = false, n
         if (recipientSettings.chat_enabled === false) {
           toast({
             title: "Chat Disabled",
-            description: "This member has disabled chat messages from other members.",
+            description:
+              "This member has disabled chat messages from other members.",
             variant: "destructive",
           });
           return false;
@@ -148,16 +161,17 @@ export function ChatModal({ isOpen, onClose, onNewMessage, isPageMode = false, n
       if (pendingMessageStr) {
         try {
           const pending = JSON.parse(pendingMessageStr);
-          
+
           // Clear the pending message immediately to prevent re-processing
           localStorage.removeItem("pendingMessage");
-          
+
           // Set initializing state to prevent shaking during setup
           setIsInitializing(true);
-          
+
           // CRITICAL: Create temp conversation and set view to messages IMMEDIATELY
           // This ensures we never show the conversations list - go straight to inbox
-          const chamaName = chamas.find((c) => c.id === pending.chamaId)?.name || "";
+          const chamaName =
+            chamas.find((c) => c.id === pending.chamaId)?.name || "";
           const tempConversation: Conversation = {
             conversation_id: `temp-${pending.recipientId}-${pending.chamaId}`,
             chama_id: pending.chamaId,
@@ -171,14 +185,17 @@ export function ChatModal({ isOpen, onClose, onNewMessage, isPageMode = false, n
             unread_count: 0,
             updated_at: new Date().toISOString(),
           };
-          
+
           // Set conversation and view immediately - inbox shows right away
           setSelectedConversation(tempConversation);
           setCurrentView("messages");
           setMessages([]);
-          
+
           // Check chat settings first
-          checkChatSettingsBeforeOpen(pending.chamaId, pending.recipientId).then(async (canOpen) => {
+          checkChatSettingsBeforeOpen(
+            pending.chamaId,
+            pending.recipientId
+          ).then(async (canOpen) => {
             if (!canOpen) {
               // Chat is disabled, don't open modal
               setIsInitializing(false);
@@ -190,13 +207,15 @@ export function ChatModal({ isOpen, onClose, onNewMessage, isPageMode = false, n
             try {
               // Fetch all conversations in the background (to populate state)
               const allConversations = await chatApi.getConversations();
-              
+
               // Update conversations state in background
               setConversations(allConversations);
-              
+
               // Find the specific conversation
               const existingConversation = allConversations.find(
-                (conv) => conv.other_user_id === pending.recipientId && conv.chama_id === pending.chamaId
+                (conv) =>
+                  conv.other_user_id === pending.recipientId &&
+                  conv.chama_id === pending.chamaId
               );
 
               if (existingConversation) {
@@ -236,7 +255,8 @@ export function ChatModal({ isOpen, onClose, onNewMessage, isPageMode = false, n
       }
     } else {
       // Reset state when modal closes, but preserve if there's a pending message
-      const hasPendingMessage = typeof window !== "undefined" && localStorage.getItem("pendingMessage");
+      const hasPendingMessage =
+        typeof window !== "undefined" && localStorage.getItem("pendingMessage");
       if (!hasPendingMessage) {
         setIsInitializing(false);
         setPendingRecipient(null);
@@ -292,16 +312,24 @@ export function ChatModal({ isOpen, onClose, onNewMessage, isPageMode = false, n
         if (prev.length !== data.length) {
           return data;
         }
-        const prevIds = prev.map(c => c.conversation_id).sort().join(',');
-        const newIds = data.map(c => c.conversation_id).sort().join(',');
+        const prevIds = prev
+          .map((c) => c.conversation_id)
+          .sort()
+          .join(",");
+        const newIds = data
+          .map((c) => c.conversation_id)
+          .sort()
+          .join(",");
         if (prevIds !== newIds) {
           return data;
         }
         // Check if any conversation data changed
         for (let i = 0; i < prev.length; i++) {
-          if (prev[i].last_message !== data[i]?.last_message ||
-              prev[i].unread_count !== data[i]?.unread_count ||
-              prev[i].last_message_at !== data[i]?.last_message_at) {
+          if (
+            prev[i].last_message !== data[i]?.last_message ||
+            prev[i].unread_count !== data[i]?.unread_count ||
+            prev[i].last_message_at !== data[i]?.last_message_at
+          ) {
             return data;
           }
         }
@@ -369,15 +397,19 @@ export function ChatModal({ isOpen, onClose, onNewMessage, isPageMode = false, n
     } catch (error: any) {
       console.error("Failed to send message:", error);
       // Show error message to user
-      const errorMessage = error?.message || "Failed to send message. Please try again.";
+      const errorMessage =
+        error?.message || "Failed to send message. Please try again.";
       toast({
         title: "Error",
         description: errorMessage,
         variant: "destructive",
       });
-      
+
       // If chat is disabled, close the modal after showing error
-      if (errorMessage.includes("disabled chat") || errorMessage.includes("Chat Disabled")) {
+      if (
+        errorMessage.includes("disabled chat") ||
+        errorMessage.includes("Chat Disabled")
+      ) {
         setTimeout(() => {
           onClose();
           setSelectedConversation(null);
@@ -444,7 +476,7 @@ export function ChatModal({ isOpen, onClose, onNewMessage, isPageMode = false, n
       conversation.chama_id,
       conversation.other_user_id
     );
-    
+
     if (!canOpen) {
       return; // Don't open if chat is disabled
     }
@@ -488,7 +520,7 @@ export function ChatModal({ isOpen, onClose, onNewMessage, isPageMode = false, n
   // On mobile in page mode, render without Dialog wrapper (no overlay)
   if (isPageMode && isMobile) {
     if (!isOpen) return null;
-    
+
     return (
       <div className="w-full h-[calc(100vh-4rem)] md:hidden flex flex-col bg-white">
         {/* Header */}
@@ -576,7 +608,10 @@ export function ChatModal({ isOpen, onClose, onNewMessage, isPageMode = false, n
                               {conversation.last_message}
                             </p>
                             {conversation.unread_count > 0 && (
-                              <Badge variant="destructive" className="ml-2 flex-shrink-0">
+                              <Badge
+                                variant="destructive"
+                                className="ml-2 flex-shrink-0"
+                              >
                                 {conversation.unread_count}
                               </Badge>
                             )}
@@ -758,245 +793,262 @@ export function ChatModal({ isOpen, onClose, onNewMessage, isPageMode = false, n
           ) : (
             <>
               {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b">
-            <div className="flex items-center gap-3">
-              {currentView !== "conversations" && (
-                <Button variant="ghost" size="sm" onClick={handleBack}>
-                  <ArrowLeft className="h-4 w-4" />
-                </Button>
-              )}
-              <h2 className="text-lg font-semibold">
-                {currentView === "conversations" && "Messages"}
-                {currentView === "messages" &&
-                  selectedConversation?.other_user_name}
-                {currentView === "new-chat" && "New Chat"}
-              </h2>
-            </div>
-            <div className="flex items-center gap-2">
-              {currentView === "conversations" && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setCurrentView("new-chat")}
-                >
-                  <Users className="h-4 w-4" />
-                </Button>
-              )}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onClose}
-                title="Close chat"
-              >
-                <X className="h-5 w-5" />
-              </Button>
-            </div>
-          </div>
-
-          {/* Content - same as Dialog version below */}
-          <div className="flex-1 overflow-hidden">
-            {currentView === "conversations" && (
-              <ScrollArea className="h-full">
-                {loading ? (
-                  <div className="p-4 text-center text-gray-500">
-                    Loading conversations...
-                  </div>
-                ) : conversations.length === 0 ? (
-                  <div className="p-8 text-center text-gray-500">
-                    <MessageCircle className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p>No conversations yet</p>
-                    <p className="text-sm mt-2">
-                      Start a new chat with your chama members
-                    </p>
-                  </div>
-                ) : (
-                  <div className="divide-y">
-                    {conversations.map((conversation) => (
-                      <div
-                        key={conversation.conversation_id}
-                        className="p-4 hover:bg-gray-50 cursor-pointer"
-                        onClick={() => handleConversationClick(conversation)}
-                      >
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-12 w-12 flex-shrink-0">
-                            <AvatarImage src={conversation.other_user_avatar} />
-                            <AvatarFallback>
-                              {conversation.other_user_name
-                                .split(" ")
-                                .map((n) => n[0])
-                                .join("")}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1 min-w-0 overflow-hidden">
-                            <div className="flex items-center justify-between gap-2">
-                              <p className="font-medium text-sm truncate">
-                                {conversation.other_user_name}
-                              </p>
-                              <span className="text-xs text-gray-500 flex-shrink-0 whitespace-nowrap">
-                                {formatTime(conversation.last_message_at)}
-                              </span>
-                            </div>
-                            <div className="flex items-center justify-between gap-2 mt-1">
-                              <p className="text-sm text-gray-600 truncate flex-1 min-w-0">
-                                {conversation.is_sent_by_me && "You: "}
-                                {conversation.last_message}
-                              </p>
-                              {conversation.unread_count > 0 && (
-                                <Badge variant="destructive" className="ml-2 flex-shrink-0">
-                                  {conversation.unread_count}
-                                </Badge>
-                              )}
-                            </div>
-                            <p className="text-xs text-gray-500 mt-1 truncate">
-                              {conversation.chama_name}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </ScrollArea>
-            )}
-
-            {currentView === "messages" && selectedConversation && (
-              <>
-                <ScrollArea className="h-[calc(100%-80px)]">
-                  <div className="p-4 space-y-4 flex flex-col justify-end min-h-full">
-                    {messages.map((message) => (
-                      <div
-                        key={message.id}
-                        className={`flex ${
-                          message.is_sent_by_me ? "justify-end" : "justify-start"
-                        }`}
-                      >
-                        <div
-                          className={`flex items-end gap-2 max-w-[85%] ${
-                            message.is_sent_by_me
-                              ? "flex-row-reverse"
-                              : "flex-row"
-                          }`}
-                        >
-                          {!message.is_sent_by_me && (
-                            <Avatar className="h-6 w-6 flex-shrink-0 mb-1">
-                              <AvatarImage
-                                src={selectedConversation?.other_user_avatar}
-                              />
-                              <AvatarFallback className="text-xs bg-gray-300">
-                                {selectedConversation?.other_user_name
-                                  .split(" ")
-                                  .map((n) => n[0])
-                                  .join("")}
-                              </AvatarFallback>
-                            </Avatar>
-                          )}
-                          <div
-                            className={`relative px-4 py-2 rounded-2xl text-sm break-words ${
-                              message.is_sent_by_me
-                                ? "bg-[#083232] text-white rounded-br-md"
-                                : "bg-gray-200 text-gray-900 rounded-bl-md"
-                            }`}
-                          >
-                            <p className="leading-relaxed">{message.content}</p>
-                            <p
-                              className={`text-xs mt-1 ${
-                                message.is_sent_by_me
-                                  ? "text-gray-300"
-                                  : "text-gray-500"
-                              }`}
-                            >
-                              {formatTime(message.created_at)}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                    <div ref={messagesEndRef} />
-                  </div>
-                </ScrollArea>
-                <div className="border-t p-4">
-                  <div className="flex gap-2">
-                    <Input
-                      value={newMessage}
-                      onChange={(e) => setNewMessage(e.target.value)}
-                      placeholder="Type a message..."
-                      onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
-                      className="flex-1"
-                    />
-                    <Button onClick={handleSendMessage} size="sm">
-                      <Send className="h-4 w-4" />
+              <div className="flex items-center justify-between p-4 border-b">
+                <div className="flex items-center gap-3">
+                  {currentView !== "conversations" && (
+                    <Button variant="ghost" size="sm" onClick={handleBack}>
+                      <ArrowLeft className="h-4 w-4" />
                     </Button>
-                  </div>
+                  )}
+                  <h2 className="text-lg font-semibold">
+                    {currentView === "conversations" && "Messages"}
+                    {currentView === "messages" &&
+                      selectedConversation?.other_user_name}
+                    {currentView === "new-chat" && "New Chat"}
+                  </h2>
                 </div>
-              </>
-            )}
+                <div className="flex items-center gap-2">
+                  {currentView === "conversations" && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setCurrentView("new-chat")}
+                    >
+                      <Users className="h-4 w-4" />
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={onClose}
+                    title="Close chat"
+                  >
+                    <X className="h-5 w-5" />
+                  </Button>
+                </div>
+              </div>
 
-            {currentView === "new-chat" && (
-              <div className="h-full">
-                <div className="p-4 border-b">
-                  <p className="text-sm text-gray-600 mb-3">
-                    Select a chama to view members:
-                  </p>
-                  <div className="space-y-2">
-                    {chamas.map((chama) => (
-                      <Button
-                        key={chama.id}
-                        variant="outline"
-                        size="sm"
-                        onClick={() => fetchChamaMembers(chama.id)}
-                        className="w-full justify-start"
-                      >
-                        {chama.name}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-                <ScrollArea className="h-full">
-                  {chamaMembers.length > 0 && (
-                    <div className="p-4">
-                      <p className="text-sm font-medium mb-3">
-                        Select member to chat with:
-                      </p>
-                      <div className="space-y-2">
-                        {chamaMembers.map((member) => (
+              {/* Content - same as Dialog version below */}
+              <div className="flex-1 overflow-hidden">
+                {currentView === "conversations" && (
+                  <ScrollArea className="h-full">
+                    {loading ? (
+                      <div className="p-4 text-center text-gray-500">
+                        Loading conversations...
+                      </div>
+                    ) : conversations.length === 0 ? (
+                      <div className="p-8 text-center text-gray-500">
+                        <MessageCircle className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                        <p>No conversations yet</p>
+                        <p className="text-sm mt-2">
+                          Start a new chat with your chama members
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="divide-y">
+                        {conversations.map((conversation) => (
                           <div
-                            key={member.id}
-                            className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded cursor-pointer"
+                            key={conversation.conversation_id}
+                            className="p-4 hover:bg-gray-50 cursor-pointer"
                             onClick={() =>
-                              handleStartNewChat(
-                                member,
-                                chamas.find((c) =>
-                                  chamaMembers.some((m) => m.id === member.id)
-                                )?.id || ""
-                              )
+                              handleConversationClick(conversation)
                             }
                           >
-                            <Avatar className="h-8 w-8">
-                              <AvatarImage src={member.profile_picture} />
-                              <AvatarFallback>
-                                {member.full_name
-                                  .split(" ")
-                                  .map((n) => n[0])
-                                  .join("")}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div>
-                              <p className="font-medium text-sm">
-                                {member.full_name}
-                              </p>
-                              <p className="text-xs text-gray-500 capitalize">
-                                {member.role}
-                              </p>
+                            <div className="flex items-center gap-3">
+                              <Avatar className="h-12 w-12 flex-shrink-0">
+                                <AvatarImage
+                                  src={conversation.other_user_avatar}
+                                />
+                                <AvatarFallback>
+                                  {conversation.other_user_name
+                                    .split(" ")
+                                    .map((n) => n[0])
+                                    .join("")}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className="flex-1 min-w-0 overflow-hidden">
+                                <div className="flex items-center justify-between gap-2">
+                                  <p className="font-medium text-sm truncate">
+                                    {conversation.other_user_name}
+                                  </p>
+                                  <span className="text-xs text-gray-500 flex-shrink-0 whitespace-nowrap">
+                                    {formatTime(conversation.last_message_at)}
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between gap-2 mt-1">
+                                  <p className="text-sm text-gray-600 truncate flex-1 min-w-0">
+                                    {conversation.is_sent_by_me && "You: "}
+                                    {conversation.last_message}
+                                  </p>
+                                  {conversation.unread_count > 0 && (
+                                    <Badge
+                                      variant="destructive"
+                                      className="ml-2 flex-shrink-0"
+                                    >
+                                      {conversation.unread_count}
+                                    </Badge>
+                                  )}
+                                </div>
+                                <p className="text-xs text-gray-500 mt-1 truncate">
+                                  {conversation.chama_name}
+                                </p>
+                              </div>
                             </div>
                           </div>
                         ))}
                       </div>
+                    )}
+                  </ScrollArea>
+                )}
+
+                {currentView === "messages" && selectedConversation && (
+                  <>
+                    <ScrollArea className="h-[calc(100%-80px)]">
+                      <div className="p-4 space-y-4 flex flex-col justify-end min-h-full">
+                        {messages.map((message) => (
+                          <div
+                            key={message.id}
+                            className={`flex ${
+                              message.is_sent_by_me
+                                ? "justify-end"
+                                : "justify-start"
+                            }`}
+                          >
+                            <div
+                              className={`flex items-end gap-2 max-w-[85%] ${
+                                message.is_sent_by_me
+                                  ? "flex-row-reverse"
+                                  : "flex-row"
+                              }`}
+                            >
+                              {!message.is_sent_by_me && (
+                                <Avatar className="h-6 w-6 flex-shrink-0 mb-1">
+                                  <AvatarImage
+                                    src={
+                                      selectedConversation?.other_user_avatar
+                                    }
+                                  />
+                                  <AvatarFallback className="text-xs bg-gray-300">
+                                    {selectedConversation?.other_user_name
+                                      .split(" ")
+                                      .map((n) => n[0])
+                                      .join("")}
+                                  </AvatarFallback>
+                                </Avatar>
+                              )}
+                              <div
+                                className={`relative px-4 py-2 rounded-2xl text-sm break-words ${
+                                  message.is_sent_by_me
+                                    ? "bg-[#083232] text-white rounded-br-md"
+                                    : "bg-gray-200 text-gray-900 rounded-bl-md"
+                                }`}
+                              >
+                                <p className="leading-relaxed">
+                                  {message.content}
+                                </p>
+                                <p
+                                  className={`text-xs mt-1 ${
+                                    message.is_sent_by_me
+                                      ? "text-gray-300"
+                                      : "text-gray-500"
+                                  }`}
+                                >
+                                  {formatTime(message.created_at)}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                        <div ref={messagesEndRef} />
+                      </div>
+                    </ScrollArea>
+                    <div className="border-t p-4">
+                      <div className="flex gap-2">
+                        <Input
+                          value={newMessage}
+                          onChange={(e) => setNewMessage(e.target.value)}
+                          placeholder="Type a message..."
+                          onKeyPress={(e) =>
+                            e.key === "Enter" && handleSendMessage()
+                          }
+                          className="flex-1"
+                        />
+                        <Button onClick={handleSendMessage} size="sm">
+                          <Send className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
-                  )}
-                </ScrollArea>
+                  </>
+                )}
+
+                {currentView === "new-chat" && (
+                  <div className="h-full">
+                    <div className="p-4 border-b">
+                      <p className="text-sm text-gray-600 mb-3">
+                        Select a chama to view members:
+                      </p>
+                      <div className="space-y-2">
+                        {chamas.map((chama) => (
+                          <Button
+                            key={chama.id}
+                            variant="outline"
+                            size="sm"
+                            onClick={() => fetchChamaMembers(chama.id)}
+                            className="w-full justify-start"
+                          >
+                            {chama.name}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                    <ScrollArea className="h-full">
+                      {chamaMembers.length > 0 && (
+                        <div className="p-4">
+                          <p className="text-sm font-medium mb-3">
+                            Select member to chat with:
+                          </p>
+                          <div className="space-y-2">
+                            {chamaMembers.map((member) => (
+                              <div
+                                key={member.id}
+                                className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded cursor-pointer"
+                                onClick={() =>
+                                  handleStartNewChat(
+                                    member,
+                                    chamas.find((c) =>
+                                      chamaMembers.some(
+                                        (m) => m.id === member.id
+                                      )
+                                    )?.id || ""
+                                  )
+                                }
+                              >
+                                <Avatar className="h-8 w-8">
+                                  <AvatarImage src={member.profile_picture} />
+                                  <AvatarFallback>
+                                    {member.full_name
+                                      .split(" ")
+                                      .map((n) => n[0])
+                                      .join("")}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div>
+                                  <p className="font-medium text-sm">
+                                    {member.full_name}
+                                  </p>
+                                  <p className="text-xs text-gray-500 capitalize">
+                                    {member.role}
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </ScrollArea>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
             </>
           )}
         </div>
@@ -1110,7 +1162,10 @@ export function ChatModal({ isOpen, onClose, onNewMessage, isPageMode = false, n
                               {conversation.last_message}
                             </p>
                             {conversation.unread_count > 0 && (
-                              <Badge variant="destructive" className="ml-2 flex-shrink-0">
+                              <Badge
+                                variant="destructive"
+                                className="ml-2 flex-shrink-0"
+                              >
                                 {conversation.unread_count}
                               </Badge>
                             )}
