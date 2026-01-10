@@ -1385,20 +1385,21 @@ export class GovernanceService {
         );
       }
 
-      // Toggle pinned status
+      // Toggle pinned status and get pinned_at
       const updateResult = await this.db.query(
         `UPDATE proposals 
          SET pinned = NOT COALESCE(pinned, false),
+             pinned_at = CASE WHEN NOT COALESCE(pinned, false) = TRUE THEN NOW() ELSE NULL END,
              updated_at = NOW()
          WHERE id = $1 
-         RETURNING pinned`,
+         RETURNING pinned, pinned_at`,
         [proposalId],
       );
 
-      const { pinned } = updateResult.rows[0];
+      const { pinned, pinned_at } = updateResult.rows[0];
 
       await this.db.clearContext();
-      return { pinned };
+      return { pinned, pinnedAt: pinned_at || null };
     } catch (error) {
       await this.db.clearContext();
       throw error;

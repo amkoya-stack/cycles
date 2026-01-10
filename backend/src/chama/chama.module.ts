@@ -18,10 +18,13 @@ import { PayoutProcessorService } from './payout.processor.service';
 import { ChamaMetricsService } from './chama-metrics.service';
 import { ChamaReputationService } from './chama-reputation.service';
 import { CommunityService } from './community.service';
+import { ClassroomService } from './classroom.service';
 import { RotationController } from './rotation.controller';
 import { PayoutController } from './payout.controller';
 import { ChamaMetricsController } from './chama-metrics.controller';
 import { CommunityController } from './community.controller';
+import { ClassroomController } from './classroom.controller';
+import { DisputeModule } from '../dispute/dispute.module';
 
 @Module({
   imports: [
@@ -32,6 +35,7 @@ import { CommunityController } from './community.controller';
     MpesaModule,
     ReputationModule,
     ActivityModule,
+    DisputeModule,
     ScheduleModule.forRoot(),
   ],
   controllers: [
@@ -40,6 +44,7 @@ import { CommunityController } from './community.controller';
     PayoutController,
     ChamaMetricsController,
     CommunityController,
+    ClassroomController,
   ],
   providers: [
     ChamaService,
@@ -52,6 +57,7 @@ import { CommunityController } from './community.controller';
     ChamaMetricsService,
     ChamaReputationService,
     CommunityService,
+    ClassroomService,
   ],
   exports: [
     ChamaService,

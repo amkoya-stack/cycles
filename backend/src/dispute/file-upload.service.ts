@@ -47,12 +47,38 @@ export class FileUploadService {
     folder: string = 'disputes',
     allowedTypes: string[] = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf', 'text/plain'],
     maxSize: number = 10 * 1024 * 1024, // 10MB default
+    skipMimeValidation: boolean = false, // Allow skipping MIME validation if already validated elsewhere
   ): Promise<UploadResult> {
-    // Validate file type
-    if (!allowedTypes.includes(file.mimetype)) {
-      throw new BadRequestException(
-        `File type ${file.mimetype} not allowed. Allowed types: ${allowedTypes.join(', ')}`,
-      );
+    // Validate file type (unless validation is skipped)
+    if (!skipMimeValidation && !allowedTypes.includes(file.mimetype)) {
+      // Check for wildcard patterns (e.g., "image/*")
+      const hasWildcard = allowedTypes.some(allowed => allowed.includes('*'));
+      let isValid = false;
+      
+      if (hasWildcard) {
+        // Check if file MIME type matches any wildcard pattern
+        isValid = allowedTypes.some(allowed => {
+          if (allowed.includes('*')) {
+            const baseType = allowed.replace('/*', '');
+            return file.mimetype.toLowerCase().startsWith(baseType.toLowerCase() + '/');
+          }
+          return false;
+        });
+      }
+      
+      // Fallback: check if MIME type contains any of the allowed types (for partial matches)
+      if (!isValid) {
+        const isPartialMatch = allowedTypes.some(allowed => 
+          file.mimetype.toLowerCase().includes(allowed.toLowerCase().replace('*', ''))
+        );
+        isValid = isPartialMatch;
+      }
+      
+      if (!isValid) {
+        throw new BadRequestException(
+          `File type ${file.mimetype} not allowed. Allowed types: ${allowedTypes.join(', ')}`,
+        );
+      }
     }
 
     // Validate file size

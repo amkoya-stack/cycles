@@ -565,7 +565,7 @@ export class CommunityService {
     chamaId: string,
     postId: string,
     userId: string,
-  ): Promise<{ pinned: boolean }> {
+  ): Promise<{ pinned: boolean; pinnedAt: string | null }> {
     await this.verifyMembership(chamaId, userId);
 
     // Check if user is admin
@@ -598,14 +598,18 @@ export class CommunityService {
     const currentPinned = postResult.rows[0].pinned;
     const newPinned = !currentPinned;
 
-    // Toggle pin status
-    await this.db.query(
+    // Toggle pin status and get pinned_at
+    const updateResult = await this.db.query(
       `UPDATE community_posts 
        SET pinned = $1, pinned_at = CASE WHEN $1 = TRUE THEN NOW() ELSE NULL END
-       WHERE id = $2`,
+       WHERE id = $2
+       RETURNING pinned_at`,
       [newPinned, postId],
     );
 
-    return { pinned: newPinned };
+    return { 
+      pinned: newPinned,
+      pinnedAt: updateResult.rows[0]?.pinned_at || null
+    };
   }
 }
