@@ -35,8 +35,8 @@ export function useChamas() {
       let userChamas = [];
 
       if (accessToken) {
+        const userUrl = apiUrl("chama");
         try {
-          const userUrl = apiUrl("chama");
           console.log("[useChamas] Fetching user chamas from:", userUrl);
           
           const userResponse = await fetch(userUrl, {

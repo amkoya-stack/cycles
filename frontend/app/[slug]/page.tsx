@@ -30,6 +30,7 @@ import { DocumentVault } from "@/components/chama/document-vault";
 import { InviteMemberModal } from "@/components/chama/invite-member-modal";
 import { DisputeList } from "@/components/dispute/dispute-list";
 import { FileDisputeForm } from "@/components/dispute/file-dispute-form";
+import { Classroom } from "@/components/chama/classroom";
 import { useNotifications } from "@/hooks/use-notifications";
 import { apiUrl } from "@/lib/api-config";
 import {
@@ -823,7 +824,7 @@ export default function CycleBySlugPage() {
     switch (activeTab) {
       case "community":
         return (
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-2 md:gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-2 md:gap-6 pb-14 md:pb-0">
             {/* Main Content - Posts & Threads */}
             <div className="lg:col-span-3 order-2 lg:order-1">
               <CommunityPosts
@@ -882,23 +883,7 @@ export default function CycleBySlugPage() {
         );
 
       case "classroom":
-        return (
-          <div className="space-y-2 md:space-y-4">
-            <div className="md:bg-white md:border md:rounded-lg md:shadow-sm p-2 md:p-6">
-              <h3 className="text-lg font-semibold mb-2 md:mb-4">
-                Financial Education
-              </h3>
-              <p className="text-gray-600">
-                Access lessons, resources, and training materials.
-              </p>
-              <div className="mt-4">
-                <p className="text-sm text-gray-500">
-                  Coming soon: Financial literacy courses and workshops
-                </p>
-              </div>
-            </div>
-          </div>
-        );
+        return <Classroom chamaId={chama.id} isMember={chama.is_member || false} isAdmin={userRole === "admin"} />;
 
       case "members":
         if (!chama.is_member) {
@@ -1320,7 +1305,7 @@ export default function CycleBySlugPage() {
 
       case "about":
         return (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 md:gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 md:gap-6 pb-14 md:pb-0">
             {/* Main Content Area */}
             <div className="lg:col-span-2 order-1 space-y-2 md:space-y-4">
               <div className="md:bg-white md:border md:rounded-lg md:shadow-sm overflow-hidden">

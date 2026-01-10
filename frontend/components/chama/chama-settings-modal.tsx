@@ -242,11 +242,11 @@ export function ChamaSettingsModal({
       const accessToken = localStorage.getItem("accessToken");
       if (!accessToken) {
         if (showToast) {
-          toast({
-            title: "Authentication required",
-            description: "Please log in to update settings",
-            variant: "destructive",
-          });
+        toast({
+          title: "Authentication required",
+          description: "Please log in to update settings",
+          variant: "destructive",
+        });
         }
         return;
       }
@@ -309,11 +309,11 @@ export function ChamaSettingsModal({
       }
 
       if (showToast) {
-        toast({
-          title: "Settings Updated",
-          description: "Chama settings have been updated successfully",
-          variant: "default",
-        });
+      toast({
+        title: "Settings Updated",
+        description: "Chama settings have been updated successfully",
+        variant: "default",
+      });
       }
 
       setHasChanges(false);
@@ -328,18 +328,18 @@ export function ChamaSettingsModal({
       // Only call onSettingsUpdated for manual saves (when showToast is true)
       // For auto-save, we skip the callback to avoid closing the modal or redirecting
       if (showToast) {
-        onSettingsUpdated();
+      onSettingsUpdated();
       }
       // For auto-save (showToast = false), we don't call onSettingsUpdated
       // This prevents the modal from closing and any potential redirects
     } catch (error: any) {
       console.error("Settings update error:", error);
       if (showToast) {
-        toast({
-          title: "Error",
-          description: error.message || "Failed to update settings",
-          variant: "destructive",
-        });
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update settings",
+        variant: "destructive",
+      });
       }
     } finally {
       setIsSaving(false);
@@ -498,7 +498,7 @@ export function ChamaSettingsModal({
               `https://web.whatsapp.com/send?text=${encodedFullText}`,
               "_blank"
             );
-          } else {
+    } else {
             // Mobile WhatsApp
             window.open(`https://wa.me/?text=${encodedFullText}`, "_blank");
           }
@@ -527,9 +527,9 @@ export function ChamaSettingsModal({
           break;
 
         default:
-          toast({
-            title: "Share",
-            description: `Please copy the link and share it on ${platform}`,
+      toast({
+        title: "Share",
+        description: `Please copy the link and share it on ${platform}`,
           });
       }
     } catch (err) {
@@ -687,52 +687,52 @@ export function ChamaSettingsModal({
 
       {/* Tabs - Hide if showOnlyTab is true */}
       {!showOnlyTab && (
-        <div className="border-b bg-white relative">
-          {/* Left Arrow - Mobile Only */}
-          {canScrollLeft && (
-            <button
-              onClick={scrollTabsLeft}
-              className="md:hidden absolute left-0 top-0 bottom-0 z-10 bg-white/90 hover:bg-white px-2 flex items-center shadow-sm"
-            >
-              <ChevronLeft className="w-5 h-5 text-gray-600" />
-            </button>
-          )}
-
-          {/* Right Arrow - Mobile Only */}
-          {canScrollRight && (
-            <button
-              onClick={scrollTabsRight}
-              className="md:hidden absolute right-0 top-0 bottom-0 z-10 bg-white/90 hover:bg-white px-2 flex items-center shadow-sm"
-            >
-              <ChevronRight className="w-5 h-5 text-gray-600" />
-            </button>
-          )}
-
-          <div
-            ref={tabsScrollRef}
-            className="overflow-x-auto scrollbar-hide -mx-4 px-4 py-2"
-            onScroll={checkScrollPosition}
+      <div className="border-b bg-white relative">
+        {/* Left Arrow - Mobile Only */}
+        {canScrollLeft && (
+          <button
+            onClick={scrollTabsLeft}
+            className="md:hidden absolute left-0 top-0 bottom-0 z-10 bg-white/90 hover:bg-white px-2 flex items-center shadow-sm"
           >
-            <div
-              className="flex items-center gap-3"
-              style={{ width: "max-content" } as React.CSSProperties}
-            >
+            <ChevronLeft className="w-5 h-5 text-gray-600" />
+          </button>
+        )}
+
+        {/* Right Arrow - Mobile Only */}
+        {canScrollRight && (
+          <button
+            onClick={scrollTabsRight}
+            className="md:hidden absolute right-0 top-0 bottom-0 z-10 bg-white/90 hover:bg-white px-2 flex items-center shadow-sm"
+          >
+            <ChevronRight className="w-5 h-5 text-gray-600" />
+          </button>
+        )}
+
+        <div
+          ref={tabsScrollRef}
+          className="overflow-x-auto scrollbar-hide -mx-4 px-4 py-2"
+          onScroll={checkScrollPosition}
+        >
+          <div
+            className="flex items-center gap-3"
+            style={{ width: "max-content" } as React.CSSProperties}
+          >
               {tabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`px-3 py-2 text-xs font-medium whitespace-nowrap border-b-2 transition-colors flex-shrink-0 ${
-                    activeTab === tab.id
-                      ? "border-[#083232] text-[#083232]"
-                      : "border-transparent text-gray-500 hover:text-gray-700"
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-3 py-2 text-xs font-medium whitespace-nowrap border-b-2 transition-colors flex-shrink-0 ${
+                activeTab === tab.id
+                  ? "border-[#083232] text-[#083232]"
+                  : "border-transparent text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
           </div>
         </div>
+      </div>
       )}
 
       {/* Content */}
@@ -1121,7 +1121,7 @@ export function ChamaSettingsModal({
                     cycle&apos;s About page where they can join or request
                     membership.
                   </p>
-                </div>
+              </div>
 
                 {/* Cycle URL with Copy button */}
                 <div className="flex gap-2">
@@ -1493,8 +1493,8 @@ export function ChamaSettingsModal({
       {mobileView}
       <div className="hidden md:block">
         <Dialog open={isOpen} onOpenChange={onClose}>
-          <DialogContent
-            className="hidden md:flex flex-col !m-0 !p-0 chama-settings-modal !rounded-lg"
+        <DialogContent
+          className="hidden md:flex flex-col !m-0 !p-0 chama-settings-modal !rounded-lg"
             style={
               {
                 width: "1044px",
@@ -1503,291 +1503,291 @@ export function ChamaSettingsModal({
                 maxHeight: "600px",
               } as React.CSSProperties
             }
-            onInteractOutside={(e) => {
-              e.preventDefault();
-            }}
-          >
-            <DialogHeader className="px-4 pt-4 pb-0">
+          onInteractOutside={(e) => {
+            e.preventDefault();
+          }}
+        >
+        <DialogHeader className="px-4 pt-4 pb-0">
               <DialogTitle className="text-xl">
                 {showOnlyTab && initialTab === "invite"
                   ? "Invite Members"
                   : "Cycle Settings"}
               </DialogTitle>
-            </DialogHeader>
+        </DialogHeader>
 
             {/* Tabs - Mobile Only - Hide if showOnlyTab is true */}
             {!showOnlyTab && (
-              <div className="md:hidden border-b">
-                <div className="overflow-x-auto scrollbar-hide -mx-4 px-4 py-2">
-                  <div
-                    className="flex items-center gap-3"
-                    style={{ width: "max-content" } as React.CSSProperties}
-                  >
+        <div className="md:hidden border-b">
+              <div className="overflow-x-auto scrollbar-hide -mx-4 px-4 py-2">
+                <div
+                  className="flex items-center gap-3"
+                  style={{ width: "max-content" } as React.CSSProperties}
+                >
                     {(isAdmin ? adminTabs : memberTabsDesktop).map((tab) => (
-                      <button
-                        key={tab.id}
-                        onClick={() => setActiveTab(tab.id)}
-                        className={`px-2 py-1.5 text-xs font-medium whitespace-nowrap transition-colors flex-shrink-0 border-b-2 ${
-                          activeTab === tab.id
-                            ? "border-[#083232] text-[#083232]"
-                            : "border-transparent text-gray-600"
-                        }`}
-                      >
-                        {tab.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`px-2 py-1.5 text-xs font-medium whitespace-nowrap transition-colors flex-shrink-0 border-b-2 ${
+                  activeTab === tab.id
+                    ? "border-[#083232] text-[#083232]"
+                    : "border-transparent text-gray-600"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+            </div>
+          </div>
+        </div>
             )}
 
-            <div className="flex-1 overflow-y-auto py-4 px-4">
-              {/* Mobile: Tab Content */}
-              <div className="md:hidden space-y-4">
-                {activeTab === "general" && (
-                  <div className="space-y-4">
-                    {/* Basic Information */}
-                    <div className="space-y-3">
-                      <div>
+        <div className="flex-1 overflow-y-auto py-4 px-4">
+          {/* Mobile: Tab Content */}
+          <div className="md:hidden space-y-4">
+            {activeTab === "general" && (
+              <div className="space-y-4">
+                {/* Basic Information */}
+                <div className="space-y-3">
+                  <div>
                         <Label htmlFor="name" className="text-xs">
                           Cycle Name *
                         </Label>
-                        <Input
-                          id="name"
-                          value={formData.name}
+                    <Input
+                      id="name"
+                      value={formData.name}
                           onChange={(e) =>
                             handleInputChange("name", e.target.value)
                           }
-                          placeholder="Enter cycle name"
-                          className="mt-1 h-9 text-sm"
-                        />
-                      </div>
-                      <div>
+                      placeholder="Enter cycle name"
+                      className="mt-1 h-9 text-sm"
+                    />
+                  </div>
+                  <div>
                         <Label htmlFor="description" className="text-xs">
                           Description
                         </Label>
-                        <Textarea
-                          id="description"
-                          value={formData.description}
+                    <Textarea
+                      id="description"
+                      value={formData.description}
                           onChange={(e) =>
                             handleInputChange("description", e.target.value)
                           }
-                          placeholder="Enter cycle description"
-                          className="mt-1 min-h-[80px] text-sm"
-                          maxLength={150}
-                        />
-                      </div>
-                    </div>
+                      placeholder="Enter cycle description"
+                      className="mt-1 min-h-[80px] text-sm"
+                      maxLength={150}
+                    />
+                  </div>
+                </div>
 
-                    {/* Contribution Settings */}
-                    <div className="space-y-3 border-t pt-4">
-                      <div>
+                {/* Contribution Settings */}
+                <div className="space-y-3 border-t pt-4">
+                  <div>
                         <Label htmlFor="contributionAmount" className="text-xs">
                           Contribution Amount *
                         </Label>
-                        <Input
-                          id="contributionAmount"
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={formData.contributionAmount}
+                    <Input
+                      id="contributionAmount"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.contributionAmount}
                           onChange={(e) =>
                             handleInputChange(
                               "contributionAmount",
                               e.target.value
                             )
                           }
-                          placeholder="0.00"
-                          className="mt-1 h-9 text-sm"
-                        />
-                      </div>
-                      <div>
+                      placeholder="0.00"
+                      className="mt-1 h-9 text-sm"
+                    />
+                  </div>
+                  <div>
                         <Label htmlFor="frequency" className="text-xs">
                           Contribution Frequency *
                         </Label>
-                        <select
-                          id="frequency"
-                          value={formData.frequency}
+                    <select
+                      id="frequency"
+                      value={formData.frequency}
                           onChange={(e) =>
                             handleInputChange(
                               "frequency",
                               e.target.value as Frequency
                             )
                           }
-                          className="mt-1 w-full px-3 py-2 h-9 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#083232] text-sm"
-                        >
-                          <option value="daily">Daily</option>
-                          <option value="weekly">Weekly</option>
-                          <option value="monthly">Monthly</option>
-                          <option value="custom">Custom</option>
-                        </select>
-                      </div>
-                      {formData.frequency === "custom" && (
-                        <div>
+                      className="mt-1 w-full px-3 py-2 h-9 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#083232] text-sm"
+                    >
+                      <option value="daily">Daily</option>
+                      <option value="weekly">Weekly</option>
+                      <option value="monthly">Monthly</option>
+                      <option value="custom">Custom</option>
+                    </select>
+                  </div>
+                  {formData.frequency === "custom" && (
+                    <div>
                           <Label
                             htmlFor="customIntervalDays"
                             className="text-xs"
                           >
                             Interval (Days) *
                           </Label>
-                          <Input
-                            id="customIntervalDays"
-                            type="number"
-                            min="1"
-                            value={formData.customIntervalDays}
+                      <Input
+                        id="customIntervalDays"
+                        type="number"
+                        min="1"
+                        value={formData.customIntervalDays}
                             onChange={(e) =>
                               handleInputChange(
                                 "customIntervalDays",
                                 e.target.value
                               )
                             }
-                            placeholder="7"
-                            className="mt-1 h-9 text-sm"
-                          />
-                        </div>
-                      )}
+                        placeholder="7"
+                        className="mt-1 h-9 text-sm"
+                      />
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
+              </div>
+            )}
 
-                {activeTab === "rules" && (
-                  <div className="space-y-4">
-                    {/* Membership Settings */}
-                    <div className="space-y-3">
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
+            {activeTab === "rules" && (
+              <div className="space-y-4">
+                {/* Membership Settings */}
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
                           <Label htmlFor="minMembers" className="text-xs">
                             Minimum Members
                           </Label>
-                          <Input
-                            id="minMembers"
-                            type="number"
-                            min="2"
-                            value={formData.minMembers}
+                      <Input
+                        id="minMembers"
+                        type="number"
+                        min="2"
+                        value={formData.minMembers}
                             onChange={(e) =>
                               handleInputChange("minMembers", e.target.value)
                             }
-                            className="mt-1 h-9 text-sm"
-                          />
-                        </div>
-                        <div>
+                        className="mt-1 h-9 text-sm"
+                      />
+                    </div>
+                    <div>
                           <Label htmlFor="maxMembers" className="text-xs">
                             Maximum Members *
                           </Label>
-                          <Input
-                            id="maxMembers"
-                            type="number"
-                            min="2"
-                            value={formData.maxMembers}
+                      <Input
+                        id="maxMembers"
+                        type="number"
+                        min="2"
+                        value={formData.maxMembers}
                             onChange={(e) =>
                               handleInputChange("maxMembers", e.target.value)
                             }
-                            className="mt-1 h-9 text-sm"
-                          />
-                        </div>
-                      </div>
-                      <div>
+                        className="mt-1 h-9 text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div>
                         <Label htmlFor="joiningFee" className="text-xs">
                           Joining Fee
                         </Label>
-                        <Input
-                          id="joiningFee"
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={formData.joiningFee}
+                    <Input
+                      id="joiningFee"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.joiningFee}
                           onChange={(e) =>
                             handleInputChange("joiningFee", e.target.value)
                           }
-                          placeholder="0.00"
-                          className="mt-1 h-9 text-sm"
-                        />
-                      </div>
-                    </div>
+                      placeholder="0.00"
+                      className="mt-1 h-9 text-sm"
+                    />
+                  </div>
+                </div>
 
-                    {/* Late Penalty */}
-                    <div className="space-y-3 border-t pt-4">
-                      <div className="flex items-start justify-between space-x-3">
-                        <div className="flex-1 space-y-0.5">
+                {/* Late Penalty */}
+                <div className="space-y-3 border-t pt-4">
+                  <div className="flex items-start justify-between space-x-3">
+                    <div className="flex-1 space-y-0.5">
                           <Label
                             htmlFor="late-penalty"
                             className="text-xs font-medium"
                           >
                             Late Payment Penalties
                           </Label>
-                        </div>
-                        <Switch
-                          id="late-penalty"
-                          checked={formData.late_penalty_enabled}
+                    </div>
+                    <Switch
+                      id="late-penalty"
+                      checked={formData.late_penalty_enabled}
                           onCheckedChange={(checked) =>
                             handleInputChange("late_penalty_enabled", checked)
                           }
                           disabled={isSaving}
-                        />
-                      </div>
-                      {formData.late_penalty_enabled && (
-                        <div className="grid grid-cols-2 gap-3 pl-3 border-l-2 border-gray-200">
-                          <div>
+                    />
+                  </div>
+                  {formData.late_penalty_enabled && (
+                    <div className="grid grid-cols-2 gap-3 pl-3 border-l-2 border-gray-200">
+                      <div>
                             <Label
                               htmlFor="latePenaltyAmount"
                               className="text-xs"
                             >
                               Penalty Amount
                             </Label>
-                            <Input
-                              id="latePenaltyAmount"
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              value={formData.latePenaltyAmount}
+                        <Input
+                          id="latePenaltyAmount"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={formData.latePenaltyAmount}
                               onChange={(e) =>
                                 handleInputChange(
                                   "latePenaltyAmount",
                                   e.target.value
                                 )
                               }
-                              className="mt-1 h-9 text-sm"
-                            />
-                          </div>
-                          <div>
+                          className="mt-1 h-9 text-sm"
+                        />
+                      </div>
+                      <div>
                             <Label
                               htmlFor="latePenaltyDays"
                               className="text-xs"
                             >
                               Grace Period (Days)
                             </Label>
-                            <Input
-                              id="latePenaltyDays"
-                              type="number"
-                              min="0"
-                              value={formData.latePenaltyDays}
+                        <Input
+                          id="latePenaltyDays"
+                          type="number"
+                          min="0"
+                          value={formData.latePenaltyDays}
                               onChange={(e) =>
                                 handleInputChange(
                                   "latePenaltyDays",
                                   e.target.value
                                 )
                               }
-                              className="mt-1 h-9 text-sm"
-                            />
-                          </div>
-                        </div>
-                      )}
+                          className="mt-1 h-9 text-sm"
+                        />
+                      </div>
                     </div>
+                  )}
+                </div>
 
-                    {/* Partial Contributions */}
-                    <div className="space-y-3 border-t pt-4">
-                      <div className="flex items-start justify-between space-x-3">
-                        <div className="flex-1 space-y-0.5">
+                {/* Partial Contributions */}
+                <div className="space-y-3 border-t pt-4">
+                  <div className="flex items-start justify-between space-x-3">
+                    <div className="flex-1 space-y-0.5">
                           <Label
                             htmlFor="partial-contributions"
                             className="text-xs font-medium"
                           >
                             Allow Partial Contributions
                           </Label>
-                        </div>
-                        <Switch
-                          id="partial-contributions"
-                          checked={formData.allow_partial_contributions}
+                    </div>
+                    <Switch
+                      id="partial-contributions"
+                      checked={formData.allow_partial_contributions}
                           onCheckedChange={(checked) =>
                             handleInputChange(
                               "allow_partial_contributions",
@@ -1795,42 +1795,42 @@ export function ChamaSettingsModal({
                             )
                           }
                           disabled={isSaving}
-                        />
-                      </div>
-                    </div>
+                    />
+                  </div>
+                </div>
 
-                    {/* Invite Settings */}
-                    <div className="space-y-3 border-t pt-4">
-                      <div className="flex items-start justify-between space-x-3 pb-3 border-b">
-                        <div className="flex-1 space-y-0.5">
+                {/* Invite Settings */}
+                <div className="space-y-3 border-t pt-4">
+                  <div className="flex items-start justify-between space-x-3 pb-3 border-b">
+                    <div className="flex-1 space-y-0.5">
                           <Label
                             htmlFor="members-can-invite"
                             className="text-xs font-medium"
                           >
                             Members Can Invite
                           </Label>
-                        </div>
-                        <Switch
-                          id="members-can-invite"
-                          checked={formData.members_can_invite}
+                    </div>
+                    <Switch
+                      id="members-can-invite"
+                      checked={formData.members_can_invite}
                           onCheckedChange={(checked) =>
                             handleInputChange("members_can_invite", checked)
                           }
                           disabled={isSaving}
-                        />
-                      </div>
-                      <div className="flex items-start justify-between space-x-3">
-                        <div className="flex-1 space-y-0.5">
+                    />
+                  </div>
+                  <div className="flex items-start justify-between space-x-3">
+                    <div className="flex-1 space-y-0.5">
                           <Label
                             htmlFor="invite-approval"
                             className="text-xs font-medium"
                           >
                             Invite Requires Approval
                           </Label>
-                        </div>
-                        <Switch
-                          id="invite-approval"
-                          checked={formData.invite_requires_approval}
+                    </div>
+                    <Switch
+                      id="invite-approval"
+                      checked={formData.invite_requires_approval}
                           onCheckedChange={(checked) =>
                             handleInputChange(
                               "invite_requires_approval",
@@ -1838,17 +1838,17 @@ export function ChamaSettingsModal({
                             )
                           }
                           disabled={isSaving || !formData.members_can_invite}
-                        />
-                      </div>
-                    </div>
+                    />
                   </div>
-                )}
+                </div>
+              </div>
+            )}
 
-                {activeTab === "visibility" && (
-                  <div className="space-y-4">
-                    <div className="space-y-3">
-                      <div className="flex items-start justify-between space-x-3 pb-3 border-b">
-                        <div className="flex-1 space-y-0.5">
+            {activeTab === "visibility" && (
+              <div className="space-y-4">
+                <div className="space-y-3">
+                  <div className="flex items-start justify-between space-x-3 pb-3 border-b">
+                    <div className="flex-1 space-y-0.5">
                           <Label
                             htmlFor="is-public"
                             className="text-xs font-medium"
@@ -1858,18 +1858,18 @@ export function ChamaSettingsModal({
                           <p className="text-xs text-gray-600">
                             Anyone can see and request to join this cycle.
                           </p>
-                        </div>
-                        <Switch
-                          id="is-public"
-                          checked={formData.is_public}
+                    </div>
+                    <Switch
+                      id="is-public"
+                      checked={formData.is_public}
                           onCheckedChange={(checked) =>
                             handleInputChange("is_public", checked)
                           }
                           disabled={isSaving}
-                        />
-                      </div>
-                      <div className="flex items-start justify-between space-x-3">
-                        <div className="flex-1 space-y-0.5">
+                    />
+                  </div>
+                  <div className="flex items-start justify-between space-x-3">
+                    <div className="flex-1 space-y-0.5">
                           <Label
                             htmlFor="hidden"
                             className="text-xs font-medium"
@@ -1879,25 +1879,25 @@ export function ChamaSettingsModal({
                           <p className="text-xs text-gray-600">
                             Hide this cycle from appearing on the homepage.
                           </p>
-                        </div>
-                        <Switch
-                          id="hidden"
-                          checked={formData.hidden}
+                    </div>
+                    <Switch
+                      id="hidden"
+                      checked={formData.hidden}
                           onCheckedChange={(checked) =>
                             handleInputChange("hidden", checked)
                           }
                           disabled={isSaving}
-                        />
-                      </div>
-                    </div>
+                    />
                   </div>
-                )}
+                </div>
+              </div>
+            )}
 
-                {activeTab === "advanced" && (
-                  <div className="space-y-4">
-                    <div className="space-y-3">
-                      <div className="flex items-start justify-between space-x-3">
-                        <div className="flex-1 space-y-0.5">
+            {activeTab === "advanced" && (
+              <div className="space-y-4">
+                <div className="space-y-3">
+                  <div className="flex items-start justify-between space-x-3">
+                    <div className="flex-1 space-y-0.5">
                           <Label
                             htmlFor="auto-payout"
                             className="text-xs font-medium"
@@ -1908,32 +1908,32 @@ export function ChamaSettingsModal({
                             Automatically process payouts when all members have
                             contributed.
                           </p>
-                        </div>
-                        <Switch
-                          id="auto-payout"
-                          checked={formData.auto_payout}
+                    </div>
+                    <Switch
+                      id="auto-payout"
+                      checked={formData.auto_payout}
                           onCheckedChange={(checked) =>
                             handleInputChange("auto_payout", checked)
                           }
                           disabled={isSaving}
-                        />
-                      </div>
-                      <div className="border-t pt-4">
-                        <button
-                          onClick={onDeleteCycle}
-                          className="text-red-600 hover:text-red-700 text-sm font-medium cursor-pointer w-full text-left"
-                        >
-                          Delete Cycle
-                        </button>
-                      </div>
-                    </div>
+                    />
                   </div>
-                )}
+                  <div className="border-t pt-4">
+                    <button
+                      onClick={onDeleteCycle}
+                      className="text-red-600 hover:text-red-700 text-sm font-medium cursor-pointer w-full text-left"
+                    >
+                      Delete Cycle
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
-                {activeTab === "invite" && (
-                  <div className="space-y-4">
+            {activeTab === "invite" && (
+              <div className="space-y-4">
                     {/* Share your cycle link */}
-                    <div className="space-y-3">
+                <div className="space-y-3">
                       <div>
                         <Label className="text-sm font-medium">
                           Share your cycle link
@@ -1943,7 +1943,7 @@ export function ChamaSettingsModal({
                           to your cycle&apos;s About page where they can join or
                           request membership.
                         </p>
-                      </div>
+                </div>
 
                       {/* Cycle URL with Copy button */}
                       <div className="flex gap-2">
@@ -2064,13 +2064,13 @@ export function ChamaSettingsModal({
                         </Button>
                       </div>
                     </div>
-                  </div>
-                )}
+              </div>
+            )}
 
-                {activeTab === "tabs" && (
-                  <div className="space-y-4">
+            {activeTab === "tabs" && (
+              <div className="space-y-4">
                     {/* Show/hide tabs from members */}
-                    <div className="space-y-3">
+                <div className="space-y-3">
                       <div>
                         <Label className="text-sm font-medium">
                           Show/hide tabs from members
@@ -2129,9 +2129,9 @@ export function ChamaSettingsModal({
                           </div>
                         ))}
                       </div>
-                    </div>
-                  </div>
-                )}
+                </div>
+              </div>
+            )}
 
                 {/* Membership tab - hide on desktop for regular members */}
                 {activeTab === "membership" && isAdmin && (
@@ -2141,7 +2141,7 @@ export function ChamaSettingsModal({
                         <Label className="text-sm font-medium">
                           Membership
                         </Label>
-                      </div>
+          </div>
 
                       <div className="border-t pt-4 space-y-4">
                         <div>
@@ -2297,352 +2297,352 @@ export function ChamaSettingsModal({
 
               {/* Desktop: Admin 2-column layout */}
               {isAdmin && (
-                <div className="hidden md:grid md:grid-cols-2 gap-6 px-4">
-                  {/* Left Column */}
-                  <div className="space-y-4">
-                    {/* Basic Information */}
-                    <div className="space-y-3">
-                      <div>
-                        <Label htmlFor="name" className="text-sm">
-                          Cycle Name *
-                        </Label>
-                        <Input
-                          id="name"
-                          value={formData.name}
-                          onChange={(e) =>
-                            handleInputChange("name", e.target.value)
-                          }
-                          placeholder="Enter cycle name"
-                          className="mt-1 h-9"
-                        />
-                      </div>
+          <div className="hidden md:grid md:grid-cols-2 gap-6 px-4">
+            {/* Left Column */}
+            <div className="space-y-4">
+              {/* Basic Information */}
+              <div className="space-y-3">
+                <div>
+                      <Label htmlFor="name" className="text-sm">
+                        Cycle Name *
+                      </Label>
+                  <Input
+                    id="name"
+                    value={formData.name}
+                        onChange={(e) =>
+                          handleInputChange("name", e.target.value)
+                        }
+                    placeholder="Enter cycle name"
+                    className="mt-1 h-9"
+                  />
+                </div>
 
-                      <div>
-                        <Label htmlFor="description" className="text-sm">
-                          Description
-                        </Label>
-                        <Textarea
-                          id="description"
-                          value={formData.description}
-                          onChange={(e) =>
-                            handleInputChange("description", e.target.value)
-                          }
-                          placeholder="Enter cycle description"
-                          className="mt-1 min-h-[80px] text-sm"
-                          maxLength={150}
-                        />
-                      </div>
-                    </div>
+                <div>
+                      <Label htmlFor="description" className="text-sm">
+                        Description
+                      </Label>
+                  <Textarea
+                    id="description"
+                    value={formData.description}
+                        onChange={(e) =>
+                          handleInputChange("description", e.target.value)
+                        }
+                    placeholder="Enter cycle description"
+                    className="mt-1 min-h-[80px] text-sm"
+                    maxLength={150}
+                  />
+                </div>
+              </div>
 
-                    {/* Contribution Settings */}
-                    <div className="space-y-3 border-t pt-4">
-                      <div>
-                        <Label htmlFor="contributionAmount" className="text-sm">
-                          Contribution Amount *
-                        </Label>
-                        <Input
-                          id="contributionAmount"
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={formData.contributionAmount}
-                          onChange={(e) =>
-                            handleInputChange(
-                              "contributionAmount",
-                              e.target.value
-                            )
-                          }
-                          placeholder="0.00"
-                          className="mt-1 h-9"
-                        />
-                      </div>
+              {/* Contribution Settings */}
+              <div className="space-y-3 border-t pt-4">
+                <div>
+                      <Label htmlFor="contributionAmount" className="text-sm">
+                        Contribution Amount *
+                      </Label>
+                  <Input
+                    id="contributionAmount"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.contributionAmount}
+                    onChange={(e) =>
+                          handleInputChange(
+                            "contributionAmount",
+                            e.target.value
+                          )
+                    }
+                    placeholder="0.00"
+                    className="mt-1 h-9"
+                  />
+                </div>
 
-                      <div>
-                        <Label htmlFor="frequency" className="text-sm">
-                          Contribution Frequency *
-                        </Label>
-                        <select
-                          id="frequency"
-                          value={formData.frequency}
-                          onChange={(e) =>
-                            handleInputChange(
-                              "frequency",
-                              e.target.value as Frequency
-                            )
-                          }
-                          className="mt-1 w-full px-3 py-2 h-9 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#083232] text-sm"
-                        >
-                          <option value="daily">Daily</option>
-                          <option value="weekly">Weekly</option>
-                          <option value="monthly">Monthly</option>
-                          <option value="custom">Custom</option>
-                        </select>
-                      </div>
+                <div>
+                      <Label htmlFor="frequency" className="text-sm">
+                        Contribution Frequency *
+                      </Label>
+                  <select
+                    id="frequency"
+                    value={formData.frequency}
+                    onChange={(e) =>
+                          handleInputChange(
+                            "frequency",
+                            e.target.value as Frequency
+                          )
+                    }
+                    className="mt-1 w-full px-3 py-2 h-9 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#083232] text-sm"
+                  >
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                    <option value="custom">Custom</option>
+                  </select>
+                </div>
 
-                      {formData.frequency === "custom" && (
-                        <div>
+                {formData.frequency === "custom" && (
+                  <div>
                           <Label
                             htmlFor="customIntervalDays"
                             className="text-sm"
                           >
-                            Interval (Days) *
-                          </Label>
-                          <Input
-                            id="customIntervalDays"
-                            type="number"
-                            min="1"
-                            value={formData.customIntervalDays}
-                            onChange={(e) =>
-                              handleInputChange(
-                                "customIntervalDays",
-                                e.target.value
-                              )
-                            }
-                            placeholder="7"
-                            className="mt-1 h-9"
-                          />
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Membership Settings */}
-                    <div className="space-y-3 border-t pt-4">
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <Label htmlFor="minMembers" className="text-sm">
-                            Minimum Members
-                          </Label>
-                          <Input
-                            id="minMembers"
-                            type="number"
-                            min="2"
-                            value={formData.minMembers}
-                            onChange={(e) =>
-                              handleInputChange("minMembers", e.target.value)
-                            }
-                            className="mt-1 h-9"
-                          />
-                        </div>
-
-                        <div>
-                          <Label htmlFor="maxMembers" className="text-sm">
-                            Maximum Members *
-                          </Label>
-                          <Input
-                            id="maxMembers"
-                            type="number"
-                            min="2"
-                            value={formData.maxMembers}
-                            onChange={(e) =>
-                              handleInputChange("maxMembers", e.target.value)
-                            }
-                            className="mt-1 h-9"
-                          />
-                        </div>
-                      </div>
-
-                      <div>
-                        <Label htmlFor="joiningFee" className="text-sm">
-                          Joining Fee
+                          Interval (Days) *
                         </Label>
-                        <Input
-                          id="joiningFee"
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={formData.joiningFee}
+                    <Input
+                      id="customIntervalDays"
+                      type="number"
+                      min="1"
+                      value={formData.customIntervalDays}
+                      onChange={(e) =>
+                            handleInputChange(
+                              "customIntervalDays",
+                              e.target.value
+                            )
+                      }
+                      placeholder="7"
+                      className="mt-1 h-9"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Membership Settings */}
+              <div className="space-y-3 border-t pt-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                        <Label htmlFor="minMembers" className="text-sm">
+                          Minimum Members
+                        </Label>
+                    <Input
+                      id="minMembers"
+                      type="number"
+                      min="2"
+                      value={formData.minMembers}
                           onChange={(e) =>
-                            handleInputChange("joiningFee", e.target.value)
+                            handleInputChange("minMembers", e.target.value)
                           }
-                          placeholder="0.00"
-                          className="mt-1 h-9"
-                        />
-                      </div>
-                    </div>
+                      className="mt-1 h-9"
+                    />
                   </div>
 
-                  {/* Right Column */}
-                  <div className="space-y-4">
-                    {/* Advanced Settings */}
-                    <div className="space-y-3">
-                      {/* Auto-Payout Setting */}
-                      <div className="flex items-start justify-between space-x-3 pb-3 border-b">
-                        <div className="flex-1 space-y-0.5">
-                          <Label
-                            htmlFor="auto-payout"
-                            className="text-sm font-medium"
-                          >
-                            Automatic Payouts
-                          </Label>
-                          <p className="text-xs text-gray-600">
-                            Automatically process payouts when all members have
-                            contributed.
-                          </p>
-                        </div>
-                        <Switch
-                          id="auto-payout"
-                          checked={formData.auto_payout}
-                          onCheckedChange={(checked) =>
-                            handleInputChange("auto_payout", checked)
+                  <div>
+                        <Label htmlFor="maxMembers" className="text-sm">
+                          Maximum Members *
+                        </Label>
+                    <Input
+                      id="maxMembers"
+                      type="number"
+                      min="2"
+                      value={formData.maxMembers}
+                          onChange={(e) =>
+                            handleInputChange("maxMembers", e.target.value)
                           }
-                          disabled={isSaving}
-                        />
-                      </div>
+                      className="mt-1 h-9"
+                    />
+                  </div>
+                </div>
 
-                      {/* Delete Cycle */}
-                      <div className="pb-3 border-b">
-                        <button
-                          onClick={onDeleteCycle}
-                          className="text-red-600 hover:text-red-700 text-sm font-medium cursor-pointer w-full text-left"
+                <div>
+                      <Label htmlFor="joiningFee" className="text-sm">
+                        Joining Fee
+                      </Label>
+                  <Input
+                    id="joiningFee"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.joiningFee}
+                        onChange={(e) =>
+                          handleInputChange("joiningFee", e.target.value)
+                        }
+                    placeholder="0.00"
+                    className="mt-1 h-9"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Right Column */}
+            <div className="space-y-4">
+              {/* Advanced Settings */}
+              <div className="space-y-3">
+                {/* Auto-Payout Setting */}
+                <div className="flex items-start justify-between space-x-3 pb-3 border-b">
+                  <div className="flex-1 space-y-0.5">
+                        <Label
+                          htmlFor="auto-payout"
+                          className="text-sm font-medium"
                         >
-                          Delete Cycle
-                        </button>
-                      </div>
+                      Automatic Payouts
+                    </Label>
+                    <p className="text-xs text-gray-600">
+                          Automatically process payouts when all members have
+                          contributed.
+                    </p>
+                  </div>
+                  <Switch
+                    id="auto-payout"
+                    checked={formData.auto_payout}
+                    onCheckedChange={(checked) =>
+                      handleInputChange("auto_payout", checked)
+                    }
+                        disabled={isSaving}
+                  />
+                </div>
 
-                      {/* Late Penalty Setting */}
-                      <div className="flex items-start justify-between space-x-3 pb-3 border-b">
-                        <div className="flex-1 space-y-0.5">
+                {/* Delete Cycle */}
+                <div className="pb-3 border-b">
+                  <button
+                    onClick={onDeleteCycle}
+                    className="text-red-600 hover:text-red-700 text-sm font-medium cursor-pointer w-full text-left"
+                  >
+                    Delete Cycle
+                  </button>
+                </div>
+
+                {/* Late Penalty Setting */}
+                <div className="flex items-start justify-between space-x-3 pb-3 border-b">
+                  <div className="flex-1 space-y-0.5">
+                        <Label
+                          htmlFor="late-penalty"
+                          className="text-sm font-medium"
+                        >
+                      Late Payment Penalties
+                    </Label>
+                  </div>
+                  <Switch
+                    id="late-penalty"
+                    checked={formData.late_penalty_enabled}
+                    onCheckedChange={(checked) =>
+                      handleInputChange("late_penalty_enabled", checked)
+                    }
+                        disabled={isSaving}
+                  />
+                </div>
+
+                {formData.late_penalty_enabled && (
+                  <div className="grid grid-cols-2 gap-3 pl-3 border-l-2 border-gray-200 mb-3">
+                    <div>
                           <Label
-                            htmlFor="late-penalty"
-                            className="text-sm font-medium"
+                            htmlFor="latePenaltyAmount"
+                            className="text-sm"
                           >
-                            Late Payment Penalties
+                            Penalty Amount
                           </Label>
-                        </div>
-                        <Switch
-                          id="late-penalty"
-                          checked={formData.late_penalty_enabled}
-                          onCheckedChange={(checked) =>
-                            handleInputChange("late_penalty_enabled", checked)
-                          }
-                          disabled={isSaving}
-                        />
-                      </div>
-
-                      {formData.late_penalty_enabled && (
-                        <div className="grid grid-cols-2 gap-3 pl-3 border-l-2 border-gray-200 mb-3">
-                          <div>
-                            <Label
-                              htmlFor="latePenaltyAmount"
-                              className="text-sm"
-                            >
-                              Penalty Amount
-                            </Label>
-                            <Input
-                              id="latePenaltyAmount"
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              value={formData.latePenaltyAmount}
-                              onChange={(e) =>
-                                handleInputChange(
-                                  "latePenaltyAmount",
-                                  e.target.value
-                                )
-                              }
-                              className="mt-1 h-9"
-                            />
-                          </div>
-                          <div>
+                      <Input
+                        id="latePenaltyAmount"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={formData.latePenaltyAmount}
+                        onChange={(e) =>
+                              handleInputChange(
+                                "latePenaltyAmount",
+                                e.target.value
+                              )
+                        }
+                        className="mt-1 h-9"
+                      />
+                    </div>
+                    <div>
                             <Label
                               htmlFor="latePenaltyDays"
                               className="text-sm"
                             >
-                              Grace Period (Days)
-                            </Label>
-                            <Input
-                              id="latePenaltyDays"
-                              type="number"
-                              min="0"
-                              value={formData.latePenaltyDays}
-                              onChange={(e) =>
-                                handleInputChange(
-                                  "latePenaltyDays",
-                                  e.target.value
-                                )
-                              }
-                              className="mt-1 h-9"
-                            />
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Partial Contributions Setting */}
-                      <div className="flex items-start justify-between space-x-3 pb-3 border-b">
-                        <div className="flex-1 space-y-0.5">
-                          <Label
-                            htmlFor="partial-contributions"
-                            className="text-sm font-medium"
-                          >
-                            Allow Partial Contributions
+                            Grace Period (Days)
                           </Label>
-                        </div>
-                        <Switch
-                          id="partial-contributions"
-                          checked={formData.allow_partial_contributions}
-                          onCheckedChange={(checked) =>
-                            handleInputChange(
-                              "allow_partial_contributions",
-                              checked
-                            )
-                          }
-                          disabled={isSaving}
-                        />
-                      </div>
+                      <Input
+                        id="latePenaltyDays"
+                        type="number"
+                        min="0"
+                        value={formData.latePenaltyDays}
+                        onChange={(e) =>
+                              handleInputChange(
+                                "latePenaltyDays",
+                                e.target.value
+                              )
+                        }
+                        className="mt-1 h-9"
+                      />
+                    </div>
+                  </div>
+                )}
 
-                      {/* Members Can Invite Setting */}
-                      <div className="flex items-start justify-between space-x-3 pb-3 border-b">
-                        <div className="flex-1 space-y-0.5">
-                          <Label
-                            htmlFor="members-can-invite"
-                            className="text-sm font-medium"
-                          >
-                            Members Can Invite
-                          </Label>
-                          <p className="text-xs text-gray-600">
+                {/* Partial Contributions Setting */}
+                <div className="flex items-start justify-between space-x-3 pb-3 border-b">
+                  <div className="flex-1 space-y-0.5">
+                    <Label
+                      htmlFor="partial-contributions"
+                      className="text-sm font-medium"
+                    >
+                      Allow Partial Contributions
+                    </Label>
+                  </div>
+                  <Switch
+                    id="partial-contributions"
+                    checked={formData.allow_partial_contributions}
+                    onCheckedChange={(checked) =>
+                          handleInputChange(
+                            "allow_partial_contributions",
+                            checked
+                          )
+                    }
+                        disabled={isSaving}
+                  />
+                </div>
+
+                {/* Members Can Invite Setting */}
+                <div className="flex items-start justify-between space-x-3 pb-3 border-b">
+                  <div className="flex-1 space-y-0.5">
+                    <Label
+                      htmlFor="members-can-invite"
+                      className="text-sm font-medium"
+                    >
+                      Members Can Invite
+                    </Label>
+                    <p className="text-xs text-gray-600">
                             Allow regular members to invite new people to join
                             the cycle.
-                          </p>
-                        </div>
-                        <Switch
-                          id="members-can-invite"
-                          checked={formData.members_can_invite}
-                          onCheckedChange={(checked) =>
-                            handleInputChange("members_can_invite", checked)
-                          }
-                          disabled={isSaving}
-                        />
-                      </div>
+                    </p>
+                  </div>
+                  <Switch
+                    id="members-can-invite"
+                    checked={formData.members_can_invite}
+                    onCheckedChange={(checked) =>
+                      handleInputChange("members_can_invite", checked)
+                    }
+                        disabled={isSaving}
+                  />
+                </div>
 
-                      {/* Invite Requires Approval Setting */}
-                      <div className="flex items-start justify-between space-x-3">
-                        <div className="flex-1 space-y-0.5">
-                          <Label
-                            htmlFor="invite-approval"
-                            className="text-sm font-medium"
-                          >
-                            Invite Requires Approval
-                          </Label>
-                          <p className="text-xs text-gray-600">
-                            Require admin approval for invites sent by regular
-                            members.
-                          </p>
-                        </div>
-                        <Switch
-                          id="invite-approval"
-                          checked={formData.invite_requires_approval}
-                          onCheckedChange={(checked) =>
+                {/* Invite Requires Approval Setting */}
+                <div className="flex items-start justify-between space-x-3">
+                  <div className="flex-1 space-y-0.5">
+                    <Label
+                      htmlFor="invite-approval"
+                      className="text-sm font-medium"
+                    >
+                      Invite Requires Approval
+                    </Label>
+                    <p className="text-xs text-gray-600">
+                          Require admin approval for invites sent by regular
+                          members.
+                    </p>
+                  </div>
+                  <Switch
+                    id="invite-approval"
+                    checked={formData.invite_requires_approval}
+                    onCheckedChange={(checked) =>
                             handleInputChange(
                               "invite_requires_approval",
                               checked
                             )
-                          }
-                          disabled={isSaving || !formData.members_can_invite}
-                        />
-                      </div>
-                    </div>
-                  </div>
+                    }
+                        disabled={isSaving || !formData.members_can_invite}
+                  />
                 </div>
+              </div>
+            </div>
+          </div>
               )}
 
               {/* Desktop: Member settings layout */}
@@ -2939,40 +2939,40 @@ export function ChamaSettingsModal({
                   </div>
                 </div>
               )}
-            </div>
+        </div>
 
-            {/* Footer - Sticky at bottom */}
-            <div className="border-t pt-3 pb-2 mt-auto bg-white px-4">
+        {/* Footer - Sticky at bottom */}
+        <div className="border-t pt-3 pb-2 mt-auto bg-white px-4">
               {/* Delete Cycle - Admin only */}
               {isAdmin && (
-                <div className="mb-3">
-                  <button
-                    onClick={onDeleteCycle}
-                    className="text-red-600 hover:text-red-700 text-sm font-medium cursor-pointer"
-                  >
-                    Delete Cycle
-                  </button>
-                </div>
+          <div className="mb-3">
+            <button
+              onClick={onDeleteCycle}
+              className="text-red-600 hover:text-red-700 text-sm font-medium cursor-pointer"
+            >
+              Delete Cycle
+            </button>
+          </div>
               )}
 
               {/* Auto-save Status */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-sm text-gray-600">
                   {isSaving ? (
-                    <>
+                <>
                       <Loader2 className="h-4 w-4 animate-spin" />
                       <span>Saving changes...</span>
-                    </>
+                </>
                   ) : hasChanges ? (
                     <span>Changes will be saved automatically</span>
                   ) : showSaveMessage ? (
                     <span className="text-green-600">All changes saved</span>
                   ) : null}
                 </div>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
       </div>
     </>
   );

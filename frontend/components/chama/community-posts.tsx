@@ -489,12 +489,20 @@ export function CommunityPosts({
         );
       }
 
-      // Merge posts and polls, sort by created date
+      // Merge posts and polls, sort by pinned status and dates
       const allItems = [...regularPosts, ...polls].sort((a, b) => {
         // Pinned posts first
         if (a.pinned && !b.pinned) return -1;
         if (!a.pinned && b.pinned) return 1;
-        // Then by creation date
+        
+        // If both are pinned, sort by pinnedAt (oldest first - older pinned posts stay at top)
+        if (a.pinned && b.pinned) {
+          const aPinnedAt = a.pinnedAt ? new Date(a.pinnedAt).getTime() : 0;
+          const bPinnedAt = b.pinnedAt ? new Date(b.pinnedAt).getTime() : 0;
+          return aPinnedAt - bPinnedAt; // Oldest first
+        }
+        
+        // Unpinned posts sorted by creation date (newest first)
         return (
           new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         );
@@ -727,19 +735,39 @@ export function CommunityPosts({
         throw new Error("Failed to pin/unpin post");
       }
 
-      const { pinned } = await response.json();
+      const { pinned, pinnedAt } = await response.json();
 
-      setPosts((prev) =>
-        prev.map((post) =>
+      // Update the post and re-sort
+      setPosts((prev) => {
+        const updated = prev.map((post) =>
           post.id === postId
             ? {
                 ...post,
                 pinned,
-                pinnedAt: pinned ? new Date().toISOString() : undefined,
+                pinnedAt: pinnedAt || undefined,
               }
             : post
-        )
-      );
+        );
+        
+        // Re-sort: pinned posts first (by pinnedAt oldest first), then unpinned (by createdAt newest first)
+        return updated.sort((a, b) => {
+          // Pinned posts first
+          if (a.pinned && !b.pinned) return -1;
+          if (!a.pinned && b.pinned) return 1;
+          
+          // If both are pinned, sort by pinnedAt (oldest first - older pinned posts stay at top)
+          if (a.pinned && b.pinned) {
+            const aPinnedAt = a.pinnedAt ? new Date(a.pinnedAt).getTime() : 0;
+            const bPinnedAt = b.pinnedAt ? new Date(b.pinnedAt).getTime() : 0;
+            return aPinnedAt - bPinnedAt; // Oldest first
+          }
+          
+          // Unpinned posts sorted by creation date (newest first)
+          return (
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          );
+        });
+      });
     } catch (err) {
       console.error("Failed to toggle pin:", err);
       setError(err instanceof Error ? err.message : "Failed to pin/unpin post");

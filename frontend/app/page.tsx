@@ -176,7 +176,7 @@ export default function HomePage() {
           />
 
           {/* Mobile Pagination */}
-          <div className="px-4 pb-20 pt-4">
+          <div className="px-4 pb-10 pt-4">
             <Pagination
               currentPage={currentPage}
               totalPages={totalPages}
