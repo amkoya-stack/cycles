@@ -1,8 +1,8 @@
 # Use Node.js 18 LTS
 FROM node:18-alpine
 
-# Set working directory to backend
-WORKDIR /app/backend
+# Set working directory
+WORKDIR /app
 
 # Copy package files
 COPY backend/package*.json ./
