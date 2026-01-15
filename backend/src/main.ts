@@ -26,10 +26,30 @@ async function bootstrap() {
   app.use(require('express').json({ limit: '10mb' }));
   app.use(require('express').urlencoded({ limit: '10mb', extended: true }));
 
-  // Enable CORS
+  // Enable CORS for multiple origins
+  const allowedOrigins = [
+    'http://localhost:3000',
+    'http://localhost:3001',
+    process.env.FRONTEND_URL,
+    'https://frontend-eight-lilac-72.vercel.app',
+    'https://frontend-eduvcggx9-amkoyastacks-projects.vercel.app',
+  ].filter(Boolean);
+
   app.enableCors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: (origin, callback) => {
+      // Allow requests with no origin (mobile apps, Postman, etc.)
+      if (!origin) return callback(null, true);
+
+      // Check if origin matches allowed origins or is a Vercel preview
+      if (allowedOrigins.includes(origin) || origin.includes('vercel.app')) {
+        return callback(null, true);
+      }
+
+      callback(null, false);
+    },
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Idempotency-Key'],
   });
 
   // Global validation pipe
