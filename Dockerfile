@@ -4,6 +4,9 @@ FROM node:18-alpine
 # Set working directory
 WORKDIR /app
 
+# Cache busting - force fresh build
+ARG CACHEBUST=1
+
 # Copy package files
 COPY backend/package*.json ./
 
