@@ -53,7 +53,8 @@ async function bootstrap() {
   });
 
   // Serve static files (uploads) - before API prefix to avoid /api prefix
-  const uploadDir = process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads');
+  const uploadDir =
+    process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads');
   if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
   }
@@ -63,9 +64,15 @@ async function bootstrap() {
   // API prefix
   app.setGlobalPrefix(process.env.API_PREFIX || 'api');
 
-  const port = process.env.PORT || 4000;
-  // Bind to localhost to avoid Windows EACCES on 0.0.0.0
-  await app.listen(port, '127.0.0.1');
-  console.log(`🚀 Application is running on: http://localhost:${port}`);
+  // Add health endpoint
+  app.get('/health', (req, res) => {
+    res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+  });
+
+  const port = process.env.PORT || 3001;
+  // In production, bind to 0.0.0.0 for Railway
+  const host = process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1';
+  await app.listen(port, host);
+  console.log(`🚀 Application is running on: http://${host}:${port}`);
 }
 bootstrap();
