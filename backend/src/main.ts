@@ -65,7 +65,7 @@ async function bootstrap() {
   app.setGlobalPrefix(process.env.API_PREFIX || 'api');
 
   // Add health endpoint
-  app.get('/health', (req, res) => {
+  app.use('/health', (req, res) => {
     res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
   });
 
