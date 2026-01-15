@@ -16,6 +16,9 @@ COPY backend/ ./
 # Build the application
 RUN npm run build
 
+# Check if dist folder was created
+RUN ls -la dist/ || echo "Dist folder not found"
+
 # Expose port
 EXPOSE 3001
 
