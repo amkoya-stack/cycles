@@ -120,7 +120,13 @@ export class EmailService {
    * Send OTP verification email
    */
   async sendOtpEmail(data: OtpEmailData): Promise<boolean> {
+    this.logger.log(
+      `📧 sendOtpEmail called for ${data.email}, purpose: ${data.purpose}`,
+    );
     await this.initializeTransporter();
+    this.logger.log(
+      `📧 Transporter initialized. useResend=${this.useResend}, hasResend=${!!this.resend}, hasTransporter=${!!this.transporter}`,
+    );
 
     const purposeLabels = {
       email_verification: 'Email Verification',
