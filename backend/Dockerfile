@@ -7,17 +7,20 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install ALL dependencies (including devDependencies for build)
-RUN npm install
+# Install ALL dependencies (force fresh install)
+RUN rm -rf node_modules && npm install
 
 # Copy source code
 COPY . .
 
-# Build the application
-RUN npm run build
+# Clean and build fresh
+RUN rm -rf dist/ && npm run build
+
+# Debug: Check dist folder
+RUN ls -la dist/src/ || echo "dist/src not found"
 
 # Expose port
 EXPOSE 3001
 
-# Run the application
-CMD ["npm", "run", "start:prod"]
+# Run the application with correct path
+CMD ["node", "dist/src/main.js"]
