@@ -1,0 +1,23 @@
+# Use Node.js 18 LTS
+FROM node:18-alpine
+
+# Set working directory to backend
+WORKDIR /app/backend
+
+# Copy package files
+COPY backend/package*.json ./
+
+# Install ALL dependencies
+RUN npm install
+
+# Copy backend source code
+COPY backend/ ./
+
+# Build the application
+RUN npm run build
+
+# Expose port
+EXPOSE 3001
+
+# Run the application
+CMD ["npm", "run", "start:prod"]
