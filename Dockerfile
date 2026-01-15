@@ -16,14 +16,17 @@ RUN npm install
 # Copy backend source code
 COPY backend/ ./
 
-# Build the application
-RUN npm run build
+# Clean any cached build files and build fresh
+RUN rm -rf dist/ && npm run build
 
 # Check if dist folder was created
-RUN ls -la dist/ || echo "Dist folder not found"
+RUN echo "Checking dist folder..." && ls -la dist/ || echo "Dist folder not found"
+
+# List all files to see what we have
+RUN echo "All files in app:" && ls -la /app/
 
 # Expose port
 EXPOSE 3001
 
 # Run the application
-CMD ["node", "dist/main"]
+CMD ["node", "dist/src/main.js"]
