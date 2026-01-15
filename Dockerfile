@@ -10,8 +10,8 @@ ARG CACHEBUST=1
 # Copy package files
 COPY backend/package*.json ./
 
-# Install ALL dependencies
-RUN npm install
+# Install ALL dependencies (force fresh install)
+RUN rm -rf node_modules package-lock.json && npm install
 
 # Copy backend source code
 COPY backend/ ./
