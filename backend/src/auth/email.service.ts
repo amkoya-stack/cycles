@@ -3,6 +3,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 
 export interface OtpEmailData {
   email: string;
@@ -18,16 +19,30 @@ export interface OtpEmailData {
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
   private transporter: nodemailer.Transporter | null = null;
+  private resend: Resend | null = null;
+  private useResend = false;
   private initialized = false;
 
   constructor(private readonly config: ConfigService) {}
 
   /**
    * Initialize email transporter (lazy initialization)
-   * Uses Ethereal Mail for development if SMTP credentials not set
+   * Uses Resend in production, Ethereal Mail for development
    */
   private async initializeTransporter() {
     if (this.initialized) return;
+
+    const resendApiKey = this.config.get<string>('RESEND_API_KEY');
+    const nodeEnv = this.config.get<string>('NODE_ENV');
+
+    // Use Resend if API key is available (preferred for production)
+    if (resendApiKey) {
+      this.resend = new Resend(resendApiKey);
+      this.useResend = true;
+      this.logger.log('✅ Resend email service initialized');
+      this.initialized = true;
+      return;
+    }
 
     const smtpHost =
       this.config.get<string>('EMAIL_HOST') ||
@@ -41,12 +56,15 @@ export class EmailService {
     const smtpPass =
       this.config.get<string>('EMAIL_PASSWORD') ||
       this.config.get<string>('SMTP_PASS');
-    const nodeEnv = this.config.get<string>('NODE_ENV');
 
-    // If production and no SMTP config, fail
-    if (nodeEnv === 'production' && (!smtpHost || !smtpUser || !smtpPass)) {
+    // If production and no email config, fail
+    if (
+      nodeEnv === 'production' &&
+      !resendApiKey &&
+      (!smtpHost || !smtpUser || !smtpPass)
+    ) {
       this.logger.error(
-        'SMTP credentials required for production. Email service disabled.',
+        'Email credentials required for production. Email service disabled.',
       );
       this.initialized = true;
       return;
@@ -66,7 +84,7 @@ export class EmailService {
             pass: testAccount.pass,
           },
           tls: {
-            rejectUnauthorized: false, // Allow self-signed certificates in development
+            rejectUnauthorized: false,
           },
         });
         this.logger.log(`✅ Ethereal Mail initialized: ${testAccount.user}`);
@@ -90,7 +108,7 @@ export class EmailService {
         pass: smtpPass,
       },
       tls: {
-        rejectUnauthorized: nodeEnv === 'production', // Only reject in production
+        rejectUnauthorized: nodeEnv === 'production',
       },
     });
 
@@ -103,11 +121,6 @@ export class EmailService {
    */
   async sendOtpEmail(data: OtpEmailData): Promise<boolean> {
     await this.initializeTransporter();
-
-    if (!this.transporter) {
-      this.logger.warn('Email transporter not available. OTP not sent.');
-      return false;
-    }
 
     const purposeLabels = {
       email_verification: 'Email Verification',
@@ -122,6 +135,38 @@ export class EmailService {
       purposeLabels[data.purpose],
     );
 
+    // Use Resend if available
+    if (this.useResend && this.resend) {
+      try {
+        const { error } = await this.resend.emails.send({
+          from: 'Cycle Platform <onboarding@resend.dev>',
+          to: data.email,
+          subject,
+          html,
+        });
+
+        if (error) {
+          this.logger.error(`Resend error for ${data.email}:`, error);
+          return false;
+        }
+
+        this.logger.log(`📧 Email sent via Resend to ${data.email}`);
+        return true;
+      } catch (error) {
+        this.logger.error(
+          `Failed to send email via Resend to ${data.email}:`,
+          error,
+        );
+        return false;
+      }
+    }
+
+    // Fallback to nodemailer
+    if (!this.transporter) {
+      this.logger.warn('Email transporter not available. OTP not sent.');
+      return false;
+    }
+
     try {
       const info = await this.transporter.sendMail({
         from: '"Cycle Platform" <noreply@cycle.com>',
@@ -130,7 +175,6 @@ export class EmailService {
         html,
       });
 
-      // Log Ethereal preview URL in development
       const previewUrl = nodemailer.getTestMessageUrl(info);
       if (previewUrl) {
         this.logger.log(`📧 Email preview: ${previewUrl}`);
