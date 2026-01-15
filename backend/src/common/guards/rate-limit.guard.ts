@@ -43,7 +43,8 @@ export class RateLimitGuard implements CanActivate {
 
       // Check if limit exceeded
       if (current > config.max) {
-        const ttl = await this.redis.getClient().ttl(key);
+        const client = this.redis.getClient();
+        const ttl = client ? await client.ttl(key) : config.window;
         throw new HttpException(
           {
             statusCode: HttpStatus.TOO_MANY_REQUESTS,
