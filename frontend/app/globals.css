@@ -165,27 +165,3 @@
   }
 }
 
-/* Chama Settings Modal - Responsive positioning */
-.chama-settings-modal {
-  /* Mobile: position with margins from all edges, minimal right margin */
-  top: 0.5rem !important;
-  left: 0.5rem !important;
-  right: 0 !important;
-  bottom: 0.5rem !important;
-  transform: none !important;
-}
-
-/* Desktop: center the modal */
-@media (min-width: 1024px) {
-  .chama-settings-modal {
-    top: 50% !important;
-    left: 50% !important;
-    right: auto !important;
-    bottom: auto !important;
-    transform: translate(-50%, -50%) !important;
-    width: 1044px !important;
-    height: 600px !important;
-    max-width: 1044px !important;
-    max-height: 600px !important;
-  }
-}

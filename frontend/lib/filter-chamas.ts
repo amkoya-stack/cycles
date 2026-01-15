@@ -15,6 +15,21 @@ export function filterChamas(
       return false;
     }
 
+    // Filter out hidden cycles - even admins shouldn't see hidden cycles on home page
+    // (They can still access them via navbar dropdown which shows all member cycles)
+    let settings = chama.settings || {};
+    // Handle case where settings might be a JSON string
+    if (typeof settings === 'string') {
+      try {
+        settings = JSON.parse(settings);
+      } catch {
+        settings = {};
+      }
+    }
+    if (settings.hidden === true) {
+      return false;
+    }
+
     // Search filter
     if (
       searchQuery &&

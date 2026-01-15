@@ -58,6 +58,7 @@ interface Investment {
 
 interface InvestmentPortfolioProps {
   chamaId: string;
+  userRole?: string | null;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -79,7 +80,9 @@ const PRODUCT_TYPE_LABELS: Record<string, string> = {
   investment_pool: "Investment Pool",
 };
 
-export function InvestmentPortfolio({ chamaId }: InvestmentPortfolioProps) {
+export function InvestmentPortfolio({ chamaId, userRole }: InvestmentPortfolioProps) {
+  // Check if user is authorized (admin or treasurer)
+  const isAuthorized = userRole === "admin" || userRole === "treasurer" || userRole === "chairperson";
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [loadingInvestments, setLoadingInvestments] = useState(false);
@@ -92,7 +95,7 @@ export function InvestmentPortfolio({ chamaId }: InvestmentPortfolioProps) {
 
   useEffect(() => {
     if (initialLoad) {
-      fetchPortfolio();
+    fetchPortfolio();
       setInitialLoad(false);
     } else {
       fetchInvestmentsOnly();
@@ -399,11 +402,16 @@ export function InvestmentPortfolio({ chamaId }: InvestmentPortfolioProps) {
             <div className="text-center py-12 px-4">
               <PieChart className="h-8 w-8 mx-auto text-gray-400 mb-2" />
               <p className="text-sm text-gray-600 mb-4">No investments found</p>
-              <Link href="/investment/marketplace">
-                <Button variant="outline" size="sm" className="text-xs">
-                  Browse Marketplace
-                </Button>
-              </Link>
+              {isAuthorized && (
+                <Link href="/investment/marketplace">
+                  <Button variant="outline" size="sm" className="text-xs">
+                    Browse Marketplace
+                  </Button>
+                </Link>
+              )}
+              {!isAuthorized && (
+                <p className="text-xs text-gray-500 mt-2">Only admins and authorized members can browse investments</p>
+              )}
             </div>
           ) : (
             <div className="space-y-0">
@@ -526,22 +534,24 @@ export function InvestmentPortfolio({ chamaId }: InvestmentPortfolioProps) {
 
       {/* Desktop View */}
       <div className="hidden md:block">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-[#083232]">Investment Portfolio</h1>
-            <p className="text-gray-600 mt-1">View and manage your chama investments</p>
-          </div>
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-[#083232]">Investment Portfolio</h1>
+          <p className="text-gray-600 mt-1">View and manage your chama investments</p>
+        </div>
+        {isAuthorized && (
           <Link href="/investment/marketplace">
             <Button className="bg-[#083232] hover:bg-[#2e856e]">
               Browse Marketplace
             </Button>
           </Link>
-        </div>
+        )}
+      </div>
 
-        {/* Summary Cards */}
-        {summary && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Summary Cards */}
+      {summary && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium text-gray-600">
@@ -697,11 +707,16 @@ export function InvestmentPortfolio({ chamaId }: InvestmentPortfolioProps) {
           <Card>
             <CardContent className="py-12 text-center">
               <p className="text-gray-600">No investments found</p>
-              <Link href="/investment/marketplace">
-                <Button variant="outline" className="mt-4">
-                  Browse Investment Products
-                </Button>
-              </Link>
+              {isAuthorized && (
+                <Link href="/investment/marketplace">
+                  <Button variant="outline" className="mt-4">
+                    Browse Investment Products
+                  </Button>
+                </Link>
+              )}
+              {!isAuthorized && (
+                <p className="text-sm text-gray-500 mt-4">Only admins and authorized members can browse investments</p>
+              )}
             </CardContent>
           </Card>
         ) : (

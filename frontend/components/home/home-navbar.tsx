@@ -12,6 +12,7 @@ import {
   Settings,
   DollarSign,
   MoreHorizontal,
+  MessageCircle,
 } from "lucide-react";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { NotificationsDropdown } from "@/components/wallet/NotificationsDropdown";
@@ -77,14 +78,11 @@ export function HomeNavbar({
         const accessToken = localStorage.getItem("accessToken");
 
         // Fetch user profile
-        const profileResponse = await fetch(
-          apiUrl("auth/profile"),
-          {
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-            },
-          }
-        );
+        const profileResponse = await fetch(apiUrl("auth/profile"), {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
 
         if (profileResponse.status === 401) {
           // Token expired or invalid, clear auth state
@@ -98,7 +96,11 @@ export function HomeNavbar({
           const profileData = await profileResponse.json();
           // Use full_name if available and not empty, otherwise fallback to email
           // Check both full_name and fullName (in case of camelCase)
-          const fullName = (profileData.full_name || profileData.fullName || "").trim();
+          const fullName = (
+            profileData.full_name ||
+            profileData.fullName ||
+            ""
+          ).trim();
           if (fullName && fullName.length > 0) {
             setUserName(fullName);
           } else if (profileData.email) {
@@ -107,7 +109,9 @@ export function HomeNavbar({
             // Convert james.mutiso@gmail.com to "James Mutiso"
             const formattedName = emailName
               .split(".")
-              .map((part: string) => part.charAt(0).toUpperCase() + part.slice(1))
+              .map(
+                (part: string) => part.charAt(0).toUpperCase() + part.slice(1)
+              )
               .join(" ");
             setUserName(formattedName);
           } else {
@@ -157,7 +161,9 @@ export function HomeNavbar({
                 onClick={() => setShowCyclesDropdown(!showCyclesDropdown)}
                 className="flex items-center gap-1.5 md:gap-2 px-2 md:px-4 py-1.5 md:py-2 bg-white/10 hover:bg-white/20 rounded-lg transition-all duration-200 border border-white/20 cursor-pointer"
               >
-                <span className="text-base md:text-xl font-bold">{title || "Cycles"}</span>
+                <span className="text-base md:text-xl font-bold">
+                  {title || "Cycles"}
+                </span>
                 <ChevronsUpDown className="w-4 h-4 md:w-5 md:h-5" />
               </button>
 
@@ -214,7 +220,7 @@ export function HomeNavbar({
                     </Link>
                     <Link
                       href="/lending/marketplace"
-                      className="flex items-center gap-2 md:gap-3 px-3 md:px-4 py-2 md:py-3 rounded-lg hover:bg-gray-50 transition-all text-gray-700 group"
+                      className="hidden md:flex items-center gap-2 md:gap-3 px-3 md:px-4 py-2 md:py-3 rounded-lg hover:bg-gray-50 transition-all text-gray-700 group"
                       onClick={() => setShowCyclesDropdown(false)}
                     >
                       <div className="w-8 h-8 md:w-9 md:h-9 bg-blue-500/10 rounded-lg flex items-center justify-center group-hover:bg-blue-500/20 transition-colors">
@@ -233,12 +239,12 @@ export function HomeNavbar({
                         </svg>
                       </div>
                       <span className="text-xs md:text-sm font-medium">
-                        Loan Marketplace
+                        Loans
                       </span>
                     </Link>
                     <Link
                       href="/investment/marketplace"
-                      className="flex items-center gap-2 md:gap-3 px-3 md:px-4 py-2 md:py-3 rounded-lg hover:bg-gray-50 transition-all text-gray-700 group"
+                      className="hidden md:flex items-center gap-2 md:gap-3 px-3 md:px-4 py-2 md:py-3 rounded-lg hover:bg-gray-50 transition-all text-gray-700 group"
                       onClick={() => setShowCyclesDropdown(false)}
                     >
                       <div className="w-8 h-8 md:w-9 md:h-9 bg-green-500/10 rounded-lg flex items-center justify-center group-hover:bg-green-500/20 transition-colors">
@@ -257,7 +263,7 @@ export function HomeNavbar({
                         </svg>
                       </div>
                       <span className="text-xs md:text-sm font-medium">
-                        Investment Marketplace
+                        Investments
                       </span>
                     </Link>
                   </div>
@@ -359,6 +365,13 @@ export function HomeNavbar({
                   <div className="text-white">
                     <NotificationsDropdown />
                   </div>
+                  {/* Chat icon - visible on all screens */}
+                  <Link
+                    href="/chat"
+                    className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                  >
+                    <MessageCircle className="w-5 h-5" />
+                  </Link>
                   {/* Hide wallet on mobile since it's in bottom nav */}
                   <Link
                     href="/wallet"
@@ -392,7 +405,7 @@ export function HomeNavbar({
                             >
                               <span className="text-xs">Cycle Settings</span>
                             </button>
-                            
+
                             {/* Mobile: Show Recent Activity (admin only) */}
                             {isAdmin && (
                               <button
@@ -405,7 +418,7 @@ export function HomeNavbar({
                                 <span className="text-xs">Recent Activity</span>
                               </button>
                             )}
-                            
+
                             {/* Desktop: Show normal dropdown */}
                             <div className="hidden md:block">
                               {/* User Info */}
@@ -470,7 +483,9 @@ export function HomeNavbar({
                                   className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 transition-colors w-full text-left"
                                 >
                                   <Settings className="w-4 h-4" />
-                                  <span className="text-sm">Cycle Settings</span>
+                                  <span className="text-sm">
+                                    Cycle Settings
+                                  </span>
                                 </button>
                               )}
                               {/* Recent Activity - Admin only */}
@@ -482,17 +497,11 @@ export function HomeNavbar({
                                   }}
                                   className="flex items-center px-4 py-2 hover:bg-gray-50 transition-colors w-full text-left"
                                 >
-                                  <span className="text-sm">Recent Activity</span>
+                                  <span className="text-sm">
+                                    Recent Activity
+                                  </span>
                                 </button>
                               )}
-                              <Link
-                                href="/settings"
-                                onClick={() => setShowDropdown(false)}
-                                className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 transition-colors"
-                              >
-                                <Settings className="w-4 h-4" />
-                                <span className="text-sm">Settings</span>
-                              </Link>
                               <button
                                 onClick={handleLogout}
                                 className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 transition-colors w-full text-left text-red-600"
@@ -521,13 +530,14 @@ export function HomeNavbar({
                               <Wallet className="w-4 h-4" />
                               <span className="text-sm">My Wallet</span>
                             </Link>
+                            {/* Hide loans on mobile since it's in bottom nav */}
                             <Link
                               href="/loans"
                               onClick={() => setShowDropdown(false)}
-                              className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 transition-colors"
+                              className="hidden md:flex items-center gap-3 px-4 py-2 hover:bg-gray-50 transition-colors"
                             >
                               <DollarSign className="w-4 h-4" />
-                              <span className="text-xs md:text-sm">Loans</span>
+                              <span className="text-sm">Loans</span>
                             </Link>
                             {/* Hide investments on mobile since it's in bottom nav */}
                             <Link
@@ -556,7 +566,9 @@ export function HomeNavbar({
                               className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 transition-colors"
                             >
                               <User className="w-4 h-4" />
-                              <span className="text-xs md:text-sm">Profile</span>
+                              <span className="text-xs md:text-sm">
+                                Profile
+                              </span>
                             </Link>
                             <Link
                               href="/settings"
@@ -564,7 +576,9 @@ export function HomeNavbar({
                               className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 transition-colors"
                             >
                               <Settings className="w-4 h-4" />
-                              <span className="text-xs md:text-sm">Settings</span>
+                              <span className="text-xs md:text-sm">
+                                Settings
+                              </span>
                             </Link>
                             <button
                               onClick={handleLogout}

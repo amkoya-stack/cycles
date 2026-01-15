@@ -417,32 +417,105 @@ export class ChamaService {
 
   /**
    * Delete/close chama
+   * Requires:
+   * - Admin role
+   * - Zero wallet balance
+   * - No outstanding loans
+   * - No pending payments
+   * - Member approval OR all members removed (bar admin)
    */
-  async deleteChama(userId: string, chamaId: string): Promise<any> {
+  async deleteChama(
+    userId: string,
+    chamaId: string,
+    memberApprovalIds?: string[],
+  ): Promise<any> {
     const member = await this.getMemberRole(userId, chamaId);
     if (member.role !== 'admin') {
       throw new ForbiddenException('Only admin can delete chama');
     }
 
-    // Check if chama has balance
+    // Collect all validation errors
+    const errors: string[] = [];
+
+    // 1. Check if chama has balance - must be zero
     const balance = await this.getChamaBalance(chamaId);
-    if (balance > 0) {
-      throw new BadRequestException(
-        'Cannot delete chama with positive balance. Payout all funds first.',
-      );
+    if (balance !== 0) {
+      errors.push('Wallet balance must be zero');
     }
 
-    // Check if there are other active members
+    // 2. Check for outstanding loans (active or pending_disbursement)
+    const outstandingLoans = await this.db.query(
+      `SELECT COUNT(*) as count FROM loans 
+       WHERE chama_id = $1 AND status IN ('active', 'pending_disbursement')`,
+      [chamaId],
+    );
+
+    if (parseInt(outstandingLoans.rows[0].count) > 0) {
+      errors.push('No outstanding loans');
+    }
+
+    // 3. Check for pending payments (contributions or loan repayments)
+    const pendingContributions = await this.db.query(
+      `SELECT COUNT(*) as count FROM contributions 
+       WHERE chama_id = $1 AND status = 'pending'`,
+      [chamaId],
+    );
+
+    const pendingLoanRepayments = await this.db.query(
+      `SELECT COUNT(*) as count FROM loan_repayments lr
+       JOIN loans l ON lr.loan_id = l.id
+       WHERE l.chama_id = $1 AND lr.status = 'pending'`,
+      [chamaId],
+    );
+
+    if (
+      parseInt(pendingContributions.rows[0].count) > 0 ||
+      parseInt(pendingLoanRepayments.rows[0].count) > 0
+    ) {
+      errors.push('No pending payments');
+    }
+
+    // 4. Check if there are other active members (excluding admin)
     const membersResult = await this.db.query(
-      `SELECT COUNT(*) as count FROM chama_members 
+      `SELECT COUNT(*) as count, array_agg(user_id) as user_ids FROM chama_members 
        WHERE chama_id = $1 AND status = 'active' AND user_id != $2`,
       [chamaId, userId],
     );
 
     const otherMembersCount = parseInt(membersResult.rows[0].count);
+    const otherMemberIds =
+      membersResult.rows[0].user_ids?.filter((id: string) => id) || [];
 
     if (otherMembersCount > 0) {
-      // If there are other members, just close it
+      // If there are other members, require approval from all active members
+      if (!memberApprovalIds || memberApprovalIds.length === 0) {
+        errors.push(
+          'All active members must approve the deletion OR admin is the only remaining member',
+        );
+      } else {
+        // Check if all active members have approved
+        const approvalSet = new Set(memberApprovalIds);
+        const allApproved = otherMemberIds.every((id: string) =>
+          approvalSet.has(id),
+        );
+
+        if (!allApproved) {
+          errors.push(
+            'All active members must approve the deletion OR admin is the only remaining member',
+          );
+        }
+      }
+    }
+
+    // If there are any errors, throw with all conditions listed
+    if (errors.length > 0) {
+      throw new BadRequestException(
+        `You cannot delete this cycle. To delete the cycle, make sure:\n${errors.map((e, i) => `• ${e}`).join('\n')}`,
+      );
+    }
+
+    if (otherMembersCount > 0) {
+      // All checks passed - close the chama
       await this.db.transactionAsSystem(async (client) => {
         await client.query(
           `UPDATE chamas SET status = 'closed', closed_at = NOW() WHERE id = $1`,
@@ -456,7 +529,7 @@ export class ChamaService {
         );
       });
 
-      return { message: 'Chama closed successfully' };
+      return { message: 'Chama closed successfully with member approval' };
     } else {
       // If admin is the only member, permanently delete
       await this.db.transactionAsSystem(async (client) => {
@@ -1932,15 +2005,18 @@ export class ChamaService {
     const startTime = Date.now();
     try {
       const member = await this.getMemberRole(userId, chamaId);
-    if (member.role !== 'admin' && member.role !== 'treasurer') {
-      throw new ForbiddenException(
-        'Only admin or treasurer can execute payouts',
-      );
-    }
+      if (member.role !== 'admin' && member.role !== 'treasurer') {
+        throw new ForbiddenException(
+          'Only admin or treasurer can execute payouts',
+        );
+      }
 
-    // Get cycle
+    // Get cycle with chama name
     const cycle = await this.db.query(
-      'SELECT * FROM contribution_cycles WHERE id = $1 AND chama_id = $2',
+      `SELECT cc.*, c.name as chama_name 
+       FROM contribution_cycles cc
+       JOIN chamas c ON cc.chama_id = c.id
+       WHERE cc.id = $1 AND cc.chama_id = $2`,
       [cycleId, chamaId],
     );
 
@@ -1988,11 +2064,12 @@ export class ChamaService {
     }
 
     // Process payout through ledger
+    const cycleName = cycleData.chama_name || 'Cycle';
     const transaction = await this.ledger.processPayout(
       chamaId,
       recipientData.user_id,
       payoutAmount,
-      `Payout for cycle ${cycleData.cycle_number}`,
+      `Payout for ${cycleName}`,
     );
 
     // Record payout
@@ -2221,6 +2298,7 @@ export class ChamaService {
 
   /**
    * Leave chama with balance settlement
+   * User cannot leave if they are owed money or owe money (contributions)
    */
   async leaveChama(userId: string, chamaId: string, dto: any): Promise<any> {
     // Validate permissions and membership
@@ -2251,6 +2329,54 @@ export class ChamaService {
     let memberBalance = 0;
     if (memberAccount.rowCount > 0) {
       memberBalance = parseFloat(memberAccount.rows[0].balance) || 0;
+    }
+
+    // Collect all validation errors
+    const errors: string[] = [];
+
+    // Check if user is owed money (positive balance in chama account)
+    if (memberBalance > 0) {
+      errors.push(
+        `You are not owed any money (currently owed Kes ${memberBalance.toFixed(2)} - request a payout first)`,
+      );
+    }
+
+    // Check if user owes money (pending contributions or overdue contributions)
+    const pendingContributions = await this.db.query(
+      `SELECT COUNT(*) as count, COALESCE(SUM(cc.expected_amount), 0) as total_owed
+       FROM contribution_cycles cc
+       LEFT JOIN contributions c ON c.cycle_id = cc.id AND c.user_id = $2 AND c.status = 'completed'
+       WHERE cc.chama_id = $1 
+         AND cc.status = 'active'
+         AND c.id IS NULL`,
+      [chamaId, userId],
+    );
+
+    const totalOwed =
+      parseFloat(pendingContributions.rows[0]?.total_owed || '0') || 0;
+
+    if (totalOwed > 0) {
+      errors.push(
+        `You do not owe any money (currently owe Kes ${totalOwed.toFixed(2)} - complete all contributions first)`,
+      );
+    }
+
+    // Check for outstanding loans as borrower
+    const outstandingLoans = await this.db.query(
+      `SELECT COUNT(*) as count FROM loans 
+       WHERE chama_id = $1 AND borrower_id = $2 AND status IN ('active', 'pending_disbursement')`,
+      [chamaId, userId],
+    );
+
+    if (parseInt(outstandingLoans.rows[0].count) > 0) {
+      errors.push('No outstanding loans');
+    }
+
+    // If there are any errors, throw with all conditions listed
+    if (errors.length > 0) {
+      throw new BadRequestException(
+        `You cannot leave this cycle. To leave the cycle, make sure:\n${errors.map((e, i) => `• ${e}`).join('\n')}`,
+      );
     }
 
     // Get total contributions and other metrics
@@ -2512,6 +2638,13 @@ export class ChamaService {
 
     const recipient = recipientMember.rows[0];
 
+    // Get chama name
+    const chamaResult = await this.db.query(
+      'SELECT name FROM chamas WHERE id = $1',
+      [cycleData.chama_id],
+    );
+    const chamaName = chamaResult.rows[0]?.name || 'Cycle';
+
     // Process the payout through ledger
     const payoutExternalRef = `payout-cycle-${cycleId}`;
     const payoutAmount = parseFloat(cycleData.collected_amount) || 0;
@@ -2526,7 +2659,7 @@ export class ChamaService {
       cycleData.chama_id,
       recipient.user_id,
       payoutAmount,
-      `Payout for cycle ${cycleData.cycle_number}`,
+      `Payout for ${chamaName}`,
       payoutExternalRef,
     );
 

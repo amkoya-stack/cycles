@@ -17,9 +17,9 @@ export function QuickSendSection({
   onAddRecipient,
 }: QuickSendSectionProps) {
   return (
-    <div className="mb-6">
-      <h3 className="text-lg font-semibold text-gray-700 mb-3">Quick send</h3>
-      <div className="flex items-start gap-3 overflow-x-auto pb-2">
+    <div className="mb-4 sm:mb-6">
+      <h3 className="text-base sm:text-lg font-semibold text-gray-700 mb-2 sm:mb-3">Quick send</h3>
+      <div className="flex items-start gap-2 sm:gap-3 overflow-x-auto pb-2 -mx-1 px-1">
         <button
           onClick={onAddRecipient}
           className="text-gray-700 hover:text-gray-900 flex-shrink-0 cursor-pointer mt-2"

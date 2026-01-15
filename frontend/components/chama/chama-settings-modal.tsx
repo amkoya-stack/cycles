@@ -1096,7 +1096,9 @@ export function ChamaSettingsModal({
                     disabled={isSaving}
                   />
                 </div>
-                <div className="border-t pt-4">
+                {/* Delete Cycle - Admin only */}
+                {isAdmin && (
+                  <div className="border-t pt-4 mt-4">
                   <button
                     onClick={onDeleteCycle}
                     className="text-red-600 hover:text-red-700 text-sm font-medium cursor-pointer w-full text-left"
@@ -1104,6 +1106,7 @@ export function ChamaSettingsModal({
                     Delete Cycle
                   </button>
                 </div>
+                )}
               </div>
             </div>
           )}
@@ -1258,6 +1261,50 @@ export function ChamaSettingsModal({
                     Documents from members.
                   </p>
                 </div>
+
+                {/* Info about default hidden tabs */}
+                {hiddenTabs.length > 0 && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-2.5 md:p-3">
+                    <div className="flex items-start gap-2">
+                      <div className="text-blue-600 mt-0.5">
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                          />
+                        </svg>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-xs font-medium text-blue-900 mb-1">
+                          Hidden Tabs
+                        </p>
+                        <p className="text-xs text-blue-700">
+                          {hiddenTabs.includes("loans") &&
+                          hiddenTabs.includes("financials") &&
+                          hiddenTabs.includes("investments") ? (
+                            <>
+                              Loans, Financials, and Investments tabs are
+                              currently hidden. Toggle them on below when your
+                              cycle starts investing or giving out loans.
+                            </>
+                          ) : (
+                            <>
+                              Some tabs are currently hidden from members. Toggle
+                              them on below to make them visible.
+                            </>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* List all tabs with toggles */}
                 <div className="space-y-3 border-t pt-4">
@@ -1494,15 +1541,7 @@ export function ChamaSettingsModal({
       <div className="hidden md:block">
         <Dialog open={isOpen} onOpenChange={onClose}>
         <DialogContent
-          className="hidden md:flex flex-col !m-0 !p-0 chama-settings-modal !rounded-lg"
-            style={
-              {
-                width: "1044px",
-                height: "600px",
-                maxWidth: "1044px",
-                maxHeight: "600px",
-              } as React.CSSProperties
-            }
+          className="hidden md:flex flex-col !m-0 !p-0 !rounded-lg !w-[1044px] !h-[600px] !max-w-[1044px] !max-h-[600px]"
           onInteractOutside={(e) => {
             e.preventDefault();
           }}
@@ -1918,14 +1957,6 @@ export function ChamaSettingsModal({
                           disabled={isSaving}
                     />
                   </div>
-                  <div className="border-t pt-4">
-                    <button
-                      onClick={onDeleteCycle}
-                      className="text-red-600 hover:text-red-700 text-sm font-medium cursor-pointer w-full text-left"
-                    >
-                      Delete Cycle
-                    </button>
-                  </div>
                 </div>
               </div>
             )}
@@ -2081,6 +2112,51 @@ export function ChamaSettingsModal({
                           Financials or Documents from members.
                         </p>
                       </div>
+
+                      {/* Info about default hidden tabs */}
+                      {hiddenTabs.length > 0 && (
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                          <div className="flex items-start gap-2">
+                            <div className="text-blue-600 mt-0.5">
+                              <svg
+                                className="w-4 h-4"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                                />
+                              </svg>
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-blue-900 mb-1">
+                                Hidden Tabs
+                              </p>
+                              <p className="text-xs text-blue-700">
+                                {hiddenTabs.includes("loans") &&
+                                hiddenTabs.includes("financials") &&
+                                hiddenTabs.includes("investments") ? (
+                                  <>
+                                    Loans, Financials, and Investments tabs are
+                                    currently hidden. Toggle them on below when
+                                    your cycle starts investing or giving out
+                                    loans.
+                                  </>
+                                ) : (
+                                  <>
+                                    Some tabs are currently hidden from members.
+                                    Toggle them on below to make them visible.
+                                  </>
+                                )}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
                       {/* List all tabs with toggles */}
                       <div className="space-y-3 border-t pt-4">
@@ -2487,16 +2563,6 @@ export function ChamaSettingsModal({
                     }
                         disabled={isSaving}
                   />
-                </div>
-
-                {/* Delete Cycle */}
-                <div className="pb-3 border-b">
-                  <button
-                    onClick={onDeleteCycle}
-                    className="text-red-600 hover:text-red-700 text-sm font-medium cursor-pointer w-full text-left"
-                  >
-                    Delete Cycle
-                  </button>
                 </div>
 
                 {/* Late Penalty Setting */}

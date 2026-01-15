@@ -173,6 +173,8 @@ export default function CycleBySlugPage() {
   >([]);
   const [loadingTransactions, setLoadingTransactions] = useState(false);
   const [meetingsRefreshKey, setMeetingsRefreshKey] = useState(0);
+  const [pollsRefreshKey, setPollsRefreshKey] = useState(0);
+  const [feedRefreshKey, setFeedRefreshKey] = useState(0);
   const [showAllTransactions, setShowAllTransactions] = useState(false);
   const [showFullDescription, setShowFullDescription] = useState(false);
 
@@ -193,37 +195,70 @@ export default function CycleBySlugPage() {
     const fetchChamaBySlug = async () => {
       try {
         const accessToken = localStorage.getItem("accessToken");
+        const decodedSlug = decodeURIComponent(slug);
 
         if (accessToken) {
-          // For authenticated users, first try to get the chama ID from public list, then get full details
+          // For authenticated users, first check their own chamas list (includes hidden cycles)
           try {
-            const response = await fetch(
-              apiUrl("chama/public")
-            );
-            if (!response.ok) {
-              throw new Error("Failed to load chamas");
+            const userChamasResponse = await fetch(apiUrl("chama"), {
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+              },
+            });
+
+            if (userChamasResponse.ok) {
+              const userChamas = await userChamasResponse.json();
+              console.log(`[DEBUG] User's chamas:`, userChamas);
+              
+              // Try to find in user's chamas first (includes hidden cycles)
+              const matchedChama = userChamas.find((c: any) => {
+                const nameToSlug = c.name.toLowerCase().replace(/\s+/g, "-");
+                const nameMatch = nameToSlug === decodedSlug.toLowerCase();
+                const directMatch =
+                  c.name.toLowerCase() === decodedSlug.toLowerCase();
+                return nameMatch || directMatch;
+              });
+
+              if (matchedChama) {
+                // Get full authenticated details
+                const detailResponse = await fetch(
+                  apiUrl(`chama/${matchedChama.id}`),
+                  {
+                    headers: {
+                      Authorization: `Bearer ${accessToken}`,
+                    },
+                  }
+                );
+
+                if (detailResponse.status === 401) {
+                  localStorage.removeItem("accessToken");
+                  localStorage.removeItem("refreshToken");
+                  router.push("/auth/login");
+                  return;
+                }
+
+                if (detailResponse.ok) {
+                  const data = await detailResponse.json();
+                  setChama(data);
+                  setUserRole(data.user_role);
+                  return;
+                }
+              }
             }
 
+            // If not found in user chamas, try public list
+            const response = await fetch(apiUrl("chama/public"));
+            if (response.ok) {
             const chamas = await response.json();
-            console.log(`[DEBUG] All available chamas for user:`, chamas);
-            const decodedSlug = decodeURIComponent(slug);
-            console.log(`[DEBUG] Looking for slug: "${decodedSlug}"`);
             const matchedChama = chamas.find((c: any) => {
               const nameToSlug = c.name.toLowerCase().replace(/\s+/g, "-");
               const nameMatch = nameToSlug === decodedSlug.toLowerCase();
               const directMatch =
                 c.name.toLowerCase() === decodedSlug.toLowerCase();
-              console.log(
-                `[DEBUG] Checking chama: ${c.name} (id: ${c.id}) -> slug: ${nameToSlug}, nameMatch: ${nameMatch}, directMatch: ${directMatch}`
-              );
               return nameMatch || directMatch;
             });
-            console.log(`[DEBUG] Matched chama:`, matchedChama);
 
-            if (!matchedChama) {
-              throw new Error("Cycle not found");
-            }
-
+              if (matchedChama) {
             // Get authenticated user details
             const detailResponse = await fetch(
               apiUrl(`chama/${matchedChama.id}`),
@@ -235,33 +270,37 @@ export default function CycleBySlugPage() {
             );
 
             if (detailResponse.status === 401) {
-              // Token expired, redirect to login
               localStorage.removeItem("accessToken");
               localStorage.removeItem("refreshToken");
               router.push("/auth/login");
               return;
             }
 
-            if (!detailResponse.ok) {
-              throw new Error("Failed to load cycle details");
-            }
-
+                if (detailResponse.ok) {
             const data = await detailResponse.json();
             setChama(data);
             setUserRole(data.user_role);
-          } catch (authError) {
-            // If authenticated call fails, fall back to public endpoint
+                  return;
+                }
+              }
+            }
+
+            // Fall back to public slug endpoint
             const publicResponse = await fetch(
               apiUrl(`chama/public/slug/${encodeURIComponent(slug)}`)
             );
 
-            if (!publicResponse.ok) {
-              throw new Error("Failed to load cycle details");
-            }
-
+            if (publicResponse.ok) {
             const data = await publicResponse.json();
             setChama(data);
             setUserRole(null);
+              return;
+            }
+
+            throw new Error("Cycle not found");
+          } catch (authError: any) {
+            console.error("Error fetching cycle:", authError);
+            throw new Error(authError.message || "Failed to load cycle details");
           }
         } else {
           // Non-authenticated users use public endpoint by slug
@@ -828,6 +867,7 @@ export default function CycleBySlugPage() {
             {/* Main Content - Posts & Threads */}
             <div className="lg:col-span-3 order-2 lg:order-1">
               <CommunityPosts
+                key={`feed-${feedRefreshKey}`}
                 chamaId={chama.id}
                 userId={(() => {
                   try {
@@ -842,6 +882,14 @@ export default function CycleBySlugPage() {
                 onMeetingCreated={() =>
                   setMeetingsRefreshKey((prev) => prev + 1)
                 }
+                onPollDeleted={() => {
+                  setPollsRefreshKey((prev) => prev + 1);
+                  setFeedRefreshKey((prev) => prev + 1);
+                }}
+                onPollVoted={() => {
+                  setPollsRefreshKey((prev) => prev + 1);
+                  setFeedRefreshKey((prev) => prev + 1);
+                }}
               />
             </div>
 
@@ -849,21 +897,39 @@ export default function CycleBySlugPage() {
             <div className="lg:col-span-1 order-1 lg:order-2">
               <div className="lg:sticky lg:top-20 space-y-3 md:space-y-4 lg:space-y-6">
                 <MeetingsSidebar
-                  key={meetingsRefreshKey}
+                  key={`meetings-${meetingsRefreshKey}`}
                   chamaId={chama.id}
                   onJoinMeeting={handleJoinMeeting}
                 />
-                <ActivePollsSidebar chamaId={chama.id} />
+                <ActivePollsSidebar 
+                  key={`polls-${pollsRefreshKey}`}
+                  chamaId={chama.id}
+                  userId={(() => {
+                    try {
+                      const accessToken = localStorage.getItem("accessToken");
+                      if (!accessToken) return "";
+                      const payload = JSON.parse(atob(accessToken.split(".")[1]));
+                      return payload.sub || payload.userId || "";
+                    } catch {
+                      return "";
+                    }
+                  })()}
+                  onPollVoted={() => {
+                    // Refresh both sidebar and feed when voting in sidebar
+                    setPollsRefreshKey((prev) => prev + 1);
+                    setFeedRefreshKey((prev) => prev + 1);
+                  }}
+                />
               </div>
             </div>
           </div>
         );
 
       case "loans":
-        return <LoanDashboard chamaId={chama.id} chamaBalance={chama.current_balance} />;
+        return <LoanDashboard chamaId={chama.id} chamaBalance={chama.current_balance} userRole={userRole} />;
 
       case "investments":
-        return <InvestmentPortfolio chamaId={chama.id} />;
+        return <InvestmentPortfolio chamaId={chama.id} userRole={userRole} />;
 
       case "disputes":
         return (
@@ -1784,7 +1850,6 @@ export default function CycleBySlugPage() {
             setShowSettingsModal(false);
           }}
           onDeleteCycle={() => {
-            setShowSettingsModal(false);
             setShowDeleteConfirm(true);
           }}
         />
@@ -1792,7 +1857,7 @@ export default function CycleBySlugPage() {
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[200] p-4">
           <Card className="max-w-md w-full p-6">
             <h3 className="text-xl font-bold text-gray-900 mb-2">
               Delete Cycle?
@@ -1805,7 +1870,9 @@ export default function CycleBySlugPage() {
               <Button
                 variant="outline"
                 className="flex-1"
-                onClick={() => setShowDeleteConfirm(false)}
+                onClick={() => {
+                  setShowDeleteConfirm(false);
+                }}
                 disabled={isDeleting}
               >
                 Cancel

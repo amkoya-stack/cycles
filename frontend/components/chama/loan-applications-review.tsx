@@ -557,7 +557,7 @@ export function LoanApplicationsReview({
     return matchesSearch;
   });
 
-  const canManage = userRole === "admin" || userRole === "treasurer";
+  const canManage = userRole === "admin" || userRole === "treasurer" || userRole === "chairperson";
 
   const [expandedApplicationId, setExpandedApplicationId] = useState<string | null>(null);
 
@@ -794,58 +794,58 @@ export function LoanApplicationsReview({
 
       {/* Desktop View */}
       <div className="hidden md:block">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900">
-              {lendingType === "internal"
-                ? "Internal Loan Applications"
-                : lendingType === "external"
-                ? "External Loan Applications"
-                : "Inter-Chama Loan Requests"}
-            </h2>
-            <p className="text-sm text-gray-600 mt-1">
-              Review and manage loan applications
-            </p>
-          </div>
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">
+            {lendingType === "internal"
+              ? "Internal Loan Applications"
+              : lendingType === "external"
+              ? "External Loan Applications"
+              : "Inter-Chama Loan Requests"}
+          </h2>
+          <p className="text-sm text-gray-600 mt-1">
+            Review and manage loan applications
+          </p>
         </div>
+      </div>
 
-        {/* Filters */}
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <Input
-                  placeholder="Search by applicant name, email, or purpose..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full sm:w-48">
-                  <SelectValue placeholder="Filter by status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="submitted">Submitted</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="under_review">Under Review</SelectItem>
-                  <SelectItem value="approved">Approved</SelectItem>
-                  {lendingType === "external" && (
-                    <>
-                      <SelectItem value="escrow_pending">Escrow Pending</SelectItem>
-                      <SelectItem value="escrow_funded">Escrow Funded</SelectItem>
-                      <SelectItem value="escrow_released">Escrow Released</SelectItem>
-                    </>
-                  )}
-                  <SelectItem value="rejected">Rejected</SelectItem>
-                </SelectContent>
-              </Select>
+      {/* Filters */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Input
+                placeholder="Search by applicant name, email, or purpose..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
             </div>
-          </CardContent>
-        </Card>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-full sm:w-48">
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="submitted">Submitted</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="under_review">Under Review</SelectItem>
+                <SelectItem value="approved">Approved</SelectItem>
+                {lendingType === "external" && (
+                  <>
+                    <SelectItem value="escrow_pending">Escrow Pending</SelectItem>
+                    <SelectItem value="escrow_funded">Escrow Funded</SelectItem>
+                    <SelectItem value="escrow_released">Escrow Released</SelectItem>
+                  </>
+                )}
+                <SelectItem value="rejected">Rejected</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Applications List */}
       {loading ? (

@@ -49,13 +49,17 @@ import { LoanRepaymentPayment } from "@/components/lending/loan-repayment-paymen
 interface LoanDashboardProps {
   chamaId?: string;
   chamaBalance?: number;
+  userRole?: string | null;
 }
 
 // This component will be used in the chama Loans tab
 export default function LoanDashboard({
   chamaId,
   chamaBalance: initialBalance,
+  userRole,
 }: LoanDashboardProps) {
+  // Check if user is authorized (admin or treasurer)
+  const isAuthorized = userRole === "admin" || userRole === "treasurer" || userRole === "chairperson";
   const [activeTab, setActiveTab] = useState("Overview");
   const [totalCash, setTotalCash] = useState(0);
   const [contributions, setContributions] = useState(0);
@@ -343,7 +347,6 @@ export default function LoanDashboard({
   const [applicationsLendingType, setApplicationsLendingType] = useState<
     "internal" | "external" | "inter-chama"
   >("internal");
-  const [userRole, setUserRole] = useState<string | null>(null);
 
   // Format amount helper
   const formatAmount = (amount: number) => {
@@ -435,10 +438,7 @@ export default function LoanDashboard({
         setOverdueLoans(summaryData.data?.overdueLoans || 0);
       }
 
-      if (chamaRes.ok) {
-        const chamaData = await chamaRes.json();
-        setUserRole(chamaData.user_role || null);
-      }
+      // userRole is passed as a prop, no need to fetch it from chama data
     } catch (error) {
       console.error("Failed to fetch wallet data:", error);
       // Use initial balance as fallback
@@ -1306,10 +1306,12 @@ export default function LoanDashboard({
               <Filter className="w-4 h-4 mr-2" />
               Filter
             </Button>
+            {isAuthorized && (
             <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
               <Plus className="w-4 h-4 mr-2" />
               New Loan
             </Button>
+            )}
           </div>
         </div>
 
@@ -2347,48 +2349,76 @@ export default function LoanDashboard({
                         <div className="animate-spin rounded-full h-6 w-6 border-2 border-[#083232] border-t-transparent mx-auto mb-1"></div>
                         <p className="text-xs">Loading...</p>
                       </div>
-                    ) : (analytics || mockAnalytics)?.statusBreakdown ? (
-                      <div className="space-y-3">
-                        {(analytics || mockAnalytics).statusBreakdown.map((item: any, index: number) => {
-                          const total = (analytics || mockAnalytics).statusBreakdown.reduce((sum: number, i: any) => sum + i.count, 0);
-                          const percentage = total > 0 ? (item.count / total) * 100 : 0;
-                          const color = item.status === "active"
-                            ? "#083232"
-                            : item.status === "overdue"
-                            ? "#f64d52"
-                            : item.status === "completed"
-                            ? "#10b981"
-                            : "#6b7280";
-                          
-                          return (
-                            <div key={index} className="space-y-1.5">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: color }}></div>
-                                  <span className="text-xs font-medium text-gray-700 capitalize">
-                                    {item.status}
-                                  </span>
+                    ) : (() => {
+                      const statusData = (analytics || mockAnalytics)?.statusBreakdown || [];
+                      // Ensure we have data for all four statuses: Active, Completed, Overdue, Pending
+                      const statusMap: Record<string, { count: number; label: string }> = {
+                        active: { count: 0, label: "Active" },
+                        completed: { count: 0, label: "Completed" },
+                        overdue: { count: 0, label: "Overdue" },
+                        pending: { count: 0, label: "Pending" },
+                      };
+                      
+                      statusData.forEach((item: any) => {
+                        const status = item.status?.toLowerCase();
+                        if (statusMap.hasOwnProperty(status)) {
+                          statusMap[status].count = item.count || 0;
+                        }
+                      });
+                      
+                      const chartData = [
+                        { status: "active", ...statusMap.active },
+                        { status: "completed", ...statusMap.completed },
+                        { status: "overdue", ...statusMap.overdue },
+                        { status: "pending", ...statusMap.pending },
+                      ].filter(item => item.count > 0);
+                      
+                      const total = chartData.reduce((sum, item) => sum + item.count, 0);
+                      
+                      return chartData.length > 0 ? (
+                        <div className="space-y-3">
+                          {chartData.map((item, index) => {
+                            const percentage = total > 0 ? (item.count / total) * 100 : 0;
+                            const color = item.status === "active"
+                              ? "#083232"
+                              : item.status === "completed"
+                              ? "#10b981"
+                              : item.status === "overdue"
+                              ? "#f64d52"
+                              : item.status === "pending"
+                              ? "#f59e0b"
+                              : "#6b7280";
+                            
+                            return (
+                              <div key={index} className="space-y-1.5">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: color }}></div>
+                                    <span className="text-xs font-medium text-gray-700">
+                                      {item.label}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs font-semibold text-gray-900">{item.count}</span>
+                                    <span className="text-xs text-gray-500">({percentage.toFixed(0)}%)</span>
+                                  </div>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                  <span className="text-xs font-semibold text-gray-900">{item.count}</span>
-                                  <span className="text-xs text-gray-500">({percentage.toFixed(0)}%)</span>
+                                <div className="w-full bg-gray-100 rounded-full h-2">
+                                  <div
+                                    className="h-2 rounded-full transition-all"
+                                    style={{ width: `${percentage}%`, backgroundColor: color }}
+                                  ></div>
                                 </div>
                               </div>
-                              <div className="w-full bg-gray-100 rounded-full h-2">
-                                <div
-                                  className="h-2 rounded-full transition-all"
-                                  style={{ width: `${percentage}%`, backgroundColor: color }}
-                                ></div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <div className="text-center text-gray-500 text-xs py-8">
-                        No data
-                      </div>
-                    )}
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="text-center text-gray-500 text-xs py-8">
+                          No data
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Monthly Interest Income - Simplified Chart */}
@@ -2552,51 +2582,70 @@ export default function LoanDashboard({
                           <div className="text-center py-8 text-gray-500">
                             Loading...
                           </div>
-                        ) : (analytics || mockAnalytics)?.statusBreakdown &&
-                          (analytics || mockAnalytics).statusBreakdown.length > 0 ? (
+                        ) : (() => {
+                          const statusData = (analytics || mockAnalytics)?.statusBreakdown || [];
+                          // Ensure we have data for all four statuses: Active, Completed, Overdue, Pending
+                          const statusMap: Record<string, number> = {
+                            active: 0,
+                            completed: 0,
+                            overdue: 0,
+                            pending: 0,
+                          };
+                          
+                          statusData.forEach((item: any) => {
+                            const status = item.status?.toLowerCase();
+                            if (statusMap.hasOwnProperty(status)) {
+                              statusMap[status] = item.count || 0;
+                            }
+                          });
+                          
+                          const chartData = [
+                            { name: "Active", value: statusMap.active, status: "active" },
+                            { name: "Completed", value: statusMap.completed, status: "completed" },
+                            { name: "Overdue", value: statusMap.overdue, status: "overdue" },
+                            { name: "Pending", value: statusMap.pending, status: "pending" },
+                          ].filter(item => item.value > 0);
+                          
+                          return chartData.length > 0 ? (
                           <ResponsiveContainer width="100%" height={300}>
                             <PieChart>
                               <Pie
-                                data={(analytics || mockAnalytics).statusBreakdown.map(
-                                  (item: any) => ({
-                                    name: item.status.charAt(0).toUpperCase() + item.status.slice(1),
-                                    value: item.count,
-                                  })
-                                )}
+                                  data={chartData}
                                 cx="50%"
                                 cy="50%"
                                 labelLine={false}
-                                label={({ name, value }) => `${name}: ${value}`}
-                                outerRadius={80}
+                                  label={({ name, value }) => `${name}: ${value}`}
+                                  outerRadius={100}
                                 fill="#8884d8"
                                 dataKey="value"
                               >
-                                {(analytics || mockAnalytics).statusBreakdown.map(
-                                  (item: any, index: number) => (
+                                  {chartData.map((item, index) => (
                                     <Cell
                                       key={`cell-${index}`}
                                       fill={
                                         item.status === "active"
                                           ? "#083232"
-                                          : item.status === "overdue"
-                                          ? "#f64d52"
                                           : item.status === "completed"
                                           ? "#10b981"
+                                          : item.status === "overdue"
+                                          ? "#f64d52"
+                                          : item.status === "pending"
+                                          ? "#f59e0b"
                                           : "#6b7280"
                                       }
                                     />
-                                  )
-                                )}
+                                  ))}
                               </Pie>
                               <Tooltip />
-                              <Legend verticalAlign="bottom" height={36} />
+                                <Legend verticalAlign="bottom" height={36} />
                             </PieChart>
                           </ResponsiveContainer>
                         ) : (
                           <div className="text-center py-8 text-gray-500">
                             No data available
                           </div>
-                        )}
+                          );
+                        })()}
                       </CardContent>
                     </Card>
 

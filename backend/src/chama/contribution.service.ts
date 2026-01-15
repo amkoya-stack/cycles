@@ -767,6 +767,13 @@ export class ContributionService {
 
     const cycleData = cycle.rows[0];
 
+    // Get chama name
+    const chamaResult = await this.db.query(
+      'SELECT name FROM chamas WHERE id = $1',
+      [cycleData.chama_id],
+    );
+    const chamaName = chamaResult.rows[0]?.name || 'Cycle';
+
     // Get next payout recipient
     const recipientId = await this.db.query(
       'SELECT get_next_payout_recipient($1) as recipient_id',
@@ -789,7 +796,7 @@ export class ContributionService {
       cycleData.chama_id,
       memberData.rows[0].user_id,
       cycleData.collected_amount,
-      `Payout for cycle ${cycleData.cycle_number}`,
+      `Payout for ${chamaName}`,
       payoutExternalRef,
     );
 

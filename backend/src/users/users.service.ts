@@ -2,7 +2,11 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 /* eslint-disable @typescript-eslint/no-unsafe-return */
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { LedgerService } from '../ledger/ledger.service';
 import { DatabaseService } from '../database/database.service';
 import { mapQueryRow } from '../database/mapper.util';
@@ -149,6 +153,112 @@ export class UsersService {
       console.error('Error in getUserProfile:', error);
       throw error;
     }
+  }
+
+  /**
+   * Delete user account
+   * Requirements:
+   * - User has left all cycles they were members of
+   * - User is not owed money (contributions)
+   * - User does not owe money (contributions)
+   */
+  async deleteUserAccount(userId: string): Promise<{ message: string }> {
+    // 1. Check if user is still a member of any active cycles
+    const activeMemberships = await this.db.query(
+      `SELECT COUNT(*) as count FROM chama_members 
+       WHERE user_id = $1 AND status = 'active'`,
+      [userId],
+    );
+
+    if (parseInt(activeMemberships.rows[0].count) > 0) {
+      throw new BadRequestException(
+        'Cannot delete account. You are still a member of one or more cycles. Please leave all cycles first.',
+      );
+    }
+
+    // 2. Check if user is owed money (positive balance in any chama account)
+    const owedBalance = await this.db.query(
+      `SELECT COALESCE(SUM(balance), 0) as total_owed
+       FROM accounts 
+       WHERE user_id = $1 AND chama_id IS NOT NULL AND balance > 0 AND status = 'active'`,
+      [userId],
+    );
+
+    const totalOwed = parseFloat(owedBalance.rows[0]?.total_owed || '0') || 0;
+
+    if (totalOwed > 0) {
+      throw new BadRequestException(
+        `Cannot delete account. You are owed Kes ${totalOwed.toFixed(2)} from cycle(s). Please request payouts first.`,
+      );
+    }
+
+    // 3. Check if user owes money (pending contributions or overdue contributions)
+    // Check active cycles where user hasn't contributed
+    const owedContributions = await this.db.query(
+      `SELECT COALESCE(SUM(cc.expected_amount), 0) as total_owed
+       FROM contribution_cycles cc
+       JOIN chama_members cm ON cm.chama_id = cc.chama_id
+       LEFT JOIN contributions c ON c.cycle_id = cc.id AND c.user_id = $1 AND c.status = 'completed'
+       WHERE cm.user_id = $1
+         AND cc.status = 'active'
+         AND c.id IS NULL`,
+      [userId],
+    );
+
+    const totalOwedContributions =
+      parseFloat(owedContributions.rows[0]?.total_owed || '0') || 0;
+
+    if (totalOwedContributions > 0) {
+      throw new BadRequestException(
+        `Cannot delete account. You owe Kes ${totalOwedContributions.toFixed(2)} in pending contributions. Please complete all contributions first.`,
+      );
+    }
+
+    // 4. Check for outstanding loans as borrower
+    const outstandingLoans = await this.db.query(
+      `SELECT COUNT(*) as count FROM loans 
+       WHERE borrower_id = $1 AND status IN ('active', 'pending_disbursement')`,
+      [userId],
+    );
+
+    if (parseInt(outstandingLoans.rows[0].count) > 0) {
+      throw new BadRequestException(
+        'Cannot delete account with outstanding loans. Please pay off or settle all loans first.',
+      );
+    }
+
+    // All checks passed - delete user account
+    await this.db.transactionAsSystem(async (client) => {
+      // Soft delete: anonymize user data instead of hard delete
+      await client.query(
+        `UPDATE users 
+         SET email = NULL, 
+             phone = NULL, 
+             full_name = 'Deleted User', 
+             profile_photo_url = NULL,
+             bio = NULL,
+             id_number = NULL,
+             updated_at = NOW()
+         WHERE id = $1`,
+        [userId],
+      );
+
+      // Mark all memberships as left
+      await client.query(
+        `UPDATE chama_members 
+         SET status = 'left', left_at = NOW() 
+         WHERE user_id = $1 AND status != 'left'`,
+        [userId],
+      );
+
+      // Revoke all auth tokens
+      await client.query(
+        `UPDATE auth_tokens SET revoked = TRUE WHERE user_id = $1`,
+        [userId],
+      );
+    });
+
+    return { message: 'User account deleted successfully' };
   }
 }
 

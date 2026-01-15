@@ -115,12 +115,16 @@ interface CommunityPostsProps {
   chamaId: string;
   userId: string;
   onMeetingCreated?: () => void;
+  onPollDeleted?: () => void;
+  onPollVoted?: () => void;
 }
 
 export function CommunityPosts({
   chamaId,
   userId,
   onMeetingCreated,
+  onPollDeleted,
+  onPollVoted,
 }: CommunityPostsProps) {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
@@ -782,6 +786,35 @@ export function CommunityPosts({
     try {
       const token = getAuthToken();
 
+      // Check if user has already voted - prevent duplicate votes
+      const currentPost = posts.find((p) => p.proposalId === proposalId);
+      if (currentPost?.userVote) {
+        // User has already voted, don't allow another vote
+        return;
+      }
+
+      // Notify parent to refresh polls sidebar IMMEDIATELY (before optimistic update)
+      onPollVoted?.();
+
+      // Optimistically update the post to show user has voted (prevent double voting)
+      setPosts((prev) =>
+        prev.map((post) => {
+          if (post.proposalId === proposalId) {
+            // Immediately mark as voted to prevent duplicate votes
+            return {
+              ...post,
+              userVote: option,
+              // Optimistically increment vote count
+              votes: {
+                ...post.votes,
+                [option]: ((post.votes?.[option] as number) || 0) + 1,
+              },
+            };
+          }
+          return post;
+        })
+      );
+
       // For governance proposals, map Approve/Reject to for/against
       // For regular polls, always vote "for" with the option in reason
       let voteValue = "for";
@@ -813,10 +846,26 @@ export function CommunityPosts({
       );
 
       if (!response.ok) {
+        // Revert optimistic update on error
+        setPosts((prev) =>
+          prev.map((post) => {
+            if (post.proposalId === proposalId) {
+              return {
+                ...post,
+                userVote: undefined,
+                votes: {
+                  ...post.votes,
+                  [option]: Math.max(((post.votes?.[option] as number) || 0) - 1, 0),
+                },
+              };
+            }
+            return post;
+          })
+        );
         throw new Error("Failed to vote on poll");
       }
 
-      // Refresh posts to show updated vote counts
+      // Refresh posts to show updated vote counts from server
       await fetchPosts();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to vote on poll");
@@ -848,6 +897,9 @@ export function CommunityPosts({
 
       // Remove poll from feed
       setPosts((prev) => prev.filter((post) => post.proposalId !== proposalId));
+      
+      // Notify parent to refresh polls sidebar
+      onPollDeleted?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete poll");
     }
@@ -1316,19 +1368,19 @@ export function CommunityPosts({
                       <p>Create a poll</p>
                     </TooltipContent>
                   </Tooltip>
-                  <DialogContent className="max-w-sm">
+                  <DialogContent className="max-w-sm w-[calc(100vw-2rem)] sm:w-full">
                     <DialogHeader>
-                      <DialogTitle className="text-base">
+                      <DialogTitle className="text-sm sm:text-base">
                         Create Poll
                       </DialogTitle>
                     </DialogHeader>
-                    <div className="space-y-3 py-2">
+                    <div className="space-y-2.5 sm:space-y-3 py-2 sm:py-3">
                       <div>
                         <label className="text-xs font-medium text-gray-500">
                           Poll Type
                         </label>
                         <Select value={pollType} onValueChange={setPollType}>
-                          <SelectTrigger className="mt-1 h-9">
+                          <SelectTrigger className="mt-1 h-9 sm:h-10 text-sm sm:text-base">
                             <SelectValue placeholder="Select poll type" />
                           </SelectTrigger>
                           <SelectContent>
@@ -1348,19 +1400,19 @@ export function CommunityPosts({
                           value={pollQuestion}
                           onChange={(e) => setPollQuestion(e.target.value)}
                           placeholder="What would you like to ask?"
-                          className="mt-1 h-9 text-sm"
+                          className="mt-1 h-9 sm:h-10 text-sm sm:text-base"
                         />
                       </div>
                       <div>
                         <label className="text-xs font-medium text-gray-500">
                           Duration
                         </label>
-                        <div className="flex gap-1.5 mt-1">
+                        <div className="flex flex-wrap gap-1.5 mt-1">
                           {pollDurationPresets.map((preset) => (
                             <button
                               key={preset.hours}
                               onClick={() => setPollDeadlineHours(preset.hours)}
-                              className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-all ${
+                              className={`px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-lg border transition-all touch-manipulation ${
                                 pollDeadlineHours === preset.hours
                                   ? "border-[#083232] bg-[#083232] text-white"
                                   : "border-gray-200 hover:border-gray-300"
@@ -1384,14 +1436,14 @@ export function CommunityPosts({
                                   updatePollOption(index, e.target.value)
                                 }
                                 placeholder={`Option ${index + 1}`}
-                                className="h-8 text-sm"
+                                className="h-9 sm:h-10 text-sm sm:text-base flex-1"
                               />
                               {pollOptions.length > 2 && (
                                 <Button
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => removePollOption(index)}
-                                  className="h-8 w-8 p-0 text-gray-400 hover:text-red-500 cursor-pointer"
+                                  className="h-9 sm:h-10 w-9 sm:w-10 p-0 text-gray-400 hover:text-red-500 cursor-pointer touch-manipulation flex-shrink-0"
                                 >
                                   ✕
                                 </Button>
@@ -1401,7 +1453,7 @@ export function CommunityPosts({
                         </div>
                         {pollOptions.length < 5 && (
                           <button
-                            className="text-xs text-[#083232] hover:underline mt-1.5"
+                            className="text-xs text-[#083232] hover:underline mt-1.5 touch-manipulation"
                             onClick={addPollOption}
                           >
                             + Add option
@@ -1409,7 +1461,7 @@ export function CommunityPosts({
                         )}
                       </div>
                       <Button
-                        className="w-full bg-[#083232] hover:bg-[#2e856e] h-9 text-sm"
+                        className="w-full bg-[#083232] hover:bg-[#2e856e] h-9 sm:h-10 text-sm sm:text-base touch-manipulation"
                         onClick={handleCreatePoll}
                         disabled={
                           !pollQuestion.trim() || !pollType || creatingPoll
@@ -1417,7 +1469,7 @@ export function CommunityPosts({
                       >
                         {creatingPoll ? (
                           <>
-                            <Loader2 className="w-3 h-3 mr-2 animate-spin" />
+                            <Loader2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 mr-2 animate-spin" />
                             Creating...
                           </>
                         ) : (
@@ -1449,9 +1501,9 @@ export function CommunityPosts({
                       <p>Create a meeting</p>
                     </TooltipContent>
                   </Tooltip>
-                  <DialogContent className="max-w-md">
+                  <DialogContent className="max-w-md w-[calc(100vw-2rem)] sm:w-full">
                     <DialogHeader>
-                      <DialogTitle className="text-lg font-semibold">
+                      <DialogTitle className="text-base sm:text-lg font-semibold">
                         Create a Meeting
                       </DialogTitle>
                       <button
@@ -1463,12 +1515,12 @@ export function CommunityPosts({
                         <span className="sr-only">Close</span>
                       </button>
                     </DialogHeader>
-                    <div className="space-y-6 py-4">
+                    <div className="space-y-4 sm:space-y-6 py-3 sm:py-4">
                       {/* Meeting Title */}
-                      <div className="space-y-2">
+                      <div className="space-y-1.5 sm:space-y-2">
                         <Label
                           htmlFor="meeting-title"
-                          className="text-sm font-semibold"
+                          className="text-xs sm:text-sm font-semibold"
                         >
                           Meeting Title
                         </Label>
@@ -1477,15 +1529,15 @@ export function CommunityPosts({
                           placeholder="Enter meeting title..."
                           value={meetingTitle}
                           onChange={(e) => setMeetingTitle(e.target.value)}
-                          className="w-full"
+                          className="w-full text-sm sm:text-base h-9 sm:h-10"
                         />
                       </div>
 
                       {/* Who Can Speak */}
-                      <div className="space-y-3">
+                      <div className="space-y-2 sm:space-y-3">
                         <Label
                           htmlFor="who-can-speak"
-                          className="text-sm font-semibold"
+                          className="text-xs sm:text-sm font-semibold"
                         >
                           Who can speak?
                         </Label>
@@ -1493,7 +1545,7 @@ export function CommunityPosts({
                           value={whoCanSpeak}
                           onValueChange={setWhoCanSpeak}
                         >
-                          <SelectTrigger id="who-can-speak">
+                          <SelectTrigger id="who-can-speak" className="h-9 sm:h-10 text-sm sm:text-base">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -1508,8 +1560,8 @@ export function CommunityPosts({
                       </div>
 
                       {/* Record Meeting Toggle */}
-                      <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <Label className="text-sm font-semibold">
+                      <div className="flex items-center justify-between p-2.5 sm:p-3 bg-gray-50 rounded-lg">
+                        <Label className="text-xs sm:text-sm font-semibold">
                           Record Meeting
                         </Label>
                         <Switch
@@ -1519,7 +1571,7 @@ export function CommunityPosts({
                       </div>
 
                       {/* Action Buttons */}
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 flex-col sm:flex-row">
                         <Button
                           onClick={async () => {
                             if (!meetingTitle.trim() || creatingMeeting) return;
@@ -1627,7 +1679,7 @@ export function CommunityPosts({
                             setScheduledTime("");
                           }}
                           disabled={!meetingTitle.trim() || creatingMeeting}
-                          className="flex-1 bg-[#083232] hover:bg-[#2e856e] text-white font-semibold h-10"
+                          className="flex-1 bg-[#083232] hover:bg-[#2e856e] text-white font-semibold h-9 sm:h-10 text-sm sm:text-base w-full sm:w-auto"
                         >
                           {creatingMeeting
                             ? "Creating..."
@@ -1640,7 +1692,7 @@ export function CommunityPosts({
                             setShowMeetingDialog(false);
                             setShowSchedulerDialog(true);
                           }}
-                          className="h-10 w-10 border-[#083232] hover:bg-gray-50"
+                          className="h-9 sm:h-10 w-full sm:w-10 border-[#083232] hover:bg-gray-50"
                         >
                           <Clock className="h-4 w-4 text-[#083232]" />
                         </Button>
@@ -1654,7 +1706,7 @@ export function CommunityPosts({
                   open={showSchedulerDialog}
                   onOpenChange={setShowSchedulerDialog}
                 >
-                  <DialogContent className="max-w-[440px] [&>[data-slot='dialog-close']]:hidden">
+                  <DialogContent className="max-w-[440px] w-[calc(100vw-2rem)] sm:w-full [&>[data-slot='dialog-close']]:hidden">
                     <DialogHeader>
                       <button
                         onClick={() => {
@@ -1668,17 +1720,17 @@ export function CommunityPosts({
                       >
                         <ArrowLeft className="h-4 w-4" />
                       </button>
-                      <DialogTitle className="text-base font-semibold text-center">
+                      <DialogTitle className="text-sm sm:text-base font-semibold text-center">
                         Schedule Meeting
                       </DialogTitle>
                     </DialogHeader>
-                    <div className="space-y-4 py-3">
+                    <div className="space-y-3 sm:space-y-4 py-2 sm:py-3">
                       {/* Date Section */}
-                      <div className="space-y-3">
-                        <Label className="text-sm font-semibold">Date</Label>
-                        <div className="flex gap-1">
+                      <div className="space-y-2 sm:space-y-3">
+                        <Label className="text-xs sm:text-sm font-semibold">Date</Label>
+                        <div className="flex flex-col sm:flex-row gap-2 sm:gap-1">
                           {/* Month */}
-                          <div className="w-[211.2px]">
+                          <div className="flex-1 sm:w-[211.2px]">
                             <Label
                               htmlFor="month"
                               className="text-xs text-gray-600"
@@ -1691,7 +1743,7 @@ export function CommunityPosts({
                             >
                               <SelectTrigger
                                 id="month"
-                                className="mt-1 w-full h-[57.6px]"
+                                className="mt-1 w-full h-10 sm:h-[57.6px] text-sm sm:text-base"
                               >
                                 <SelectValue />
                               </SelectTrigger>
@@ -1719,7 +1771,7 @@ export function CommunityPosts({
                           </div>
 
                           {/* Day */}
-                          <div className="w-[92.4px]">
+                          <div className="flex-1 sm:w-[92.4px]">
                             <Label
                               htmlFor="day"
                               className="text-xs text-gray-600"
@@ -1732,7 +1784,7 @@ export function CommunityPosts({
                             >
                               <SelectTrigger
                                 id="day"
-                                className="mt-1 w-full h-[57.6px]"
+                                className="mt-1 w-full h-10 sm:h-[57.6px] text-sm sm:text-base"
                               >
                                 <SelectValue />
                               </SelectTrigger>
@@ -1749,7 +1801,7 @@ export function CommunityPosts({
                           </div>
 
                           {/* Year */}
-                          <div className="w-[112.4px]">
+                          <div className="flex-1 sm:w-[112.4px]">
                             <Label
                               htmlFor="year"
                               className="text-xs text-gray-600"
@@ -1762,7 +1814,7 @@ export function CommunityPosts({
                             >
                               <SelectTrigger
                                 id="year"
-                                className="mt-1 w-full h-[57.6px]"
+                                className="mt-1 w-full h-10 sm:h-[57.6px] text-sm sm:text-base"
                               >
                                 <SelectValue />
                               </SelectTrigger>
@@ -1785,11 +1837,11 @@ export function CommunityPosts({
                       </div>
 
                       {/* Time Section */}
-                      <div className="space-y-3">
-                        <Label className="text-sm font-semibold">Time</Label>
-                        <div className="flex gap-1">
+                      <div className="space-y-2 sm:space-y-3">
+                        <Label className="text-xs sm:text-sm font-semibold">Time</Label>
+                        <div className="flex flex-col sm:flex-row gap-2 sm:gap-1">
                           {/* Hour */}
-                          <div className="w-[160px]">
+                          <div className="flex-1 sm:w-[160px]">
                             <Label
                               htmlFor="hour"
                               className="text-xs text-gray-600"
@@ -1802,7 +1854,7 @@ export function CommunityPosts({
                             >
                               <SelectTrigger
                                 id="hour"
-                                className="mt-1 w-full h-[57.6px]"
+                                className="mt-1 w-full h-10 sm:h-[57.6px] text-sm sm:text-base"
                               >
                                 <SelectValue />
                               </SelectTrigger>
@@ -1819,7 +1871,7 @@ export function CommunityPosts({
                           </div>
 
                           {/* Minute */}
-                          <div className="w-[160px]">
+                          <div className="flex-1 sm:w-[160px]">
                             <Label
                               htmlFor="minute"
                               className="text-xs text-gray-600"
@@ -1832,7 +1884,7 @@ export function CommunityPosts({
                             >
                               <SelectTrigger
                                 id="minute"
-                                className="mt-1 w-full h-[57.6px]"
+                                className="mt-1 w-full h-10 sm:h-[57.6px] text-sm sm:text-base"
                               >
                                 <SelectValue />
                               </SelectTrigger>
@@ -1929,7 +1981,7 @@ export function CommunityPosts({
                           }
                         }}
                         disabled={!meetingTitle.trim()}
-                        className="w-full bg-[#083232] hover:bg-[#2e856e] text-white font-semibold h-10"
+                        className="w-full bg-[#083232] hover:bg-[#2e856e] text-white font-semibold h-9 sm:h-10 text-sm sm:text-base"
                       >
                         Confirm Schedule
                       </Button>
@@ -1971,6 +2023,7 @@ export function CommunityPosts({
             <div
               key={post.id}
               className="p-2.5 md:p-3"
+              data-poll-id={post.isPoll && post.proposalId ? `poll-${post.proposalId}` : undefined}
             >
               {post.pinned && (
                 <div className="flex items-center gap-1 text-xs text-[#083232] font-medium mb-1.5 md:mb-2">
@@ -2100,14 +2153,16 @@ export function CommunityPosts({
                                           name={`poll-${post.id}`}
                                           value={option}
                                           disabled={pollExpired}
-                                          onChange={() =>
-                                            post.proposalId &&
+                                          onChange={(e) => {
+                                            e.target.checked = true; // Keep it checked immediately
+                                            if (post.proposalId) {
                                             handleVotePoll(
                                               post.proposalId,
                                               option,
                                               post.isGovernanceProposal || false
-                                            )
+                                              );
                                           }
+                                          }}
                                           className="w-4 h-4 md:w-3.5 md:h-3.5 text-[#083232] border-gray-300 focus:ring-[#083232] cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
                                         />
                                       ) : isSelected ? (

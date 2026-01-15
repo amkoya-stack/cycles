@@ -1,4 +1,12 @@
-import { Controller, Get, Param, UseGuards, UseInterceptors } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Delete,
+  Param,
+  Req,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { UsersService } from './users.service';
 import { Detokenize } from '../common/decorators/tokenize.decorator';
@@ -15,5 +23,14 @@ export class UsersController {
   async getUserProfile(@Param('id') userId: string) {
     console.log('UsersController.getUserProfile - Received userId:', userId);
     return this.usersService.getUserProfile(userId);
+  }
+
+  /**
+   * Delete user account
+   * DELETE /api/users/account
+   */
+  @Delete('account')
+  async deleteAccount(@Req() req: any) {
+    return this.usersService.deleteUserAccount(req.user.id);
   }
 }

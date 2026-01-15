@@ -138,11 +138,20 @@ export class ChamaController {
   /**
    * Close chama
    * DELETE /api/chama/:id
+   * Body: { memberApprovalIds?: string[] } - Array of user IDs who approved deletion
    */
   @Delete(':id')
   @UseGuards(JwtAuthGuard)
-  async deleteChama(@Req() req: any, @Param('id') chamaId: string) {
-    return this.chamaService.deleteChama(req.user.id, chamaId);
+  async deleteChama(
+    @Req() req: any,
+    @Param('id') chamaId: string,
+    @Body() body?: { memberApprovalIds?: string[] },
+  ) {
+    return this.chamaService.deleteChama(
+      req.user.id,
+      chamaId,
+      body?.memberApprovalIds,
+    );
   }
 
   /**

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, MessageCircle, Wallet, TrendingUp } from "lucide-react";
+import { Home, Wallet, TrendingUp, DollarSign } from "lucide-react";
 
 export function MobileBottomNav() {
   const pathname = usePathname();
@@ -15,10 +15,10 @@ export function MobileBottomNav() {
       active: pathname === "/",
     },
     {
-      href: "/chat",
-      label: "Chat",
-      icon: MessageCircle,
-      active: pathname?.startsWith("/chat"),
+      href: "/loans",
+      label: "Loans",
+      icon: DollarSign,
+      active: pathname?.startsWith("/loans"),
     },
     {
       href: "/wallet",
@@ -70,4 +70,3 @@ export function MobileBottomNav() {
     </nav>
   );
 }
-

@@ -138,6 +138,9 @@ export default function CreateChamaPage() {
           graceDays: parseInt(formData.latePenaltyDays) || 3,
         },
         rules: formData.rules,
+        // Hide Loans, Financials, and Investments tabs by default
+        // Admin can make them visible later in settings once the cycle starts investing and giving out loans
+        hiddenTabs: ["loans", "financials", "investments"],
       };
 
       if (formData.contributionType === "fixed") {
