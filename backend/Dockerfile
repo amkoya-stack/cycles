@@ -22,5 +22,13 @@ RUN ls -la dist/src/ || echo "dist/src not found"
 # Expose port
 EXPOSE 3001
 
-# Run the application with correct path
-CMD ["node", "dist/src/main.js"]
+# Create startup script that runs migrations then starts app
+RUN echo '#!/bin/sh' > /app/start.sh && \
+    echo 'echo "Running migrations..."' >> /app/start.sh && \
+    echo 'node dist/src/scripts/run-migrations.js up || echo "Migrations failed or already applied"' >> /app/start.sh && \
+    echo 'echo "Starting application..."' >> /app/start.sh && \
+    echo 'node --require ./dist/src/polyfills.js dist/src/main.js' >> /app/start.sh && \
+    chmod +x /app/start.sh
+
+# Run the application with migrations
+CMD ["/bin/sh", "/app/start.sh"]
