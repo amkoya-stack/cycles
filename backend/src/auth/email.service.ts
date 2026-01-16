@@ -143,20 +143,32 @@ export class EmailService {
 
     // Use Resend if available
     if (this.useResend && this.resend) {
+      const fromEmail =
+        this.config.get<string>('FROM_EMAIL') ||
+        'Cycle Platform <onboarding@resend.dev>';
+      this.logger.log(
+        `📧 Attempting to send via Resend from: ${fromEmail} to: ${data.email}`,
+      );
+
       try {
-        const { error } = await this.resend.emails.send({
-          from: 'Cycle Platform <onboarding@resend.dev>',
+        const { data: emailData, error } = await this.resend.emails.send({
+          from: fromEmail,
           to: data.email,
           subject,
           html,
         });
 
         if (error) {
-          this.logger.error(`Resend error for ${data.email}:`, error);
+          this.logger.error(
+            `❌ Resend error for ${data.email}:`,
+            JSON.stringify(error),
+          );
           return false;
         }
 
-        this.logger.log(`📧 Email sent via Resend to ${data.email}`);
+        this.logger.log(
+          `✅ Email sent via Resend to ${data.email}. ID: ${emailData?.id}`,
+        );
         return true;
       } catch (error) {
         this.logger.error(
