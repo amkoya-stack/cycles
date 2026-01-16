@@ -1,5 +1,7 @@
-/** @type {import('next').NextConfig} */
-const nextConfig = {
+import type { NextConfig } from "next";
+
+// Force rebuild: v3
+const nextConfig: NextConfig = {
   reactStrictMode: true,
   typescript: {
     // !! WARN !!
