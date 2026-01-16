@@ -31,6 +31,7 @@ import { GdprModule } from './gdpr/gdpr.module';
 import { AuditModule } from './audit/audit.module';
 import { ComplianceModule } from './compliance/compliance.module';
 import { MonitoringModule } from './monitoring/monitoring.module';
+import { HealthModule } from './health/health.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { RateLimitGuard } from './common/guards/rate-limit.guard';
@@ -54,6 +55,7 @@ import { MonitoringInterceptor } from './monitoring/monitoring.interceptor';
     DatabaseModule,
     RedisModule,
     CommonModule,
+    HealthModule,
     UsersModule,
     AuthModule,
     WalletModule,
