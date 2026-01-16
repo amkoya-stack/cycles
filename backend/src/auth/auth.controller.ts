@@ -30,7 +30,13 @@ export class AuthController {
 
   @Post('register')
   async register(@Body() dto: RegisterDto) {
-    return this.authService.register(dto);
+    console.log('🔵 Registration request received:', {
+      email: dto.email,
+      phone: dto.phone,
+    });
+    const result = await this.authService.register(dto);
+    console.log('🟢 Registration completed:', result);
+    return result;
   }
 
   @Post('login')

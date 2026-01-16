@@ -46,15 +46,23 @@ export class AuthService {
 
     // Check if user exists and their verification status
     // Tokenize inputs to match what's stored in DB
-    const tokenizedEmailForCheck = email ? await this.tokenization.tokenize(email, 'email') : null;
-    const tokenizedPhoneForCheck = phone ? await this.tokenization.tokenize(phone, 'phone') : null;
-    
+    const tokenizedEmailForCheck = email
+      ? await this.tokenization.tokenize(email, 'email')
+      : null;
+    const tokenizedPhoneForCheck = phone
+      ? await this.tokenization.tokenize(phone, 'phone')
+      : null;
+
     const existing = await this.db.query(
       'SELECT id, email_verified, phone_verified FROM users WHERE (email = $1 AND $1 IS NOT NULL) OR (phone = $2 AND $2 IS NOT NULL) LIMIT 1',
       [tokenizedEmailForCheck, tokenizedPhoneForCheck],
     );
 
-    const existingUser = mapQueryRow<{ id: string; emailVerified: boolean; phoneVerified: boolean }>(existing, {
+    const existingUser = mapQueryRow<{
+      id: string;
+      emailVerified: boolean;
+      phoneVerified: boolean;
+    }>(existing, {
       booleanFields: ['emailVerified', 'phoneVerified'],
     });
     if (existingUser) {
@@ -100,9 +108,13 @@ export class AuthService {
     const passwordHash = await hashPassword(password);
     const fullName =
       `${dto.firstName || ''} ${dto.lastName || ''}`.trim() || null;
-    const tokenizedEmail = email ? await this.tokenization.tokenize(email, 'email') : null;
-    const tokenizedPhone = phone ? await this.tokenization.tokenize(phone, 'phone') : null;
-    
+    const tokenizedEmail = email
+      ? await this.tokenization.tokenize(email, 'email')
+      : null;
+    const tokenizedPhone = phone
+      ? await this.tokenization.tokenize(phone, 'phone')
+      : null;
+
     const res = await this.db.query<{ id: string }>(
       'INSERT INTO users (email, phone, password_hash, full_name) VALUES ($1, $2, $3, $4) RETURNING id',
       [tokenizedEmail, tokenizedPhone, passwordHash, fullName],
@@ -124,12 +136,17 @@ export class AuthService {
 
     // Auto-generate OTP for phone/email verification if provided
     if (phone) {
+      console.log(`📱 Generating phone OTP for user ${userId}`);
       const code = Math.floor(100000 + Math.random() * 900000).toString();
       await this.createOtp(userId, 'sms', phone, 'phone_verification', code);
     }
     if (email) {
+      console.log(
+        `📧 Generating email OTP for user ${userId}, email: ${email}`,
+      );
       const code = Math.floor(100000 + Math.random() * 900000).toString();
       await this.createOtp(userId, 'email', email, 'email_verification', code);
+      console.log(`📧 OTP created, code: ${code}`);
     }
     return { userId };
   }
@@ -139,12 +156,16 @@ export class AuthService {
       throw new BadRequestException('email or phone is required');
     }
     const { email, phone, password } = dto;
-    
+
     // Find tokens for the input values (using reverse lookup)
     // This allows us to match against tokenized values in the database
-    const tokenizedEmail = email ? await this.tokenization.findToken(email, 'email') : null;
-    const tokenizedPhone = phone ? await this.tokenization.findToken(phone, 'phone') : null;
-    
+    const tokenizedEmail = email
+      ? await this.tokenization.findToken(email, 'email')
+      : null;
+    const tokenizedPhone = phone
+      ? await this.tokenization.findToken(phone, 'phone')
+      : null;
+
     // If tokens not found in Redis, try to find user by detokenizing all records
     // This handles cases where Redis cache expired or user was created before reverse lookup was added
     let res;
@@ -155,7 +176,7 @@ export class AuthService {
         [tokenizedEmail, tokenizedPhone],
       );
     }
-    
+
     // Fallback: if not found with tokens, try brute-force detokenization
     // This is less efficient but handles edge cases
     if (!res || res.rowCount === 0) {
@@ -163,18 +184,25 @@ export class AuthService {
       const allUsers = await this.db.query(
         'SELECT id, password_hash, two_factor_enabled, phone, email FROM users WHERE email IS NOT NULL OR phone IS NOT NULL',
       );
-      
+
       for (const user of allUsers.rows) {
-        const detokenizedEmail = user.email ? await this.tokenization.detokenize(user.email, 'email') : null;
-        const detokenizedPhone = user.phone ? await this.tokenization.detokenize(user.phone, 'phone') : null;
-        
-        if ((email && detokenizedEmail === email) || (phone && detokenizedPhone === phone)) {
+        const detokenizedEmail = user.email
+          ? await this.tokenization.detokenize(user.email, 'email')
+          : null;
+        const detokenizedPhone = user.phone
+          ? await this.tokenization.detokenize(user.phone, 'phone')
+          : null;
+
+        if (
+          (email && detokenizedEmail === email) ||
+          (phone && detokenizedPhone === phone)
+        ) {
           res = { rowCount: 1, rows: [user] };
           break;
         }
       }
     }
-    
+
     if (!res || res.rowCount === 0) {
       throw new UnauthorizedException('Invalid credentials');
     }
@@ -193,11 +221,15 @@ export class AuthService {
     if (!ok) {
       throw new UnauthorizedException('Invalid credentials');
     }
-    
+
     // Detokenize sensitive fields for 2FA
-    const detokenizedPhone = user.phone ? await this.tokenization.detokenize(user.phone, 'phone') : null;
-    const detokenizedEmail = user.email ? await this.tokenization.detokenize(user.email, 'email') : null;
-    
+    const detokenizedPhone = user.phone
+      ? await this.tokenization.detokenize(user.phone, 'phone')
+      : null;
+    const detokenizedEmail = user.email
+      ? await this.tokenization.detokenize(user.email, 'email')
+      : null;
+
     // Check if 2FA is enabled
     // mapQueryRow converts two_factor_enabled to twoFactorEnabled (camelCase)
     if (user.twoFactorEnabled) {
@@ -255,12 +287,12 @@ export class AuthService {
     }
     const otpId = row.id as string;
     const userId = row.user_id as string | null;
-    
+
     // Tokenize destination to match what's stored in DB
     const tokenizedDestination = dto.destination.includes('@')
       ? await this.tokenization.tokenize(dto.destination, 'email')
       : await this.tokenization.tokenize(dto.destination, 'phone');
-    
+
     await this.db.transaction(async (client) => {
       await client.query('UPDATE otp_codes SET used_at = now() WHERE id = $1', [
         otpId,
@@ -303,16 +335,22 @@ export class AuthService {
       'SELECT phone, email FROM users WHERE id = $1',
       [userId],
     );
-    const dest = mapQueryRow<{ phone: string | null; email: string | null }>(destRes);
+    const dest = mapQueryRow<{ phone: string | null; email: string | null }>(
+      destRes,
+    );
     if (!dest) {
       throw new NotFoundException('User not found');
     }
     const { phone: tokenizedPhone, email: tokenizedEmail } = dest;
-    
+
     // Detokenize for sending OTP
-    const phone = tokenizedPhone ? await this.tokenization.detokenize(tokenizedPhone, 'phone') : null;
-    const email = tokenizedEmail ? await this.tokenization.detokenize(tokenizedEmail, 'email') : null;
-    
+    const phone = tokenizedPhone
+      ? await this.tokenization.detokenize(tokenizedPhone, 'phone')
+      : null;
+    const email = tokenizedEmail
+      ? await this.tokenization.detokenize(tokenizedEmail, 'email')
+      : null;
+
     const destination = phone || email;
     if (destination) {
       const channel = phone ? 'sms' : 'email';
@@ -364,7 +402,7 @@ export class AuthService {
       purpose: 'password_reset',
     });
     const passwordHash = await hashPassword(dto.newPassword);
-    
+
     // Tokenize destination to match what's stored in DB
     const tokenizedEmail = dto.destination.includes('@')
       ? await this.tokenization.tokenize(dto.destination, 'email')
@@ -372,7 +410,7 @@ export class AuthService {
     const tokenizedPhone = !dto.destination.includes('@')
       ? await this.tokenization.tokenize(dto.destination, 'phone')
       : null;
-    
+
     await this.db.query(
       'UPDATE users SET password_hash = $1 WHERE (email = $2) OR (phone = $3)',
       [passwordHash, tokenizedEmail, tokenizedPhone],
@@ -464,7 +502,7 @@ export class AuthService {
     if (!user) {
       throw new NotFoundException('User not found');
     }
-    
+
     // Detokenize sensitive fields
     if (user.email) {
       user.email = await this.tokenization.detokenize(user.email, 'email');
@@ -473,7 +511,10 @@ export class AuthService {
       user.phone = await this.tokenization.detokenize(user.phone, 'phone');
     }
     if (user.id_number) {
-      user.id_number = await this.tokenization.detokenize(user.id_number, 'id_number');
+      user.id_number = await this.tokenization.detokenize(
+        user.id_number,
+        'id_number',
+      );
     }
 
     return user;
@@ -493,7 +534,7 @@ export class AuthService {
     if (!user) {
       throw new NotFoundException('User not found');
     }
-    
+
     // Detokenize sensitive fields
     if (user.email) {
       user.email = await this.tokenization.detokenize(user.email, 'email');
