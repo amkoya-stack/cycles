@@ -2,14 +2,16 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { useState, useEffect } from "react";
+export const dynamic = "force-dynamic";
+
+import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export default function VerifyPage() {
+function VerifyForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [otp, setOtp] = useState("");
@@ -104,18 +106,21 @@ export default function VerifyPage() {
     }
 
     try {
-      const response = await fetch("http://localhost:3001/api/v1/auth/otp/send", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          channel: type === "email" ? "email" : "sms",
-          destination: destination,
-          purpose:
-            type === "email" ? "email_verification" : "phone_verification",
-        }),
-      });
+      const response = await fetch(
+        "http://localhost:3001/api/v1/auth/otp/send",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            channel: type === "email" ? "email" : "sms",
+            destination: destination,
+            purpose:
+              type === "email" ? "email_verification" : "phone_verification",
+          }),
+        }
+      );
 
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
@@ -244,5 +249,19 @@ export default function VerifyPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function VerifyPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center">
+          Loading...
+        </div>
+      }
+    >
+      <VerifyForm />
+    </Suspense>
   );
 }
