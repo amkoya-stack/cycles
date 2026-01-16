@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
-
+// Force rebuild - using Railway backend
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
