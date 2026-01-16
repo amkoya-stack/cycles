@@ -10,6 +10,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { apiUrl } from "@/lib/api-config";
 
 function VerifyForm() {
   const router = useRouter();
@@ -31,8 +32,8 @@ function VerifyForm() {
     try {
       const endpoint =
         type === "email"
-          ? "http://localhost:3001/api/v1/auth/verify-email"
-          : "http://localhost:3001/api/v1/auth/verify-phone";
+          ? apiUrl("auth/verify-email")
+          : apiUrl("auth/verify-phone");
 
       const response = await fetch(endpoint, {
         method: "POST",
@@ -106,21 +107,18 @@ function VerifyForm() {
     }
 
     try {
-      const response = await fetch(
-        "http://localhost:3001/api/v1/auth/otp/send",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            channel: type === "email" ? "email" : "sms",
-            destination: destination,
-            purpose:
-              type === "email" ? "email_verification" : "phone_verification",
-          }),
-        }
-      );
+      const response = await fetch(apiUrl("auth/otp/send"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          channel: type === "email" ? "email" : "sms",
+          destination: destination,
+          purpose:
+            type === "email" ? "email_verification" : "phone_verification",
+        }),
+      });
 
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
