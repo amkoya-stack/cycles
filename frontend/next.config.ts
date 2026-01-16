@@ -13,10 +13,12 @@ const nextConfig = {
     ignoreDuringBuilds: true,
   },
   env: {
-    // Explicitly expose the API URL - fallback to Railway if not set
+    // Explicitly expose the API URL
+    // In production, always use Railway. In development, use localhost
     NEXT_PUBLIC_API_URL:
-      process.env.NEXT_PUBLIC_API_URL ||
-      "https://cycles-production.up.railway.app",
+      process.env.NODE_ENV === "production"
+        ? "https://cycles-production.up.railway.app"
+        : process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001",
   },
   images: {
     remotePatterns: [
