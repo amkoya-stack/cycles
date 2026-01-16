@@ -74,8 +74,10 @@ export default function RegisterPage() {
 
     try {
       const normalizedPhone = normalizePhoneNumber(formData.phone);
+      const registerUrl = apiUrl("auth/register");
+      console.log("🔵 Registering at URL:", registerUrl);
 
-      const response = await fetch(apiUrl("auth/register"), {
+      const response = await fetch(registerUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
