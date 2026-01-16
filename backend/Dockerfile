@@ -22,5 +22,6 @@ RUN ls -la dist/src/ || echo "dist/src not found"
 # Railway will auto-detect the port from the running application
 # No EXPOSE needed - app uses process.env.PORT which Railway provides
 
-# Run the application (start:prod runs migrations first)
-CMD ["npm", "run", "start:prod"]
+# Run the application directly without migrations to avoid startup timeout
+# Cache bust: v2
+CMD ["node", "dist/src/main.js"]
