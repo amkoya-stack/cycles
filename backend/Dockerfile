@@ -19,8 +19,8 @@ RUN rm -rf dist/ && npm run build
 # Debug: Check dist folder
 RUN ls -la dist/src/ || echo "dist/src not found"
 
-# Expose port
-EXPOSE 3001
+# Railway will auto-detect the port from the running application
+# No EXPOSE needed - app uses process.env.PORT which Railway provides
 
 # Run the application (start:prod runs migrations first)
 CMD ["npm", "run", "start:prod"]
