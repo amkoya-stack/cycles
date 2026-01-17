@@ -32,11 +32,19 @@ export class EmailService {
   private async initializeTransporter() {
     if (this.initialized) return;
 
-    const resendApiKey = this.config.get<string>('RESEND_API_KEY');
-    const nodeEnv = this.config.get<string>('NODE_ENV');
+    // Try ConfigService first, then fall back to process.env
+    const resendApiKey =
+      this.config.get<string>('RESEND_API_KEY') || process.env.RESEND_API_KEY;
+    const nodeEnv = this.config.get<string>('NODE_ENV') || process.env.NODE_ENV;
 
     this.logger.log(
-      `🔍 Checking for RESEND_API_KEY: ${resendApiKey ? 'FOUND (length: ' + resendApiKey.length + ')' : 'NOT FOUND'}`,
+      `🔍 Checking for RESEND_API_KEY via ConfigService: ${this.config.get<string>('RESEND_API_KEY') ? 'FOUND' : 'NOT FOUND'}`,
+    );
+    this.logger.log(
+      `🔍 Checking for RESEND_API_KEY via process.env: ${process.env.RESEND_API_KEY ? 'FOUND (length: ' + process.env.RESEND_API_KEY.length + ')' : 'NOT FOUND'}`,
+    );
+    this.logger.log(
+      `🔍 Final RESEND_API_KEY: ${resendApiKey ? 'FOUND (length: ' + resendApiKey.length + ')' : 'NOT FOUND'}`,
     );
     this.logger.log(`🔍 NODE_ENV: ${nodeEnv}`);
 
