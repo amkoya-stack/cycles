@@ -35,6 +35,11 @@ export class EmailService {
     const resendApiKey = this.config.get<string>('RESEND_API_KEY');
     const nodeEnv = this.config.get<string>('NODE_ENV');
 
+    this.logger.log(
+      `🔍 Checking for RESEND_API_KEY: ${resendApiKey ? 'FOUND (length: ' + resendApiKey.length + ')' : 'NOT FOUND'}`,
+    );
+    this.logger.log(`🔍 NODE_ENV: ${nodeEnv}`);
+
     // Use Resend if API key is available (preferred for production)
     if (resendApiKey) {
       this.resend = new Resend(resendApiKey);
