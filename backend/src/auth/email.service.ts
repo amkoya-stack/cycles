@@ -38,6 +38,14 @@ export class EmailService {
       this.config.get<string>('RESEND_API_KEY') || process.env.RESEND_API_KEY;
     const nodeEnv = this.config.get<string>('NODE_ENV') || process.env.NODE_ENV;
 
+    // Debug: List all environment variables that contain 'RESEND'
+    const resendEnvVars = Object.keys(process.env).filter((key) =>
+      key.includes('RESEND'),
+    );
+    this.logger.log(
+      `🔍 Environment variables containing 'RESEND': ${JSON.stringify(resendEnvVars)}`,
+    );
+
     this.logger.log(
       `🔍 Checking for RESEND_API_KEY via ConfigService: ${this.config.get<string>('RESEND_API_KEY') ? 'FOUND' : 'NOT FOUND'}`,
     );
