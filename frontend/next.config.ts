@@ -1,6 +1,6 @@
 import type { NextConfig } from "next";
 
-// Force rebuild: v3
+// Force rebuild: v4
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   typescript: {
