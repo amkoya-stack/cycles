@@ -1,6 +1,9 @@
 # Use Node.js 18 LTS
 FROM node:18-alpine
 
+# Cache bust: force rebuild v5
+ARG CACHEBUST=1
+
 # Set working directory
 WORKDIR /app
 
