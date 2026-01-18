@@ -4,6 +4,9 @@ FROM node:18-alpine
 # Cache bust: force rebuild v5
 ARG CACHEBUST=1
 
+# Workaround: Set RESEND_API_KEY directly since Railway isn't injecting it
+ENV RESEND_API_KEY=re_VUCTXdno_F52iV32QqxzrHojnJXySfcv1
+
 # Set working directory
 WORKDIR /app
 
