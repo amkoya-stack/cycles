@@ -77,10 +77,14 @@ export default function RegisterPage() {
       const registerUrl = apiUrl("auth/register");
       console.log("🔵 Registering at URL:", registerUrl);
 
+      // Generate idempotency key based on email to prevent duplicate registrations
+      const idempotencyKey = `register-${formData.email}-${Date.now()}`;
+
       const response = await fetch(registerUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "idempotency-key": idempotencyKey,
         },
         body: JSON.stringify({
           email: formData.email,
@@ -99,20 +103,20 @@ export default function RegisterPage() {
           const errorMsg = data.message || "";
           if (errorMsg.includes("already exists")) {
             throw new Error(
-              "An account with this email or phone already exists."
+              "An account with this email or phone already exists.",
             );
           } else if (errorMsg.includes("email or phone")) {
             throw new Error("Please provide either an email or phone number.");
           } else {
             throw new Error(
-              "Invalid information. Please check your details and try again."
+              "Invalid information. Please check your details and try again.",
             );
           }
         } else if (response.status >= 500) {
           throw new Error("Server error. Please try again later.");
         } else {
           throw new Error(
-            data.message || "Registration failed. Please try again."
+            data.message || "Registration failed. Please try again.",
           );
         }
       }
@@ -122,8 +126,8 @@ export default function RegisterPage() {
       const destination = formData.email || normalizedPhone;
       router.push(
         `/auth/verify?type=${verificationType}&destination=${encodeURIComponent(
-          destination
-        )}`
+          destination,
+        )}`,
       );
     } catch (err: any) {
       setError(err.message || "An error occurred. Please try again.");
