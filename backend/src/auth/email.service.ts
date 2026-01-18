@@ -28,6 +28,7 @@ export class EmailService {
   /**
    * Initialize email transporter (lazy initialization)
    * Uses Resend in production, Ethereal Mail for development
+   * Force rebuild: v4
    */
   private async initializeTransporter() {
     if (this.initialized) return;
