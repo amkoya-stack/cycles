@@ -47,7 +47,7 @@ export function CourseDetail({
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [showFullscreen, setShowFullscreen] = useState(false);
-  
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
 
@@ -55,28 +55,30 @@ export function CourseDetail({
   // Later, this will come from the backend as structured lessons
   useEffect(() => {
     if (course.description) {
-      const lines = course.description.split('\n').filter(l => l.trim());
+      const lines = course.description.split("\n").filter((l) => l.trim());
       const parsedLessons: Lesson[] = [];
       let currentLesson: Lesson | null = null;
       let lessonContent: string[] = [];
 
       lines.forEach((line, index) => {
         // Check if line looks like a lesson title (starts with number, #, **, or uppercase heading)
-        const isLessonTitle = line.match(/^\d+\.|^#{1,3}\s+|^\*\*|^[A-Z][A-Z\s]+:$/);
-        
+        const isLessonTitle = line.match(
+          /^\d+\.|^#{1,3}\s+|^\*\*|^[A-Z][A-Z\s]+:$/
+        );
+
         if (isLessonTitle) {
           // Save previous lesson if exists
           if (currentLesson) {
-            currentLesson.content = lessonContent.join('\n').trim();
+            currentLesson.content = lessonContent.join("\n").trim();
             parsedLessons.push(currentLesson);
           }
-          
+
           // Create new lesson
-          const title = line.replace(/^\d+\.\s*|^#+\s*|\*\*|:$/g, '').trim();
+          const title = line.replace(/^\d+\.\s*|^#+\s*|\*\*|:$/g, "").trim();
           currentLesson = {
             id: `lesson-${parsedLessons.length}`,
             title: title || `Lesson ${parsedLessons.length + 1}`,
-            content: '',
+            content: "",
             order: parsedLessons.length,
             completed: false,
           };
@@ -87,9 +89,9 @@ export function CourseDetail({
         } else {
           // First line that's not a title - create first lesson
           currentLesson = {
-            id: 'lesson-0',
-            title: 'Course Content',
-            content: '',
+            id: "lesson-0",
+            title: "Course Content",
+            content: "",
             order: 0,
             completed: false,
           };
@@ -99,8 +101,9 @@ export function CourseDetail({
 
       // Save last lesson
       if (currentLesson) {
-        currentLesson.content = lessonContent.join('\n').trim() || course.description;
-        parsedLessons.push(currentLesson);
+        const lesson = currentLesson as Lesson;
+        lesson.content = lessonContent.join("\n").trim() || course.description;
+        parsedLessons.push(lesson);
       }
 
       if (parsedLessons.length > 0) {
@@ -109,8 +112,8 @@ export function CourseDetail({
         // Fallback: single lesson
         setLessons([
           {
-            id: 'lesson-0',
-            title: 'Course Content',
+            id: "lesson-0",
+            title: "Course Content",
             content: course.description,
             order: 0,
             completed: false,
@@ -121,9 +124,9 @@ export function CourseDetail({
       // Default: single lesson
       setLessons([
         {
-          id: 'lesson-0',
-          title: 'Course Content',
-          content: 'No content available yet.',
+          id: "lesson-0",
+          title: "Course Content",
+          content: "No content available yet.",
           order: 0,
           completed: false,
         },
@@ -133,7 +136,7 @@ export function CourseDetail({
 
   // Update progress when lesson is completed
   const markLessonComplete = async (lessonId: string) => {
-    const lessonIndex = lessons.findIndex(l => l.id === lessonId);
+    const lessonIndex = lessons.findIndex((l) => l.id === lessonId);
     if (lessonIndex === -1) return;
 
     const updatedLessons = lessons.map((lesson, index) => {
@@ -145,8 +148,10 @@ export function CourseDetail({
     setLessons(updatedLessons);
 
     // Calculate progress
-    const completedCount = updatedLessons.filter(l => l.completed).length;
-    const newProgress = Math.round((completedCount / updatedLessons.length) * 100);
+    const completedCount = updatedLessons.filter((l) => l.completed).length;
+    const newProgress = Math.round(
+      (completedCount / updatedLessons.length) * 100
+    );
     setProgress(newProgress);
 
     // Update progress in backend (TODO: implement API endpoint)
@@ -163,20 +168,20 @@ export function CourseDetail({
         // });
       }
     } catch (error) {
-      console.error('Failed to update progress:', error);
+      console.error("Failed to update progress:", error);
     }
   };
 
   // Media player controls
   const togglePlayPause = () => {
-    if (course.fileType === 'video' && videoRef.current) {
+    if (course.fileType === "video" && videoRef.current) {
       if (isPlaying) {
         videoRef.current.pause();
       } else {
         videoRef.current.play();
       }
       setIsPlaying(!isPlaying);
-    } else if (course.fileType === 'audio' && audioRef.current) {
+    } else if (course.fileType === "audio" && audioRef.current) {
       if (isPlaying) {
         audioRef.current.pause();
       } else {
@@ -187,10 +192,10 @@ export function CourseDetail({
   };
 
   const toggleMute = () => {
-    if (course.fileType === 'video' && videoRef.current) {
+    if (course.fileType === "video" && videoRef.current) {
       videoRef.current.muted = !isMuted;
       setIsMuted(!isMuted);
-    } else if (course.fileType === 'audio' && audioRef.current) {
+    } else if (course.fileType === "audio" && audioRef.current) {
       audioRef.current.muted = !isMuted;
       setIsMuted(!isMuted);
     }
@@ -198,26 +203,32 @@ export function CourseDetail({
 
   const getThumbnailUrl = (url?: string) => {
     if (!url) return undefined;
-    if (url.startsWith('http://') || url.startsWith('https://')) {
-      if (url.includes('localhost:4000')) {
-        return url.replace('localhost:4000', API_BASE_URL.replace(/^https?:\/\//, ''));
+    if (url.startsWith("http://") || url.startsWith("https://")) {
+      if (url.includes("localhost:4000")) {
+        return url.replace(
+          "localhost:4000",
+          API_BASE_URL.replace(/^https?:\/\//, "")
+        );
       }
       return url;
     }
-    if (url.startsWith('/uploads')) {
+    if (url.startsWith("/uploads")) {
       return `${API_BASE_URL}${url}`;
     }
     return `${API_BASE_URL}/uploads/${url}`;
   };
 
   const getFileUrl = (url: string) => {
-    if (url.startsWith('http://') || url.startsWith('https://')) {
-      if (url.includes('localhost:4000')) {
-        return url.replace('localhost:4000', API_BASE_URL.replace(/^https?:\/\//, ''));
+    if (url.startsWith("http://") || url.startsWith("https://")) {
+      if (url.includes("localhost:4000")) {
+        return url.replace(
+          "localhost:4000",
+          API_BASE_URL.replace(/^https?:\/\//, "")
+        );
       }
       return url;
     }
-    if (url.startsWith('/uploads')) {
+    if (url.startsWith("/uploads")) {
       return `${API_BASE_URL}${url}`;
     }
     return `${API_BASE_URL}/uploads/${url}`;
@@ -230,17 +241,18 @@ export function CourseDetail({
         {/* Mobile: Title on top, then progress below */}
         <div className="md:hidden flex flex-col gap-2">
           <div className="flex items-center gap-2">
-            <button
-              onClick={onClose}
-              className="p-1 text-gray-600"
-            >
+            <button onClick={onClose} className="p-1 text-gray-600">
               <X className="w-4 h-4" />
             </button>
-            <h1 className="text-sm font-semibold text-gray-900 flex-1 line-clamp-2">{course.title}</h1>
+            <h1 className="text-sm font-semibold text-gray-900 flex-1 line-clamp-2">
+              {course.title}
+            </h1>
           </div>
           <div className="flex items-center gap-2 px-9">
             <span className="text-xs text-gray-600">Progress:</span>
-            <span className="text-xs font-medium text-gray-900">{progress}%</span>
+            <span className="text-xs font-medium text-gray-900">
+              {progress}%
+            </span>
             <div className="flex-1 max-w-[200px]">
               <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
                 <div
@@ -254,18 +266,21 @@ export function CourseDetail({
         {/* Desktop: Title and progress side by side */}
         <div className="hidden md:flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <button
-              onClick={onClose}
-              className="p-1 text-gray-600"
-            >
+            <button onClick={onClose} className="p-1 text-gray-600">
               <X className="w-5 h-5" />
             </button>
-            <h1 className="text-base md:text-lg font-semibold text-gray-900">{course.title}</h1>
+            <h1 className="text-base md:text-lg font-semibold text-gray-900">
+              {course.title}
+            </h1>
           </div>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
-              <span className="text-xs md:text-sm text-gray-600">Progress:</span>
-              <span className="text-xs md:text-sm font-medium text-gray-900">{progress}%</span>
+              <span className="text-xs md:text-sm text-gray-600">
+                Progress:
+              </span>
+              <span className="text-xs md:text-sm font-medium text-gray-900">
+                {progress}%
+              </span>
             </div>
             <div className="w-32">
               <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
@@ -283,7 +298,9 @@ export function CourseDetail({
         {/* Left Sidebar - Navigation */}
         <div className="hidden md:block w-64 border-r border-gray-200 bg-gray-50 overflow-y-auto flex-shrink-0">
           <div className="p-4">
-            <h2 className="text-sm font-semibold text-gray-700 mb-3">Lessons</h2>
+            <h2 className="text-sm font-semibold text-gray-700 mb-3">
+              Lessons
+            </h2>
             <div className="space-y-1">
               {lessons.map((lesson, index) => (
                 <button
@@ -291,8 +308,8 @@ export function CourseDetail({
                   onClick={() => setActiveLesson(index)}
                   className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
                     activeLesson === index
-                      ? 'bg-[#083232] text-white'
-                      : 'text-gray-700 hover:bg-gray-200'
+                      ? "bg-[#083232] text-white"
+                      : "text-gray-700 hover:bg-gray-200"
                   }`}
                 >
                   <div className="flex items-center gap-2">
@@ -318,13 +335,13 @@ export function CourseDetail({
             >
               {lessons.map((lesson, index) => (
                 <option key={lesson.id} value={index}>
-                  {lesson.completed && '✓ '}
+                  {lesson.completed && "✓ "}
                   {lesson.title}
                 </option>
               ))}
             </select>
           </div>
-          {course.fileType === 'video' && (
+          {course.fileType === "video" && (
             <div className="relative bg-black">
               <video
                 ref={videoRef}
@@ -349,20 +366,14 @@ export function CourseDetail({
               {/* Video Controls Overlay */}
               <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-2 md:p-4">
                 <div className="flex items-center gap-1 md:gap-2">
-                  <button
-                    onClick={togglePlayPause}
-                    className="p-1 text-white"
-                  >
+                  <button onClick={togglePlayPause} className="p-1 text-white">
                     {isPlaying ? (
                       <Pause className="w-4 h-4 md:w-5 md:h-5" />
                     ) : (
                       <Play className="w-4 h-4 md:w-5 md:h-5" />
                     )}
                   </button>
-                  <button
-                    onClick={toggleMute}
-                    className="p-1 text-white"
-                  >
+                  <button onClick={toggleMute} className="p-1 text-white">
                     {isMuted ? (
                       <VolumeX className="w-4 h-4 md:w-5 md:h-5" />
                     ) : (
@@ -371,16 +382,16 @@ export function CourseDetail({
                   </button>
                   <div className="flex-1 text-white text-[10px] md:text-xs">
                     {Math.floor(currentTime / 60)}:
-                    {String(Math.floor(currentTime % 60)).padStart(2, '0')} /{' '}
+                    {String(Math.floor(currentTime % 60)).padStart(2, "0")} /{" "}
                     {Math.floor(duration / 60)}:
-                    {String(Math.floor(duration % 60)).padStart(2, '0')}
+                    {String(Math.floor(duration % 60)).padStart(2, "0")}
                   </div>
                 </div>
               </div>
             </div>
           )}
 
-          {course.fileType === 'audio' && (
+          {course.fileType === "audio" && (
             <div className="bg-gray-900 p-4 md:p-8">
               <div className="max-w-2xl mx-auto">
                 {course.thumbnailUrl && (
@@ -391,20 +402,14 @@ export function CourseDetail({
                   />
                 )}
                 <div className="flex items-center justify-center gap-2 md:gap-4">
-                  <button
-                    onClick={togglePlayPause}
-                    className="p-1 text-white"
-                  >
+                  <button onClick={togglePlayPause} className="p-1 text-white">
                     {isPlaying ? (
                       <Pause className="w-6 h-6 md:w-8 md:h-8" />
                     ) : (
                       <Play className="w-6 h-6 md:w-8 md:h-8" />
                     )}
                   </button>
-                  <button
-                    onClick={toggleMute}
-                    className="p-1 text-white"
-                  >
+                  <button onClick={toggleMute} className="p-1 text-white">
                     {isMuted ? (
                       <VolumeX className="w-4 h-4 md:w-5 md:h-5" />
                     ) : (
@@ -413,9 +418,9 @@ export function CourseDetail({
                   </button>
                   <div className="flex-1 text-white text-[10px] md:text-sm">
                     {Math.floor(currentTime / 60)}:
-                    {String(Math.floor(currentTime % 60)).padStart(2, '0')} /{' '}
+                    {String(Math.floor(currentTime % 60)).padStart(2, "0")} /{" "}
                     {Math.floor(duration / 60)}:
-                    {String(Math.floor(duration % 60)).padStart(2, '0')}
+                    {String(Math.floor(duration % 60)).padStart(2, "0")}
                   </div>
                 </div>
                 <audio
@@ -440,7 +445,7 @@ export function CourseDetail({
             </div>
           )}
 
-          {course.fileType === 'pdf' && course.thumbnailUrl && (
+          {course.fileType === "pdf" && course.thumbnailUrl && (
             <div className="w-full h-64 overflow-hidden">
               <img
                 src={getThumbnailUrl(course.thumbnailUrl)}
@@ -454,57 +459,86 @@ export function CourseDetail({
           <div className="max-w-4xl mx-auto p-4 md:p-6 lg:p-8">
             <div className="mb-6">
               <h2 className="text-sm md:text-xl lg:text-2xl font-semibold md:font-bold text-gray-900 mb-2 md:mb-4">
-                {lessons[activeLesson]?.title || 'Course Content'}
+                {lessons[activeLesson]?.title || "Course Content"}
               </h2>
               {lessons[activeLesson]?.content && (
                 <div className="text-gray-700 space-y-2 md:space-y-4">
-                  {lessons[activeLesson].content.split('\n').map((line, index) => {
-                    const trimmedLine = line.trim();
-                    if (!trimmedLine) return <br key={index} />;
-                    
-                    // Format headings
-                    if (trimmedLine.match(/^#{1,3}\s+/)) {
-                      const level = trimmedLine.match(/^#+/)?.[0].length || 1;
-                      const text = trimmedLine.replace(/^#+\s+/, '');
-                      const HeadingTag = `h${Math.min(level + 2, 6)}` as keyof JSX.IntrinsicElements;
+                  {lessons[activeLesson].content
+                    .split("\n")
+                    .map((line, index) => {
+                      const trimmedLine = line.trim();
+                      if (!trimmedLine) return <br key={index} />;
+
+                      // Format headings
+                      if (trimmedLine.match(/^#{1,3}\s+/)) {
+                        const level = trimmedLine.match(/^#+/)?.[0].length || 1;
+                        const text = trimmedLine.replace(/^#+\s+/, "");
+                        const headingLevel = Math.min(level + 2, 6);
+                        const className = `font-semibold md:font-bold text-gray-900 mt-4 md:mt-6 mb-2 md:mb-3 ${
+                          level === 1
+                            ? "text-base md:text-xl"
+                            : level === 2
+                            ? "text-sm md:text-lg"
+                            : "text-xs md:text-base"
+                        }`;
+
+                        // Use React.createElement to avoid JSX namespace issues
+                        const HeadingComponent = `h${headingLevel}` as
+                          | "h1"
+                          | "h2"
+                          | "h3"
+                          | "h4"
+                          | "h5"
+                          | "h6";
+                        return (
+                          <HeadingComponent key={index} className={className}>
+                            {text}
+                          </HeadingComponent>
+                        );
+                      }
+
+                      // Format bullet points
+                      if (trimmedLine.match(/^[-*•]\s+/)) {
+                        const text = trimmedLine.replace(/^[-*•]\s+/, "");
+                        return (
+                          <div
+                            key={index}
+                            className="flex items-start gap-1.5 md:gap-2 ml-3 md:ml-4"
+                          >
+                            <span className="text-gray-500 mt-0.5 md:mt-1 text-xs">
+                              •
+                            </span>
+                            <span className="text-xs md:text-sm">{text}</span>
+                          </div>
+                        );
+                      }
+
+                      // Format numbered lists
+                      if (trimmedLine.match(/^\d+\.\s+/)) {
+                        const text = trimmedLine.replace(/^\d+\.\s+/, "");
+                        return (
+                          <div
+                            key={index}
+                            className="flex items-start gap-1.5 md:gap-2 ml-3 md:ml-4"
+                          >
+                            <span className="text-gray-500 mt-0.5 md:mt-1 font-medium text-xs">
+                              {trimmedLine.match(/^\d+\./)?.[0]}
+                            </span>
+                            <span className="text-xs md:text-sm">{text}</span>
+                          </div>
+                        );
+                      }
+
+                      // Regular paragraph
                       return (
-                        <HeadingTag key={index} className={`font-semibold md:font-bold text-gray-900 mt-4 md:mt-6 mb-2 md:mb-3 ${
-                          level === 1 ? 'text-base md:text-xl' : level === 2 ? 'text-sm md:text-lg' : 'text-xs md:text-base'
-                        }`}>
-                          {text}
-                        </HeadingTag>
+                        <p
+                          key={index}
+                          className="leading-relaxed text-xs md:text-sm"
+                        >
+                          {trimmedLine}
+                        </p>
                       );
-                    }
-                    
-                    // Format bullet points
-                    if (trimmedLine.match(/^[-*•]\s+/)) {
-                      const text = trimmedLine.replace(/^[-*•]\s+/, '');
-                      return (
-                        <div key={index} className="flex items-start gap-1.5 md:gap-2 ml-3 md:ml-4">
-                          <span className="text-gray-500 mt-0.5 md:mt-1 text-xs">•</span>
-                          <span className="text-xs md:text-sm">{text}</span>
-                        </div>
-                      );
-                    }
-                    
-                    // Format numbered lists
-                    if (trimmedLine.match(/^\d+\.\s+/)) {
-                      const text = trimmedLine.replace(/^\d+\.\s+/, '');
-                      return (
-                        <div key={index} className="flex items-start gap-1.5 md:gap-2 ml-3 md:ml-4">
-                          <span className="text-gray-500 mt-0.5 md:mt-1 font-medium text-xs">{trimmedLine.match(/^\d+\./)?.[0]}</span>
-                          <span className="text-xs md:text-sm">{text}</span>
-                        </div>
-                      );
-                    }
-                    
-                    // Regular paragraph
-                    return (
-                      <p key={index} className="leading-relaxed text-xs md:text-sm">
-                        {trimmedLine}
-                      </p>
-                    );
-                  })}
+                    })}
                 </div>
               )}
               {!lessons[activeLesson]?.content && course.description && (
@@ -514,7 +548,7 @@ export function CourseDetail({
               )}
             </div>
 
-            {course.fileType === 'pdf' && (
+            {course.fileType === "pdf" && (
               <div className="mt-4 md:mt-6 border border-gray-200 rounded-lg overflow-hidden">
                 <iframe
                   src={getFileUrl(course.fileUrl)}
@@ -542,4 +576,3 @@ export function CourseDetail({
     </div>
   );
 }
-

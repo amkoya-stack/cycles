@@ -1,12 +1,11 @@
 # Use Node.js 18 LTS
 FROM node:18-alpine
 
-# Cache bust: force rebuild v5
+# Cache bust: force rebuild v6
 ARG CACHEBUST=1
 
-# Accept RESEND_API_KEY as build arg (Railway can pass this)
-ARG RESEND_API_KEY
-ENV RESEND_API_KEY=${RESEND_API_KEY}
+# Hardcode RESEND_API_KEY since Railway doesn't inject env vars properly
+ENV RESEND_API_KEY=re_VUCTXdno_F52iV32QqxzrHojnJXySfcv1
 
 # Set working directory
 WORKDIR /app

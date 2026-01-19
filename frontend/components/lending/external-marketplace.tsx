@@ -93,7 +93,8 @@ export function ExternalMarketplace() {
   const { toast } = useToast();
   const [listings, setListings] = useState<ExternalLoanListing[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedListing, setSelectedListing] = useState<ExternalLoanListing | null>(null);
+  const [selectedListing, setSelectedListing] =
+    useState<ExternalLoanListing | null>(null);
   const [showApplicationDialog, setShowApplicationDialog] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
 
@@ -123,7 +124,9 @@ export function ExternalMarketplace() {
   const fetchStats = async () => {
     try {
       setLoadingStats(true);
-      const response = await fetch(apiUrl('lending/external/marketplace/stats'));
+      const response = await fetch(
+        apiUrl("lending/external/marketplace/stats"),
+      );
 
       if (response.ok) {
         const data = await response.json();
@@ -168,7 +171,16 @@ export function ExternalMarketplace() {
   useEffect(() => {
     fetchListings();
     fetchStats();
-  }, [currentPage, minAmount, maxAmount, minInterestRate, maxInterestRate, minPeriodMonths, maxPeriodMonths, allowsRiskSharing]);
+  }, [
+    currentPage,
+    minAmount,
+    maxAmount,
+    minInterestRate,
+    maxInterestRate,
+    minPeriodMonths,
+    maxPeriodMonths,
+    allowsRiskSharing,
+  ]);
 
   const fetchListings = async () => {
     try {
@@ -188,13 +200,13 @@ export function ExternalMarketplace() {
       params.append("offset", ((currentPage - 1) * itemsPerPage).toString());
 
       const response = await fetch(
-        apiUrl(`lending/external/marketplace?${params.toString()}`)
+        apiUrl(`lending/external/marketplace?${params.toString()}`),
       );
 
       if (response.ok) {
         const data = await response.json();
         const fetchedListings = data.data || [];
-        
+
         // Fetch reputation for each chama
         const listingsWithReputation = await Promise.all(
           fetchedListings.map(async (listing: ExternalLoanListing) => {
@@ -206,31 +218,36 @@ export function ExternalMarketplace() {
                   headers: accessToken
                     ? { Authorization: `Bearer ${accessToken}` }
                     : {},
-                }
+                },
               );
 
               if (repResponse.ok) {
                 const repData = await repResponse.json();
                 return {
                   ...listing,
-                  chamaReputation: repData.reputation || repData.data?.reputation,
+                  chamaReputation:
+                    repData.reputation || repData.data?.reputation,
                 };
               }
             } catch (err) {
               console.error(
                 `Failed to fetch reputation for chama ${listing.chamaId}:`,
-                err
+                err,
               );
             }
             return listing;
-          })
+          }),
         );
 
         setListings(listingsWithReputation);
       } else {
-        const errorData = await response.json().catch(() => ({ message: "Unknown error" }));
+        const errorData = await response
+          .json()
+          .catch(() => ({ message: "Unknown error" }));
         console.error("Failed to fetch listings:", response.status, errorData);
-        throw new Error(errorData.message || `Failed to fetch listings: ${response.status}`);
+        throw new Error(
+          errorData.message || `Failed to fetch listings: ${response.status}`,
+        );
       }
     } catch (error) {
       console.error("Failed to fetch listings:", error);
@@ -326,12 +343,12 @@ export function ExternalMarketplace() {
 
   // Calculate pagination
   const totalFiltered = sortedListings.length;
-  
+
   // Paginate sorted listings
   const paginatedListings = useMemo(() => {
     return sortedListings.slice(
       (currentPage - 1) * itemsPerPage,
-      currentPage * itemsPerPage
+      currentPage * itemsPerPage,
     );
   }, [sortedListings, currentPage, itemsPerPage]);
 
@@ -350,16 +367,8 @@ export function ExternalMarketplace() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Loan Marketplace</h1>
-        <p className="text-sm text-gray-600 mt-1">
-          Browse and apply for loans from trusted chamas
-        </p>
-      </div>
-
       {/* Stats Section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Card className="bg-white border-gray-200">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
@@ -386,7 +395,9 @@ export function ExternalMarketplace() {
                   Active Members
                 </p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {loadingStats ? "..." : formatLargeNumber(stats.activeMembers)}
+                  {loadingStats
+                    ? "..."
+                    : formatLargeNumber(stats.activeMembers)}
                 </p>
               </div>
               <div className="bg-gray-100 rounded-full p-2">
@@ -449,8 +460,8 @@ export function ExternalMarketplace() {
             </div>
 
             {/* Filter Toggle and Sort */}
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <Button
                   variant="outline"
                   size="sm"
@@ -467,9 +478,11 @@ export function ExternalMarketplace() {
                 )}
               </div>
               <div className="flex items-center gap-2">
-                <Label className="text-sm text-gray-600">Sort by:</Label>
+                <Label className="text-sm text-gray-600 whitespace-nowrap hidden md:inline">
+                  Sort by:
+                </Label>
                 <Select value={sortBy} onValueChange={setSortBy}>
-                  <SelectTrigger className="w-48">
+                  <SelectTrigger className="w-32 md:w-48">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -632,9 +645,12 @@ export function ExternalMarketplace() {
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {paginatedListings.map((listing) => {
-              const reputationScore = listing.chamaReputation?.totalScore || listing.totalApplications;
-              const averageInterestRate = listing.averageInterestRate || 
-                ((listing.interestRateMin + listing.interestRateMax) / 2);
+              const reputationScore =
+                listing.chamaReputation?.totalScore ||
+                listing.totalApplications;
+              const averageInterestRate =
+                listing.averageInterestRate ||
+                (listing.interestRateMin + listing.interestRateMax) / 2;
 
               return (
                 <Card
@@ -680,11 +696,14 @@ export function ExternalMarketplace() {
                                     showLabel={false}
                                   />
                                   <span className="text-gray-500">
-                                    Reputation {reputationScore > 0 ? reputationScore : ''}
+                                    Reputation{" "}
+                                    {reputationScore > 0 ? reputationScore : ""}
                                   </span>
                                 </>
                               ) : (
-                                <span className="text-gray-500">Reputation</span>
+                                <span className="text-gray-500">
+                                  Reputation
+                                </span>
                               )}
                             </div>
                           </div>
@@ -695,7 +714,9 @@ export function ExternalMarketplace() {
                     {/* Key Details */}
                     <div className="space-y-3 mb-4">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs text-gray-600">Interest Rate</span>
+                        <span className="text-xs text-gray-600">
+                          Interest Rate
+                        </span>
                         <span className="text-sm font-semibold text-gray-900">
                           {averageInterestRate.toFixed(1)}%
                         </span>
@@ -707,7 +728,9 @@ export function ExternalMarketplace() {
                         </span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="text-xs text-gray-600">Processing Time</span>
+                        <span className="text-xs text-gray-600">
+                          Processing Time
+                        </span>
                         <span className="text-sm font-semibold text-gray-900">
                           2-3 days
                         </span>
@@ -810,4 +833,3 @@ export function ExternalMarketplace() {
     </div>
   );
 }
-

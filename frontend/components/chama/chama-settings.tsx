@@ -287,6 +287,10 @@ export function ChamaSettings({
                         currentSettings?.late_penalty_enabled || false,
                       allow_partial_contributions:
                         currentSettings?.allow_partial_contributions || false,
+                      members_can_invite:
+                        currentSettings?.members_can_invite || false,
+                      invite_requires_approval:
+                        currentSettings?.invite_requires_approval || false,
                     });
                     setHasChanges(false);
                   }}

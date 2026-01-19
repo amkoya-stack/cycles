@@ -18,8 +18,8 @@ export default function MarketplacePage() {
         title="Loan Marketplace"
       />
 
-      <main className="flex-1">
-        <div className="mx-auto px-4 py-8" style={{ maxWidth: '1085px' }}>
+      <main className="flex-1 pt-14 md:pt-16">
+        <div className="mx-auto px-4 py-8" style={{ maxWidth: "1085px" }}>
           <ExternalMarketplace />
         </div>
       </main>
@@ -28,4 +28,3 @@ export default function MarketplacePage() {
     </div>
   );
 }
-

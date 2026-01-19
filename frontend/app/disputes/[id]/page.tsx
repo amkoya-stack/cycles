@@ -2,12 +2,10 @@
 
 import { useParams } from "next/navigation";
 import { DisputeDetail } from "@/components/dispute/dispute-detail";
-import { useAuth } from "@/hooks/use-auth";
 
 export default function DisputeDetailPage() {
   const params = useParams();
   const disputeId = params.id as string;
-  const { user } = useAuth();
 
   // Get chamaId from dispute (will be fetched in component)
   return (
@@ -16,9 +14,8 @@ export default function DisputeDetailPage() {
       <DisputeDetail
         disputeId={disputeId}
         chamaId="" // Will be fetched from dispute
-        userRole={user?.role || undefined}
+        userRole={undefined}
       />
     </div>
   );
 }
-

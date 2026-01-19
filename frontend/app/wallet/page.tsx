@@ -31,6 +31,7 @@ import {
   CreditCard,
   Info,
   Plus,
+  Sprout,
 } from "lucide-react";
 
 interface Transaction {
@@ -54,7 +55,10 @@ export default function WalletPage() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [userPhone, setUserPhone] = useState<string>("");
+  const [userName, setUserName] = useState<string>("");
+  const [userProfilePhoto, setUserProfilePhoto] = useState<string>("");
   const [coMembers, setCoMembers] = useState<any[]>([]);
+  const [showBalance, setShowBalance] = useState(true);
 
   // Modals
   const [showDeposit, setShowDeposit] = useState(false);
@@ -76,7 +80,7 @@ export default function WalletPage() {
 
   // Polling state
   const [pollingCheckoutId, setPollingCheckoutId] = useState<string | null>(
-    null
+    null,
   );
   const [depositStatus, setDepositStatus] = useState<string>("");
 
@@ -106,6 +110,17 @@ export default function WalletPage() {
     };
   }, [fetchChamas]);
 
+  // Auto-hide balance after 5 seconds
+  useEffect(() => {
+    if (showBalance) {
+      const timer = setTimeout(() => {
+        setShowBalance(false);
+      }, 5000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [showBalance]);
+
   // Pre-populate phone fields when modals open
   useEffect(() => {
     if (userPhone) {
@@ -129,7 +144,7 @@ export default function WalletPage() {
           `http://localhost:3001/api/v1/wallet/deposit/status/${pollingCheckoutId}`,
           {
             headers: { Authorization: `Bearer ${accessToken}` },
-          }
+          },
         );
 
         if (response.ok) {
@@ -147,7 +162,7 @@ export default function WalletPage() {
             alert(
               `Deposit ${data.status}: ${
                 data.result_desc || "Please try again"
-              }`
+              }`,
             );
           }
         }
@@ -179,7 +194,7 @@ export default function WalletPage() {
         setBalance(parseFloat(data.balance));
         // Fetch only transactions to update the list without refetching balance
         fetchTransactions();
-      }
+      },
     );
 
     socketRef.current.on(
@@ -199,7 +214,7 @@ export default function WalletPage() {
           alert("Deposit successful! Your balance has been updated.");
           // Don't fetch wallet data - WebSocket already updated balance
         }
-      }
+      },
     );
 
     socketRef.current.on(
@@ -208,7 +223,7 @@ export default function WalletPage() {
         console.log("Transaction update:", data);
         // Add new transaction to the list instead of refetching everything
         setTransactions((prev) => [data.transaction, ...prev]);
-      }
+      },
     );
 
     socketRef.current.on("disconnect", () => {
@@ -225,7 +240,7 @@ export default function WalletPage() {
         "http://localhost:3001/api/v1/chama/co-members/all",
         {
           headers: { Authorization: `Bearer ${accessToken}` },
-        }
+        },
       );
 
       if (response.ok) {
@@ -246,7 +261,7 @@ export default function WalletPage() {
         "http://localhost:3001/api/v1/wallet/balance",
         {
           headers: { Authorization: `Bearer ${accessToken}` },
-        }
+        },
       );
       if (balanceRes.ok) {
         const balanceData = await balanceRes.json();
@@ -273,7 +288,7 @@ export default function WalletPage() {
         "http://localhost:3001/api/v1/wallet/transactions?limit=50",
         {
           headers: { Authorization: `Bearer ${accessToken}` },
-        }
+        },
       );
       if (txRes.ok) {
         const txData = await txRes.json();
@@ -292,7 +307,7 @@ export default function WalletPage() {
         return;
       }
 
-      // Fetch user profile to get phone number
+      // Fetch user profile to get phone number and name
       const profileRes = await fetch("http://localhost:3001/api/v1/auth/me", {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
@@ -300,6 +315,16 @@ export default function WalletPage() {
         const profileData = await profileRes.json();
         if (profileData.phone) {
           setUserPhone(profileData.phone);
+        }
+        if (profileData.full_name) {
+          setUserName(profileData.full_name);
+        } else if (profileData.first_name || profileData.last_name) {
+          setUserName(
+            `${profileData.first_name || ""} ${profileData.last_name || ""}`.trim(),
+          );
+        }
+        if (profileData.profile_photo_url) {
+          setUserProfilePhoto(profileData.profile_photo_url);
         }
       }
 
@@ -311,7 +336,7 @@ export default function WalletPage() {
     } catch (error) {
       console.error("Failed to fetch wallet data:", error);
       alert(
-        "Failed to connect to wallet service. Please make sure the backend is running."
+        "Failed to connect to wallet service. Please make sure the backend is running.",
       );
     } finally {
       setLoading(false);
@@ -321,7 +346,7 @@ export default function WalletPage() {
   const handleDeposit = async () => {
     if (!userPhone) {
       alert(
-        "Please update your phone number in your profile settings before making a deposit."
+        "Please update your phone number in your profile settings before making a deposit.",
       );
       setShowDeposit(false);
       return;
@@ -343,13 +368,13 @@ export default function WalletPage() {
             phoneNumber: userPhone,
             amount: parseFloat(depositAmount),
           }),
-        }
+        },
       );
 
       const data = await response.json();
       if (response.ok) {
         alert(
-          `STK Push sent! Check your phone (${userPhone}) to complete the transaction.\n${data.customerMessage}`
+          `STK Push sent! Check your phone (${userPhone}) to complete the transaction.\n${data.customerMessage}`,
         );
         setShowDeposit(false);
         setDepositAmount("");
@@ -366,7 +391,7 @@ export default function WalletPage() {
   const handleWithdraw = async () => {
     if (!userPhone) {
       alert(
-        "Please update your phone number in your profile settings before making a withdrawal."
+        "Please update your phone number in your profile settings before making a withdrawal.",
       );
       setShowWithdraw(false);
       return;
@@ -401,13 +426,13 @@ export default function WalletPage() {
             phoneNumber: userPhone,
             amount: parseFloat(withdrawAmount),
           }),
-        }
+        },
       );
 
       const data = await response.json();
       if (response.ok) {
         alert(
-          `Withdrawal initiated! You will receive the money at ${userPhone} shortly.`
+          `Withdrawal initiated! You will receive the money at ${userPhone} shortly.`,
         );
         setShowWithdraw(false);
         setWithdrawAmount("");
@@ -430,7 +455,7 @@ export default function WalletPage() {
       // Get user's primary chama (or let them select one)
       if (!chamas || chamas.length === 0) {
         alert(
-          "You must be a member of a chama to request withdrawal approval. Join a chama first or contact support."
+          "You must be a member of a chama to request withdrawal approval. Join a chama first or contact support.",
         );
         setShowWithdraw(false);
         return;
@@ -451,7 +476,7 @@ export default function WalletPage() {
           description: `Member requesting withdrawal of KES ${withdrawAmount} to M-Pesa ${userPhone}. This withdrawal requires majority approval from chama members.`,
           votingType: "simple_majority",
           deadline: new Date(
-            Date.now() + 3 * 24 * 60 * 60 * 1000
+            Date.now() + 3 * 24 * 60 * 60 * 1000,
           ).toISOString(), // 3 days
           metadata: {
             isWithdrawal: true,
@@ -464,7 +489,7 @@ export default function WalletPage() {
       const data = await response.json();
       if (response.ok) {
         alert(
-          `Withdrawal proposal created successfully!\n\nYour chama members will vote on your withdrawal request. You'll be notified once it's approved.\n\nProposal ID: ${data.id}`
+          `Withdrawal proposal created successfully!\n\nYour chama members will vote on your withdrawal request. You'll be notified once it's approved.\n\nProposal ID: ${data.id}`,
         );
         setShowWithdraw(false);
         setWithdrawAmount("");
@@ -472,7 +497,7 @@ export default function WalletPage() {
         alert(
           `Failed to create withdrawal proposal: ${
             data.message || "Unknown error"
-          }`
+          }`,
         );
       }
     } catch (error) {
@@ -511,7 +536,7 @@ export default function WalletPage() {
             amount: parseFloat(transferAmount),
             description: transferDescription,
           }),
-        }
+        },
       );
 
       const data = await response.json();
@@ -554,7 +579,7 @@ export default function WalletPage() {
             paymentMethod: "wallet",
             notes: transferDescription,
           }),
-        }
+        },
       );
 
       const data = await response.json();
@@ -594,227 +619,257 @@ export default function WalletPage() {
         searchQuery=""
         onSearchChange={() => {}}
       />
-      <div className="min-h-screen bg-gray-50 flex flex-col pt-14 md:pt-16 pb-14">
+      <div className="min-h-screen bg-white flex flex-col pt-14 md:pt-16 pb-14">
         {/* Main Content */}
-        <div className="max-w-4xl mx-auto px-4 py-6 flex-1 w-full">
+        <div className="max-w-4xl mx-auto md:px-4 flex-1 w-full">
           {/* Main Balance Card */}
-          <div className="bg-[#083232] rounded-3xl p-6 mb-6 shadow-lg">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <h2 className="text-white text-lg font-medium">
-                  Your Wallet Balance
-                </h2>
-                <Info className="w-4 h-4 text-white/70" />
+          <div className="bg-[#083232] p-6 py-12">
+            <div className="flex items-start justify-between">
+              <div className="text-white text-3xl md:text-5xl font-bold">
+                {showBalance
+                  ? `Ksh ${balance.toLocaleString("en-KE", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}`
+                  : "Ksh ••••••"}
               </div>
               <button
-                onClick={() => setShowDeposit(true)}
-                className="bg-white text-[#083232] px-4 py-2 rounded-full font-medium text-sm flex items-center gap-2 hover:bg-gray-100 transition-colors"
+                onClick={() => setShowBalance(!showBalance)}
+                className="p-2 hover:bg-white/10 rounded-full transition-colors"
               >
-                <Plus className="w-4 h-4" />
-                Add money
+                {showBalance ? (
+                  <svg
+                    className="w-6 h-6 text-white"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                    />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                    />
+                  </svg>
+                ) : (
+                  <svg
+                    className="w-6 h-6 text-white"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"
+                    />
+                  </svg>
+                )}
               </button>
             </div>
-            <div className="text-white text-4xl md:text-5xl font-bold mb-2">
-              Ksh{" "}
-              {balance.toLocaleString("en-KE", {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })}
-            </div>
-            <div className="text-white/80 text-sm flex items-center gap-1">
-              <span>▲</span>
-              <span>Ksh 200.20 past week</span>
-            </div>
           </div>
 
-          {/* Account Cards Grid */}
-          <div className="grid grid-cols-2 gap-4 mb-6">
-            <div className="bg-white rounded-2xl p-4 shadow-sm">
-              <div className="flex items-center gap-3 mb-2">
-                <Circle className="w-5 h-5 text-[#083232]" />
-                <span className="text-gray-600 text-sm">Wallet</span>
-              </div>
-              <div className="text-gray-900 text-xl font-bold">
-                Ksh{" "}
-                {balance.toLocaleString("en-KE", {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
-              </div>
-            </div>
-
-            <div className="bg-white rounded-2xl p-4 shadow-sm">
-              <div className="flex items-center gap-3 mb-2">
-                <TrendingUp className="w-5 h-5 text-[#083232]" />
-                <span className="text-gray-600 text-sm">Investment</span>
-              </div>
-              <div className="text-gray-900 text-xl font-bold">Ksh 0.00</div>
-            </div>
-
-            <div className="bg-white rounded-2xl p-4 shadow-sm">
-              <div className="flex items-center gap-3 mb-2">
-                <Database className="w-5 h-5 text-[#083232]" />
-                <span className="text-gray-600 text-sm">Savings</span>
-              </div>
-              <div className="text-gray-900 text-xl font-bold">Ksh 0.00</div>
-            </div>
-
-            <div className="bg-white rounded-2xl p-4 shadow-sm">
-              <div className="flex items-center gap-3 mb-2">
-                <CreditCard className="w-5 h-5 text-[#083232]" />
-                <span className="text-gray-600 text-sm">Card</span>
-              </div>
-              <div className="text-gray-900 text-xl font-bold">Ksh 0.00</div>
-            </div>
-          </div>
-
-          {/* Quick Actions */}
-          <div className="bg-white rounded-2xl p-6 mb-6 shadow-sm">
-            <h3 className="text-gray-900 font-semibold mb-4">Quick Actions</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {/* Action Buttons - Plain buttons outside balance card */}
+          <div className="bg-gray-50 px-0 py-6 mb-6 md:px-6">
+            <div className="grid grid-cols-4 gap-0 md:gap-3">
               <button
                 onClick={() => setShowDeposit(true)}
-                className="flex flex-col items-center gap-2 p-4 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors"
+                className="flex flex-col items-center gap-2 cursor-pointer"
               >
-                <div className="w-12 h-12 bg-[#083232] rounded-full flex items-center justify-center">
-                  <Plus className="w-6 h-6 text-white" />
-                </div>
-                <span className="text-sm font-medium text-gray-900">
-                  Deposit
+                <Plus className="w-6 h-6 text-gray-700" />
+                <span className="text-xs text-gray-700 font-medium">
+                  Add money
                 </span>
               </button>
               <button
                 onClick={() => setShowWithdraw(true)}
-                className="flex flex-col items-center gap-2 p-4 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors"
+                className="flex flex-col items-center gap-2 cursor-pointer"
               >
-                <div className="w-12 h-12 bg-[#083232] rounded-full flex items-center justify-center">
-                  <TrendingUp className="w-6 h-6 text-white" />
-                </div>
-                <span className="text-sm font-medium text-gray-900">
+                <TrendingUp className="w-6 h-6 text-gray-700" />
+                <span className="text-xs text-gray-700 font-medium">
                   Withdraw
                 </span>
               </button>
               <button
-                onClick={() => setShowTransfer(true)}
-                className="flex flex-col items-center gap-2 p-4 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors"
+                onClick={() => setShowRequest(true)}
+                className="flex flex-col items-center gap-2 cursor-pointer"
               >
-                <div className="w-12 h-12 bg-[#083232] rounded-full flex items-center justify-center">
-                  <span className="text-white text-xl">→</span>
-                </div>
-                <span className="text-sm font-medium text-gray-900">
-                  Transfer
+                <svg
+                  className="w-6 h-6 text-gray-700"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                  />
+                </svg>
+                <span className="text-xs text-gray-700 font-medium">
+                  Request
                 </span>
               </button>
               <button
-                onClick={() => setShowRequest(true)}
-                className="flex flex-col items-center gap-2 p-4 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors"
+                onClick={() => router.push("/transactions")}
+                className="flex flex-col items-center gap-2 cursor-pointer"
               >
-                <div className="w-12 h-12 bg-[#083232] rounded-full flex items-center justify-center">
-                  <span className="text-white text-xl">←</span>
-                </div>
-                <span className="text-sm font-medium text-gray-900">
-                  Request
+                <svg
+                  className="w-6 h-6 text-gray-700"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                  />
+                </svg>
+                <span className="text-xs text-gray-700 font-medium">
+                  Transactions
                 </span>
               </button>
             </div>
           </div>
-          {/* Deposit Status Indicator */}
-          {depositStatus && (
-            <div className="p-3 sm:p-4 mb-3 sm:mb-4 bg-blue-50 border-blue-200 sm:rounded-lg sm:shadow-md sm:border">
-              <div className="flex items-center gap-2 sm:gap-3">
-                <div className="animate-spin rounded-full h-4 w-4 sm:h-5 sm:w-5 border-b-2 border-blue-600 flex-shrink-0"></div>
-                <div>
-                  <p className="font-medium text-blue-900 text-xs sm:text-sm">
-                    Processing your deposit...
-                  </p>
-                  <p className="text-[10px] sm:text-xs text-blue-700">
-                    Waiting for M-Pesa confirmation. Please complete the payment
-                    on your phone.
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
 
-          {/* Transaction History */}
-          <div className="bg-white rounded-2xl p-6 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-gray-900 font-semibold text-lg">
-                Recent Transactions
-              </h3>
+          {/* Quick Send Section */}
+          <div className="px-4 mb-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              Quick send
+            </h3>
+            <div className="flex items-start gap-4 overflow-x-auto pb-2">
               <button
-                onClick={fetchWalletData}
-                className="text-[#083232] text-sm font-medium hover:underline"
+                onClick={() => setShowTransfer(true)}
+                className="flex-shrink-0 flex flex-col items-center gap-2 group"
               >
-                Refresh
+                <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center group-hover:bg-gray-200 transition-colors">
+                  <Plus className="w-6 h-6 text-gray-700" />
+                </div>
+                <span className="text-xs text-gray-700 font-medium">Add</span>
               </button>
+
+              {coMembers.slice(0, 6).map((member: any) => {
+                const displayName =
+                  member.full_name ||
+                  `${member.first_name || ""} ${member.last_name || ""}`.trim();
+                const firstName =
+                  member.full_name?.split(" ")[0] ||
+                  member.first_name ||
+                  displayName;
+
+                return (
+                  <button
+                    key={member.id}
+                    onClick={() => {
+                      setTransferPhone(member.phone || "");
+                      setSelectedRecipientName(displayName);
+                      setShowTransfer(true);
+                    }}
+                    className="flex-shrink-0 flex flex-col items-center gap-2 group"
+                  >
+                    <div className="w-14 h-14 rounded-full bg-[#083232] overflow-hidden group-hover:opacity-90 transition-opacity">
+                      {member.profile_photo_url ? (
+                        <img
+                          src={member.profile_photo_url}
+                          alt={displayName}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-white font-semibold text-lg">
+                          {firstName.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                    <span className="text-xs text-gray-700 font-medium max-w-[56px] truncate">
+                      {firstName}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Account Cards Grid */}
+          <div className="px-4 md:px-0">
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="md:bg-white md:rounded-2xl p-4 md:shadow-sm md:border">
+                <div className="flex items-center gap-3 mb-2">
+                  <Circle className="w-5 h-5 text-[#083232]" />
+                  <span className="text-gray-600 text-xs md:text-sm">
+                    Pockets
+                  </span>
+                </div>
+                <div className="text-gray-900 text-base md:text-xl font-bold">
+                  Ksh{" "}
+                  {balance.toLocaleString("en-KE", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </div>
+              </div>
+
+              <div className="md:bg-white md:rounded-2xl p-4 md:shadow-sm md:border">
+                <div className="flex items-center gap-3 mb-2">
+                  <Sprout className="w-5 h-5 text-[#083232]" />
+                  <span className="text-gray-600 text-xs md:text-sm">
+                    Investment
+                  </span>
+                </div>
+                <div className="text-gray-900 text-base md:text-xl font-bold">
+                  Ksh 0.00
+                </div>
+              </div>
+
+              <div className="md:bg-white md:rounded-2xl p-4 md:shadow-sm md:border">
+                <div className="flex items-center gap-3 mb-2">
+                  <Database className="w-5 h-5 text-[#083232]" />
+                  <span className="text-gray-600 text-xs md:text-sm">
+                    Loans
+                  </span>
+                </div>
+                <div className="text-gray-900 text-base md:text-xl font-bold">
+                  Ksh 0.00
+                </div>
+              </div>
+
+              <div className="md:bg-white md:rounded-2xl p-4 md:shadow-sm md:border">
+                <div className="flex items-center gap-3 mb-2">
+                  <CreditCard className="w-5 h-5 text-[#083232]" />
+                  <span className="text-gray-600 text-xs md:text-sm">
+                    Cycles
+                  </span>
+                </div>
+                <div className="text-gray-900 text-base md:text-xl font-bold">
+                  Ksh 0.00
+                </div>
+              </div>
             </div>
 
-            {transactions.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                  <History className="w-8 h-8 text-gray-400" />
-                </div>
-                <p className="text-gray-500">No transactions yet</p>
-                <p className="text-sm text-gray-400 mt-1">
-                  Your transaction history will appear here
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {transactions.slice(0, 10).map((transaction) => (
-                  <div
-                    key={transaction.id}
-                    className="flex items-center justify-between p-4 rounded-xl hover:bg-gray-50 transition-colors"
-                  >
-                    <div className="flex items-center gap-3 flex-1">
-                      <div
-                        className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                          transaction.direction === "credit"
-                            ? "bg-green-100"
-                            : "bg-red-100"
-                        }`}
-                      >
-                        <span className="text-lg">
-                          {transaction.direction === "credit" ? "↓" : "↑"}
-                        </span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-gray-900 font-medium truncate">
-                          {transaction.description}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {new Date(transaction.created_at).toLocaleDateString(
-                            "en-KE",
-                            {
-                              month: "short",
-                              day: "numeric",
-                              year: "numeric",
-                            }
-                          )}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p
-                        className={`font-bold ${
-                          transaction.direction === "credit"
-                            ? "text-green-600"
-                            : "text-red-600"
-                        }`}
-                      >
-                        {transaction.direction === "credit" ? "+" : "-"}Ksh{" "}
-                        {transaction.amount.toLocaleString("en-KE", {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}
-                      </p>
-                      <p className="text-xs text-gray-500 capitalize">
-                        {transaction.status}
-                      </p>
-                    </div>
+            {/* Deposit Status Indicator */}
+            {depositStatus && (
+              <div className="p-3 sm:p-4 mb-3 sm:mb-4 bg-blue-50 border-blue-200 sm:rounded-lg sm:shadow-md sm:border">
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <div className="animate-spin rounded-full h-4 w-4 sm:h-5 sm:w-5 border-b-2 border-blue-600 flex-shrink-0"></div>
+                  <div>
+                    <p className="font-medium text-blue-900 text-xs sm:text-sm">
+                      Processing your deposit...
+                    </p>
+                    <p className="text-[10px] sm:text-xs text-blue-700">
+                      Waiting for M-Pesa confirmation. Please complete the
+                      payment on your phone.
+                    </p>
                   </div>
-                ))}
+                </div>
               </div>
             )}
           </div>

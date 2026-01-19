@@ -67,7 +67,10 @@ export default function ChatPage() {
             }
             return true; // Default to enabled if we can't check
           } catch (error) {
-            console.error(`Failed to check chat settings for chama ${chama.id}:`, error);
+            console.error(
+              `Failed to check chat settings for chama ${chama.id}:`,
+              error
+            );
             return true; // Default to enabled on error
           }
         })
@@ -88,7 +91,7 @@ export default function ChatPage() {
 
     const accessToken = localStorage.getItem("accessToken");
     const authenticated = accessToken ? !isTokenExpired(accessToken) : false;
-    
+
     setIsAuthenticated(authenticated);
     setIsChecking(false);
 
@@ -107,7 +110,8 @@ export default function ChatPage() {
         } else {
           toast({
             title: "Chat Disabled",
-            description: "You have disabled chat messages in all your cycles. Please enable chat in Cycle Settings to use this feature.",
+            description:
+              "You have disabled chat messages in all your cycles. Please enable chat in Cycle Settings to use this feature.",
             variant: "destructive",
           });
           // Redirect to home after a short delay
@@ -140,9 +144,15 @@ export default function ChatPage() {
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Hide navbar on mobile when chat is open */}
       <div className="hidden md:block">
-        <HomeNavbar isAuthenticated={isAuthenticated} />
+        <HomeNavbar
+          isAuthenticated={isAuthenticated}
+          showSearchInNav={false}
+          searchQuery=""
+          onSearchChange={() => {}}
+          title="Chat"
+        />
       </div>
-      
+
       <div className="flex-1 pt-0 md:pt-16 pb-0 md:pb-0">
         {/* Chat Modal - Always open on this page */}
         <ChatModal
@@ -155,4 +165,3 @@ export default function ChatPage() {
     </div>
   );
 }
-

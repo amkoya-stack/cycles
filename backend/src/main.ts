@@ -2,18 +2,27 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 /* eslint-disable @typescript-eslint/no-unsafe-call */
 
+console.log('🟢 main.ts file loaded - starting imports...');
+
 // Import polyfills first (must be before any other imports)
 import './polyfills';
+console.log('✅ Polyfills imported');
 
 import { NestFactory } from '@nestjs/core';
+console.log('✅ NestFactory imported');
 import { ValidationPipe, VersioningType } from '@nestjs/common';
+console.log('✅ Common modules imported');
 import { AppModule } from './app.module';
+console.log('✅ AppModule imported');
 import { IdempotencyInterceptor } from './common/interceptors/idempotency.interceptor';
 import { HttpMetricsInterceptor } from './common/interceptors/http-metrics.interceptor';
+console.log('✅ Interceptors imported');
 import { RedisService } from './cache/redis.service';
+console.log('✅ RedisService imported');
 import * as express from 'express';
 import * as path from 'path';
 import * as fs from 'fs';
+console.log('✅ All imports completed');
 
 async function bootstrap() {
   try {
